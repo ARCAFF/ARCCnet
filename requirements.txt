@@ -1,0 +1,2 @@
+-e .
+sunpy[all]

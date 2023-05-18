@@ -16,12 +16,12 @@ The recommended way to install ``arccnet`` is with using `pip`.
 Usage
 =====
 
-Here is a quick example of plotting an AIA image:
+Here is a quick example of importing arccnet:
 
 .. code:: python
 
    >>> import arccnet
-   >>> arcnet.__version__
+   >>> arccnet.__version__
 
 Getting Help
 ============
