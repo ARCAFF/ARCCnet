@@ -14,24 +14,14 @@ RUN printf "I'm building for TARGETPLATFORM=${TARGETPLATFORM}" \
 # --- Environment variables
 ENV REQUIREMENTS_FILE="requirements.txt"
 ENV REQUIREMENTS_FILE_DEV="requirements-dev.txt"
-ENV OUTDIR="/root"
-ENV PROJECT_DIR="/opt/ml"
-ENV PROGRAM_DIR="/opt/program"
-ENV HOME_DIR="/root/ml"
-ENV LOCAL_DEV_DIR="docker"
+ENV PROJECT_DIR="/opt/program"
 ENV DEBIAN_FRONTEND=noninteractive
 
 # --- Dockerfile Metadata
 LABEL Maintainer="ARCAFF Team"
 
 # ------------------------- COPYING AND DIRECTORIES ---------------------------
-
-RUN mkdir -p ${HOME_DIR}
-
-COPY ./src ${PROJECT_DIR}/src
-
-COPY ${REQUIREMENTS_FILE} "${HOME_DIR}/${REQUIREMENTS_FILE}"
-COPY ${REQUIREMENTS_FILE_DEV} "${HOME_DIR}/${REQUIREMENTS_FILE_DEV}"
+# COPY ./ ${PROJECT_DIR}
 
 # --------------------- INSTALLING EXTRA PACKAGES -----------------------------
 # --- Updating packages and installing packages at the system-level
@@ -67,9 +57,6 @@ RUN apt-get -y update && \
 
 # --------------------------- PYTHON-RELATED-LOCAL ----------------------------
 
-RUN pip install --upgrade pip && \
-    python -m pip install -r "${HOME_DIR}/${REQUIREMENTS_FILE_DEV}"
-
 # ----------------------------- PYTHON-SPECIFIC -------------------------------
 
 # Set some environment variables. PYTHONUNBUFFERED keeps Python from
@@ -81,8 +68,6 @@ RUN pip install --upgrade pip && \
 
 ENV PYTHONUNBUFFERED=TRUE
 ENV PYTHONDONTWRITEBYTECODE=TRUE
-ENV PATH="${PROGRAM_DIR}:${PATH}"
-ENV PYTHONPATH="${PROGRAM_DIR}:${PYTHONPATH}"
 
 WORKDIR ${PROJECT_DIR}
 
