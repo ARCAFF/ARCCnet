@@ -1,0 +1,24 @@
+import os
+import logging
+
+from arccnet.data_generation.utils.default_variables import DATA_DIR_LOGS, DATA_LOGFILE
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"  # noqa: E501
+)  # can use `%(pathname)s` to get the full path
+
+# create console handler and set level to INFO
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+
+# create file handler and set level to INFO
+os.makedirs(DATA_DIR_LOGS, exist_ok=True)
+fh = logging.FileHandler(DATA_LOGFILE)  # save to `dv.DATA_LOGFILE`
+fh.setLevel(logging.INFO)
+fh.setFormatter(formatter)
+logger.addHandler(fh)
