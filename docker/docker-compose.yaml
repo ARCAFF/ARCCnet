@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  # --- Service used for local development
+  local-dev:
+    # Building the local image
+    build:
+      context: ../
+      dockerfile: ./docker/local_dev.Dockerfile
+    # Running the local image
+    image: "arccnet-local-dev"
+    container_name: "arccnet-local-dev"
+    environment:
+      DOCKER_BUILDKIT_VALUE: 1
+    volumes:
+      - ${HOME}/.ssh:/root/.ssh
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ..:/opt/program
+    working_dir: /opt/program
+    command: [ "/bin/sleep", "365d" ]
