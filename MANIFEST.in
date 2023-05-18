@@ -16,3 +16,7 @@ exclude .editorconfig
 exclude .zenodo.json
 exclude *.yml
 exclude *.yaml
+exclude template.envrc
+exclude requirements.txt
+exclude requirements-dev.txt
+exclude Makefile
