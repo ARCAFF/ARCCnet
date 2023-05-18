@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+import datetime
 
 import pandas as pd
 
@@ -15,20 +15,16 @@ __all__ = ["SWPCCatalog"]
 
 class SWPCCatalog(BaseCatalog):
     def __init__(self):
-        # -- setting the format template for SWPCC data to be None
         self.text_format_template = None
-
         self._fetched_data = None
-
         self.raw_catalog = None
         self.raw_catalog_missing = None
-
         self.catalog = None
 
     def fetch_data(
         self,
-        start_date: datetime = dv.DATA_START_TIME,
-        end_date: datetime = dv.DATA_END_TIME,
+        start_date: datetime.datetime = dv.DATA_START_TIME,
+        end_date: datetime.datetime = dv.DATA_END_TIME,
     ) -> pd.DataFrame:
         """
         Fetches SWPC active region classification data
@@ -36,8 +32,8 @@ class SWPCCatalog(BaseCatalog):
 
         Parameters
         ----------
-            start_date (datetime): Start date for the data range.
-            end_date (datetime): End date for the data range.
+            start_date (`datetime.datetime`): Start date for the data range.
+            end_date (`datetime.datetime`): End date for the data range.
 
         Returns
         -------
@@ -88,13 +84,17 @@ class SWPCCatalog(BaseCatalog):
 
         """
         srs_dfs = []
-        time_now = datetime.utcnow()
+        time_now = datetime.datetime.utcnow()
 
         if self._fetched_data is None:
             raise NoDataError()
 
         logger.info(">> loading fetched data")
         for filepath in self._fetched_data:
+            # instantiate a `pandas.DataFrame` based on our additional info
+            # and assign to the SRS `pandas.DataFrame` if not empty.
+            # Any issue reading will log the exception as a warning and move
+            # the files to a separate directory, and flag them in the catalog.
             file_info_df = pd.DataFrame(
                 [
                     {
@@ -114,9 +114,8 @@ class SWPCCatalog(BaseCatalog):
                 if self.text_format_template is None:
                     # Setting the format_template
 
-                    cols = srs_df.select_dtypes(include="int").columns
+                    cols = srs_df.select_dtypes(include="int64").columns
                     srs_df[cols] = srs_df[cols].astype("Int64")
-                    self.text_format_template = srs_df.dtypes
                     # self.text_format_template = srs_df.dtypes.replace(
                     #     "int64", "Int64"
                     # )
@@ -126,6 +125,9 @@ class SWPCCatalog(BaseCatalog):
                     # By default the `Number` column from `srs.read_srs` was
                     # being loaded as `int64` not `Int64`
                     # (`Sunspot Number` is `Int64` by default).
+                    cols = srs_df.select_dtypes(include="int32").columns
+                    srs_df[cols] = srs_df[cols].astype("Int32")
+                    self.text_format_template = srs_df.dtypes
                     logger.info(f"SRS format: \n{self.text_format_template}")
 
                 if srs_df.empty:
@@ -159,18 +161,17 @@ class SWPCCatalog(BaseCatalog):
         srs_unable_to_load = df[~df["loaded_successfully"]]
 
         logger.warning(
-            f">> unsuccessful loading of {len(df[~df['loaded_successfully']]['filename'].unique())} (of {len(df['filename'].unique())}) files"
+            f">> unsuccessful loading of {len(srs_unable_to_load['filename'].unique())} (of {len(df['filename'].unique())}) files"
         )
 
         # save the dataframe with all data, and a dataframe with missing data
-        logger.info(f">> saving raw data to `{dv.NOAA_SRS_RAW_DATA_CSV}` " + f"`{dv.NOAA_SRS_RAW_DATA_EXCEPT_CSV}`")
+        logger.info(f">> saving raw data to `{dv.NOAA_SRS_RAW_DATA_CSV}` and `{dv.NOAA_SRS_RAW_DATA_EXCEPT_CSV}`")
         df.to_csv(dv.NOAA_SRS_RAW_DATA_CSV)
         srs_unable_to_load.to_csv(dv.NOAA_SRS_RAW_DATA_EXCEPT_CSV)
 
         if save_html:
-            logger.info(
-                f">> saving raw data to `{dv.NOAA_SRS_RAW_DATA_HTML}` " + f"and `{dv.NOAA_SRS_RAW_DATA_EXCEPT_HTML}`"
-            )
+            logger.info(f">> saving raw data to `{dv.NOAA_SRS_RAW_DATA_HTML}` and `{dv.NOAA_SRS_RAW_DATA_EXCEPT_HTML}`")
+
             # !TODO clean this up
 
             # write df to html
@@ -191,32 +192,27 @@ class SWPCCatalog(BaseCatalog):
     def clean_data(self) -> pd.DataFrame:
         """
         Cleans the SWPC active region classification data
-        by dropping duplicates and sorting by date.
+        by dropping rows with missing values.
+
+        Parameters
+        ----------
+            None
+
+        Returns
+        -------
+            `pandas.DataFrame`: Cleaned catalog
         """
         if self.raw_catalog is not None:
             # Drop rows with NaNs to remove `loaded_successfully` == False
-            self.catalog = self.raw_catalog.dropna()
-
-            valid_values = {
-                "Mag Type": dv.HALE_CLASSES,
-                "Z": dv.MCINTOSH_CLASSES,
-                "ID": ["I"],  # , "IA", "II"],
-            }
-
-            # TEST THE BELOW CODE
-            for col, vals in valid_values.items():
-                result = self.catalog[col].isin(vals)
-                invalid_vals = list(self.catalog.loc[~result, col].unique())
-                if invalid_vals:
-                    msg = f"Invalid `{col}`; `{col}` = {invalid_vals}"
-                    logger.error(msg)
-                    raise ValueError(msg)
-
-            # ensuring that only `ID` == `I`
-            assert self.catalog["ID"].unique()[0] == "I"
-
+            self.catalog = check_srs_values(self.raw_catalog.dropna())
         else:
-            raise NoDataError("No SWPC data found. " + "Please call `fetch_data()` first to obtain the data.")
+            raise NoDataError("No SWPC data found. Please call `fetch_data()` first to obtain the data.")
+
+        #!TODO move to separate method & use default variables
+        self.catalog["datetime"] = [
+            datetime.datetime.strptime(filename.replace("SRS.txt", ""), "%Y%m%d").replace(hour=0, minute=30, second=0)
+            for filename in self.catalog["filename"]
+        ]
 
         return self.catalog
 
@@ -225,3 +221,29 @@ class NoDataError(Exception):
     def __init__(self, message="No data available."):
         super().__init__(message)
         logger.exception(message)
+
+
+def check_srs_values(catalog: pd.DataFrame):
+    """
+    Check column values against known values
+    """
+    valid_values = {
+        "Mag Type": dv.HALE_CLASSES,
+        "Z": dv.MCINTOSH_CLASSES,
+        "ID": ["I"],  # , "IA", "II"], #!TODO import this `pandas.dataframe`
+    }
+
+    # Checking values against the `valid_values` dict.
+    # !TODO implement testing
+    for col, vals in valid_values.items():
+        result = catalog[col].isin(vals)
+        invalid_vals = list(catalog.loc[~result, col].unique())
+        if invalid_vals:
+            msg = f"Invalid `{col}`; `{col}` = {invalid_vals}"
+            logger.error(msg)
+            raise ValueError(msg)
+
+    # ensuring that only `ID` == `I`
+    assert catalog["ID"].unique()[0] == "I"
+
+    return catalog

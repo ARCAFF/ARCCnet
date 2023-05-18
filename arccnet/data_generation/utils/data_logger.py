@@ -16,8 +16,8 @@ ch.setLevel(logging.INFO)
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
-# create file handler and set level to INFO
 os.makedirs(DATA_DIR_LOGS, exist_ok=True)
+# create file handler and set level to INFO
 fh = logging.FileHandler(DATA_LOGFILE)  # save to `dv.DATA_LOGFILE`
 fh.setLevel(logging.INFO)
 fh.setFormatter(formatter)
