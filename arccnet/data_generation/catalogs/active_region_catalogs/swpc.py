@@ -157,6 +157,12 @@ class SWPCCatalog(BaseCatalog):
         if self.text_format_template is not None:
             df = df.astype(self.text_format_template.to_dict())
 
+        #!TODO move to separate method & use default variables
+        df["datetime"] = [
+            datetime.datetime.strptime(filename.replace("SRS.txt", ""), "%Y%m%d").replace(hour=0, minute=30, second=0)
+            for filename in df["filename"]
+        ]
+
         # extract subset of data that wasn't loaded successfully
         srs_unable_to_load = df[~df["loaded_successfully"]]
 
@@ -208,12 +214,6 @@ class SWPCCatalog(BaseCatalog):
         else:
             raise NoDataError("No SWPC data found. Please call `fetch_data()` first to obtain the data.")
 
-        #!TODO move to separate method & use default variables
-        self.catalog["datetime"] = [
-            datetime.datetime.strptime(filename.replace("SRS.txt", ""), "%Y%m%d").replace(hour=0, minute=30, second=0)
-            for filename in self.catalog["filename"]
-        ]
-
         return self.catalog
 
 
@@ -223,7 +223,7 @@ class NoDataError(Exception):
         logger.exception(message)
 
 
-def check_srs_values(catalog: pd.DataFrame):
+def check_srs_values(catalog: pd.DataFrame) -> pd.DataFrame:
     """
     Check column values against known values
     """
