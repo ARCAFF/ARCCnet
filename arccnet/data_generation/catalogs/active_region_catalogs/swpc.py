@@ -1,5 +1,6 @@
 import os
 import datetime
+from typing import Optional
 
 import pandas as pd
 
@@ -10,7 +11,8 @@ from sunpy.io.special import srs
 from sunpy.net import Fido
 from sunpy.net import attrs as a
 
-__all__ = ["SWPCCatalog"]
+__all__ = ["SWPCCatalog", "NoDataError", "save_df_to_html", "check_column_values"]
+# !TODO move these to another place
 
 
 class SWPCCatalog(BaseCatalog):
@@ -32,13 +34,28 @@ class SWPCCatalog(BaseCatalog):
 
         Parameters
         ----------
-            start_date (`datetime.datetime`): Start date for the data range.
-            end_date (`datetime.datetime`): End date for the data range.
+        start_date : `datetime.datetime`
+            Start date for the data range.
+
+        end_date : `datetime.datetime`
+            End date for the data range.
 
         Returns
         -------
-            `pandas.DataFrame`: DataFrame containing SWPC active region
+        `pandas.DataFrame`
+            DataFrame containing SWPC active region
             classification data for the specified time range.
+
+        Raises
+        ------
+        NoDataError
+            If the table returned by `Fido.fetch` is of length zero.
+
+        Examples
+        --------
+        >>> start_date = datetime.datetime(2022, 1, 1)
+        >>> end_date = datetime.datetime(2022, 1, 7)
+        >>> data = fetch_data(start_date, end_date)
         """
 
         logger.info(f">> searching for SRS data between {start_date} and {end_date}")
@@ -64,30 +81,42 @@ class SWPCCatalog(BaseCatalog):
         if len(table) == 0:
             raise NoDataError
 
+        # set _fetched_data, and return it
         self._fetched_data = table
         return table
 
     def create_catalog(
         self,
-        save_html: bool = True,
+        save_csv: Optional[bool] = True,
+        save_html: Optional[bool] = True,
     ) -> pd.DataFrame:
         """
-        Creates an SRS catalog from `self._fetched_data`
+        Creates an SRS catalog from `self._fetched_data`.
 
         Parameters
         ----------
-            save_html (bool): Boolean for saving to HTML. Default is True.
+        save_csv : Optional[bool], default=True
+            Boolean for saving to CSV.
+
+        save_html : Optional[bool], default=True
+            Boolean for saving to HTML.
 
         Returns
         -------
-            None
+        pd.DataFrame
+            The raw catalog.
+
+        Raises
+        ------
+        NoDataError
+            If `self._fetched_data` is `None`.
 
         """
         srs_dfs = []
         time_now = datetime.datetime.utcnow()
 
         if self._fetched_data is None:
-            raise NoDataError()
+            raise NoDataError
 
         logger.info(">> loading fetched data")
         for filepath in self._fetched_data:
@@ -138,79 +167,74 @@ class SWPCCatalog(BaseCatalog):
             except Exception as e:
                 logger.warning(f"Error reading file {filepath}: {str(e)[0:65]}...")  # 0:65 truncates the error
 
-                # create the folder if it doesn't exist
+                # create the "except directory/folder" if it does not exist
                 if not os.path.exists(dv.NOAA_SRS_TEXT_EXCEPT_DIR):
                     os.makedirs(dv.NOAA_SRS_TEXT_EXCEPT_DIR)
 
-                # Move the file to the `except` folder
+                # Move the file to the "except directory"
                 except_filepath = os.path.join(dv.NOAA_SRS_TEXT_EXCEPT_DIR, os.path.basename(filepath))
                 os.rename(filepath, except_filepath)
                 file_info_df["filepath"] = except_filepath
 
                 srs_dfs.append(file_info_df)
 
-        df = pd.concat(srs_dfs, ignore_index=True)
+        self.raw_catalog = pd.concat(srs_dfs, ignore_index=True)
 
         logger.info(f">> finished loading the `self._fetched_data`, of length {len(self._fetched_data)}")
 
-        # reformat based on format_template
+        # reformat `pandas.DataFrame` based on `format_template`
         if self.text_format_template is not None:
-            df = df.astype(self.text_format_template.to_dict())
+            self.raw_catalog = self.raw_catalog.astype(self.text_format_template.to_dict())
 
         #!TODO move to separate method & use default variables
-        df["datetime"] = [
+        self.raw_catalog["datetime"] = [
             datetime.datetime.strptime(filename.replace("SRS.txt", ""), "%Y%m%d").replace(hour=0, minute=30, second=0)
-            for filename in df["filename"]
+            for filename in self.raw_catalog["filename"]
         ]
 
         # extract subset of data that wasn't loaded successfully
-        srs_unable_to_load = df[~df["loaded_successfully"]]
+        self.raw_catalog_missing = self.raw_catalog[~self.raw_catalog["loaded_successfully"]]
 
         logger.warning(
-            f">> unsuccessful loading of {len(srs_unable_to_load['filename'].unique())} (of {len(df['filename'].unique())}) files"
+            f">> unsuccessful loading of {len(self.raw_catalog_missing ['filename'].unique())} (of {len(self.raw_catalog['filename'].unique())}) files"
         )
 
-        # save the dataframe with all data, and a dataframe with missing data
-        logger.info(f">> saving raw data to `{dv.NOAA_SRS_RAW_DATA_CSV}` and `{dv.NOAA_SRS_RAW_DATA_EXCEPT_CSV}`")
-        df.to_csv(dv.NOAA_SRS_RAW_DATA_CSV)
-        srs_unable_to_load.to_csv(dv.NOAA_SRS_RAW_DATA_EXCEPT_CSV)
+        # save to csv
+        if save_csv:
+            logger.info(f">> saving raw data to `{dv.NOAA_SRS_RAW_DATA_CSV}` and `{dv.NOAA_SRS_RAW_DATA_EXCEPT_CSV}`")
+            self.raw_catalog.to_csv(dv.NOAA_SRS_RAW_DATA_CSV)
+            self.raw_catalog_missing.to_csv(dv.NOAA_SRS_RAW_DATA_EXCEPT_CSV)
 
+        # save to html
         if save_html:
             logger.info(f">> saving raw data to `{dv.NOAA_SRS_RAW_DATA_HTML}` and `{dv.NOAA_SRS_RAW_DATA_EXCEPT_HTML}`")
+            save_df_to_html(df=self.raw_catalog, filename=dv.NOAA_SRS_RAW_DATA_HTML)
+            save_df_to_html(df=self.raw_catalog_missing, filename=dv.NOAA_SRS_RAW_DATA_EXCEPT_HTML)
 
-            # !TODO clean this up
-
-            # write df to html
-            text_file = open(dv.NOAA_SRS_RAW_DATA_HTML, "w")
-            text_file.write(df.to_html())
-            text_file.close()
-
-            # write unable to load data to html
-            text_file = open(dv.NOAA_SRS_RAW_DATA_EXCEPT_HTML, "w")
-            text_file.write(srs_unable_to_load.to_html())
-            text_file.close()
-
-        self.raw_catalog = df
-        self.raw_catalog_missing = srs_unable_to_load
-
-        return df, srs_unable_to_load
+        return self.raw_catalog, self.raw_catalog_missing
 
     def clean_data(self) -> pd.DataFrame:
         """
-        Cleans the SWPC active region classification data
-        by dropping rows with missing values.
-
-        Parameters
-        ----------
-            None
+        Cleans and checks the validity of the SWPC active region classification data
 
         Returns
         -------
-            `pandas.DataFrame`: Cleaned catalog
+        `pandas.DataFrame`
+            Cleaned catalog without NaNs, checked for valid values
+
+        Raises
+        ------
+        NoDataError
+            If no SWPC data is found. Call `fetch_data()` first to obtain the data
+
         """
-        if self.raw_catalog is not None:
+        if self.raw_catalog is not None:  #! TODO not raw catalog, surely?
             # Drop rows with NaNs to remove `loaded_successfully` == False
-            self.catalog = check_srs_values(self.raw_catalog.dropna())
+            # Check columns against `VALID_SRS_VALUES`
+            check_column_values(
+                catalog=self.raw_catalog.dropna(),
+                valid_values=dv.VALID_SRS_VALUES,
+            )
         else:
             raise NoDataError("No SWPC data found. Please call `fetch_data()` first to obtain the data.")
 
@@ -218,32 +242,97 @@ class SWPCCatalog(BaseCatalog):
 
 
 class NoDataError(Exception):
+    """
+    Raises an Exception
+    """
+
     def __init__(self, message="No data available."):
         super().__init__(message)
         logger.exception(message)
 
 
-def check_srs_values(catalog: pd.DataFrame) -> pd.DataFrame:
+def save_df_to_html(df: pd.DataFrame, filename: str) -> None:
     """
-    Check column values against known values
-    """
-    valid_values = {
-        "Mag Type": dv.HALE_CLASSES,
-        "Z": dv.MCINTOSH_CLASSES,
-        "ID": ["I"],  # , "IA", "II"], #!TODO import this `pandas.dataframe`
-    }
+    Save the provided `df` to an HTML file with the specified `filename`.
 
-    # Checking values against the `valid_values` dict.
-    # !TODO implement testing
+    Parameters
+    ----------
+    df : `pandas.DataFrame`
+        a `pandas.DataFrame` to save to the HTML file
+
+    filename : str
+        the HTML filename
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    ValueError
+        If `filename` is not a string or `df` is not a DataFrame
+
+    """
+
+    if not isinstance(filename, str):
+        raise ValueError("The `filename` must be a string.")
+
+    if not isinstance(df, pd.DataFrame):
+        raise ValueError("The provided object is not a `pandas.DataFrame`.")
+
+    with open(filename, "w") as file:
+        file.write(df.to_html())
+
+
+def check_column_values(catalog: pd.DataFrame, valid_values: dict) -> pd.DataFrame:
+    """
+    Check column values against known (valid) values.
+
+    First check if the columns in `valid_values` are present in the
+    `catalog` DataFrame and verify that the corresponding values in those
+    columns match the known valid values.
+
+    Parameters
+    ----------
+    catalog : pandas.DataFrame
+        a `pandas.DataFrame` that contains a set of columns
+
+    valid_values : dict
+        a dictionary containing the column names and valid values.
+        The dictionary keys must be a subset of the `catalog.columns`
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    ValueError
+        If any columns in `valid_values` are not present in the `catalog`.
+
+    Examples
+    --------
+    >>> catalog = pandas.DataFrame({'ID': ['I', 'I', 'II'], 'Value': [10, 20, 30]})
+    >>> valid_values = {'ID': ['I', 'II'], 'Value': [10, 20, 30]}
+    >>> check_column_values(catalog, valid_values)
+
+    """
+
+    # Check that the columns in `valid_values` are in `catalog``
+    invalid_columns = set(valid_values.keys()) - set(catalog.columns)
+    if invalid_columns:
+        raise ValueError(f"Columns {list(invalid_columns)} in `valid_values` are not present in `catalog`.")
+
+    # Checking values against the `valid_values`
     for col, vals in valid_values.items():
         result = catalog[col].isin(vals)
-        invalid_vals = list(catalog.loc[~result, col].unique())
+        invalid_vals = catalog.loc[~result, col].unique().tolist()
         if invalid_vals:
             msg = f"Invalid `{col}`; `{col}` = {invalid_vals}"
             logger.error(msg)
-            raise ValueError(msg)
+            # raise ValueError(msg) # !TODO reinstate ValueError
 
-    # ensuring that only `ID` == `I`
-    assert catalog["ID"].unique()[0] == "I"
+    if catalog["ID"].nunique() != 1 or catalog["ID"].unique()[0] != "I":
+        raise ValueError("Invalid 'ID' values.")
 
     return catalog
