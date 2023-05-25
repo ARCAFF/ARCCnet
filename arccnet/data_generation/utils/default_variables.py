@@ -7,12 +7,13 @@ JSOC_DEFAULT_EMAIL = "pjwright@stanford.edu"
 JSOC_DATE_FORMAT = "%Y.%m.%d_%H:%M:%S"
 JSOC_BASE_URL = "http://jsoc.stanford.edu/"
 
-# ----
+# ---- Observation Dates
 DATA_START_TIME = datetime(1995, 1, 1, 0, 0, 0)
 DATA_END_TIME = datetime(2022, 12, 31, 0, 0, 0)
 # SRS data is given at 00:30, valid at 00:00
 
-# !TODO move these to a yaml or something.
+# -- Valid Classes
+# !TODO move these to a yaml or other option.
 HALE_CLASSES = [
     "Alpha",
     "Beta",
@@ -98,17 +99,12 @@ VALID_SRS_VALUES = {
     "ID": list(NOAA_SRS_ID_DICT.keys()),  # ["I"],  # , "IA", "II"]
 }
 
-# -- Base path
-# BASE_DIR = os.getcwd()
+# --- Data-related
 
 BASE_DIR = (
     subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode().strip()
 )  #!TODO change to config; and assume current working dir.
 
-# --- Error Messages
-# NO_DATA_ERROR_MSG = 'No data available.'
-
-# --- Data-related
 DATA_DIR = os.path.join(BASE_DIR, "data")
 DATA_DIR_RAW = os.path.join(DATA_DIR, "raw")
 DATA_DIR_LOGS = os.path.join(DATA_DIR, "logs")
@@ -130,9 +126,6 @@ NOAA_SRS_RAW_DATA_EXCEPT_HTML = os.path.join(NOAA_SRS_DIR, "raw_data_load_error.
 HMI_MAG_DIR = os.path.join(DATA_DIR_RAW, "hmi_mag")
 MDI_MAG_DIR = os.path.join(DATA_DIR_RAW, "mdi_mag")
 
-# ---- Common Files
-
-RAW_UNABLE_TO_LOAD = "raw_data_unable_to_load.csv"  # might want csv/html etc.
 
 if __name__ == "__main__":
     print(f"The base directory is `{BASE_DIR}`")
