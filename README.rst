@@ -11,7 +11,7 @@ The recommended way to install ``arccnet`` is with using `pip`.
 
 .. code:: bash
 
-    $ pip install pip install git+https://github.com/ARCAFF/ARCCnet.git
+    $ pip install git+https://github.com/ARCAFF/ARCCnet.git
 
 Usage
 =====
