@@ -16,6 +16,50 @@ __all__ = ["SWPCCatalog", "NoDataError", "save_df_to_html", "check_column_values
 
 
 class SWPCCatalog(BaseCatalog):
+    """
+    SWPCCatalog is a class for fetching and processing SWPC active region
+    classification data.
+
+    It provides methods to fetch data from SWPC, create a catalog from the
+    fetched data, clean and validate the catalog, and perform other related
+    operations.
+
+    Attributes
+    ----------
+    text_format_template : None or `pandas.Series`
+        The template defining the expected data types for each column in the
+        catalog. Initially set to None and later populated based on the
+        fetched data.
+
+    _fetched_data : None or `sunpy.net.fido.results.QueryResponse`
+        The fetched SWPC data. Initially set to None.
+
+    raw_catalog : None or `pandas.DataFrame`
+        The raw catalog created from the fetched data. Initially set to None.
+
+    raw_catalog_missing : None or `pandas.DataFrame`
+        The subset of the raw catalog that contains data files that were not
+        loaded successfully. Initially set to None.
+
+    catalog : None or `pandas.DataFrame`
+        The cleaned catalog without NaN values and checked for valid values.
+        Initially set to None.
+
+    Methods
+    -------
+    fetch_data(start_date=DATA_START_TIME, end_date=DATA_END_TIME)
+        Fetches SWPC active region classification data for the specified time
+        range.
+
+    create_catalog(save_csv=True, save_html=True)
+        Creates an SRS catalog from the fetched data.
+
+    clean_data()
+        Cleans and checks the validity of the SWPC active region classification
+        data.
+
+    """
+
     def __init__(self):
         self.text_format_template = None
         self._fetched_data = None
