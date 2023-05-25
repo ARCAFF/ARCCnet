@@ -8,52 +8,77 @@ __all__ = ["DataManager"]
 
 
 class DataManager:
+    """
+    Main data management class.
+
+    This class instantiates and handles data acquisition for the individual instruments
+    """
+
     def __init__(
         self,
         start_date: datetime = dv.DATA_START_TIME,
         end_date: datetime = dv.DATA_END_TIME,
-        # data_path: str = dv.BASE_DIR,
     ):
-        # set dates
         self.start_date = start_date
         self.end_date = end_date
 
-        # !TODO implement this shit.
-        # dv.BASE_DIR = data_path
-        # print(dv.BASE_DIR)
-        # if not os.path.exists(data_path):
-        #     os.makedirs(data_path)
-
-        logger.info(f"Instantiated `DataManager` for {self.start_date}, {self.end_date}")
+        logger.info(f"Instantiated `DataManager` for {self.start_date} -> {self.end_date}")
 
         # instantiate classes
-        # self.hmi = HMIMagnetogram()
-        # self.mdi = MDIMagnetogram()
         self.swpc = SWPCCatalog()
 
+        # 1. fetch metadata
         logger.info(">> Fetching Data")
-        self.catalog, self.catalog_missing = self.fetch_data(self.start_date, self.end_date)
-        logger.info(f"\n{self.catalog}")
+        self.srs_raw, self.srs_raw_missing = self.fetch_metadata()
+        logger.info(f"\n{self.srs_raw}")
 
+        # 2. clean data
         logger.info(">> Cleaning Data")
-        self.clean_catalog = self.clean_data()
-        logger.info(f"\n{self.clean_catalog}")
-        logger.info(">> Execution completed successfully ")
+        self.srs_clean = self.clean_data()
+        logger.info(f"\n{self.srs_clean}")
 
-    def fetch_data(self, start_date, end_date):
-        _ = self.swpc.fetch_data(start_date, end_date)
-        # create catalog
-        c, cm = self.swpc.create_catalog()
-        return c, cm
+        # 3. merge data sources
+        self.merged_data = self.merge_data_sources()
+
+        # 4. download image data
+        # ...
+
+        logger.info(">> Execution completed successfully")
+
+    def fetch_metadata(self):
+        """
+        method to fetch and return data from various sources
+        """
+
+        # download the txt files and create an SRS catalog
+        _ = self.swpc.fetch_data(self.start_date, self.end_date)
+        srs_raw, srs_raw_missing = self.swpc.create_catalog()
+
+        # HMI & MDI
+
+        return srs_raw, srs_raw_missing
 
     def clean_data(self):
-        swpc_clean = self.swpc.clean_data
-        return swpc_clean
+        """
+        clean data from each instrument
+        """
 
-    def combine_data(self):
+        # clean the raw SRS catalog
+        srs_clean = self.swpc.clean_data()
+
+        # clean the raw HMI/MDI catalogs
+        # ...
+
+        return srs_clean
+
+    def merge_data_sources(self):
+        """
+        method to merge the data sources
+        """
+        # merge `pd.DataFrames`, for example
         pass
 
 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
-    dm = DataManager(dv.DATA_START_TIME, dv.DATA_END_TIME)
+    _ = DataManager(dv.DATA_START_TIME, dv.DATA_END_TIME)
