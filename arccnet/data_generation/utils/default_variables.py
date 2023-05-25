@@ -4,13 +4,15 @@ from datetime import datetime
 
 # ---- JSOC
 JSOC_DEFAULT_EMAIL = "pjwright@stanford.edu"
-# JSOC_DATE_FORMAT
+JSOC_DATE_FORMAT = "%Y.%m.%d_%H:%M:%S"
+JSOC_BASE_URL = "http://jsoc.stanford.edu/"
 
 # ----
 # DATA_START_TIME = datetime(1995, 1, 1)
-DATA_START_TIME = datetime(2010, 1, 1)
-DATA_END_TIME = datetime(2022, 12, 30)
+DATA_START_TIME = datetime(1995, 1, 1, 0, 30, 0)
+DATA_END_TIME = datetime(2022, 12, 30, 0, 30, 0)
 
+# !TODO move these to a yaml or something.
 HALE_CLASSES = [
     "Alpha",
     "Beta",
@@ -88,6 +90,12 @@ NOAA_SRS_ID_DICT = {
     "I": "Regions with Sunspots",
     "IA": "H-alpha Plages without Spots",
     "II": "Regions Due to Return",
+}
+
+VALID_SRS_VALUES = {
+    "Mag Type": HALE_CLASSES,
+    "Z": MCINTOSH_CLASSES,  # https://www.cv-helios.net/cvzmval.html
+    "ID": list(NOAA_SRS_ID_DICT.keys()),  # ["I"],  # , "IA", "II"]
 }
 
 # -- Base path
