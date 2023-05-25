@@ -8,9 +8,9 @@ JSOC_DATE_FORMAT = "%Y.%m.%d_%H:%M:%S"
 JSOC_BASE_URL = "http://jsoc.stanford.edu/"
 
 # ----
-# DATA_START_TIME = datetime(1995, 1, 1)
-DATA_START_TIME = datetime(1995, 1, 1, 0, 30, 0)
-DATA_END_TIME = datetime(2022, 12, 30, 0, 30, 0)
+DATA_START_TIME = datetime(1995, 1, 1, 0, 0, 0)
+DATA_END_TIME = datetime(2022, 12, 31, 0, 0, 0)
+# SRS data is given at 00:30, valid at 00:00
 
 # !TODO move these to a yaml or something.
 HALE_CLASSES = [
