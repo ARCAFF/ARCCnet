@@ -28,17 +28,17 @@ class DataManager:
         self.swpc = SWPCCatalog()
 
         # 1. fetch metadata
-        logger.info(">> Fetching Data")
+        logger.info(">> Fetching Metadata")
         self.srs_raw, self.srs_raw_missing = self.fetch_metadata()
         logger.info(f"\n{self.srs_raw}")
 
-        # 2. clean data
-        logger.info(">> Cleaning Data")
-        self.srs_clean = self.clean_data()
+        # 2. clean metadata
+        logger.info(">> Cleaning Metadata")
+        self.srs_clean = self.clean_metadata()
         logger.info(f"\n{self.srs_clean}")
 
-        # 3. merge data sources
-        self.merged_data = self.merge_data_sources()
+        # 3. merge metadata sources
+        self.merged_data = self.merge_metadata_sources()
 
         # 4. download image data
         # ...
@@ -58,20 +58,20 @@ class DataManager:
 
         return srs_raw, srs_raw_missing
 
-    def clean_data(self):
+    def clean_metadata(self):
         """
         clean data from each instrument
         """
 
         # clean the raw SRS catalog
-        srs_clean = self.swpc.clean_data()
+        srs_clean = self.swpc.clean_catalog()
 
         # clean the raw HMI/MDI catalogs
         # ...
 
         return srs_clean
 
-    def merge_data_sources(self):
+    def merge_metadata_sources(self):
         """
         method to merge the data sources
         """
