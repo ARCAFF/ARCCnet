@@ -50,6 +50,13 @@ To set up a development environment for ``arccnet``, follow these steps:
       $ git add .
       $ git commit -m "Your commit message"
 
+6. **Running Tests** (Optional): Running tests, and generate a html report
+
+   .. code-block:: bash
+
+      $ pytest --cov=arccnet tests/
+      $ coverage html
+
 6. **Pushing the Branch**: To push your branch to the remote repository on GitHub, use the following command:
 
    .. code-block:: bash

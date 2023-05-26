@@ -94,11 +94,6 @@ class SWPCCatalog(BaseCatalog):
         NoDataError
             If the table returned by `Fido.fetch` is of length zero.
 
-        Examples
-        --------
-        >>> start_date = datetime.datetime(2022, 1, 1)
-        >>> end_date = datetime.datetime(2022, 1, 7)
-        >>> data = fetch_data(start_date, end_date)
         """
 
         logger.info(f">> searching for SRS data between {start_date} and {end_date}")
