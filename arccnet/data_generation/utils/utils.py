@@ -38,7 +38,7 @@ def save_df_to_html(df: pd.DataFrame, filename: str) -> None:
         file.write(df.to_html())
 
 
-def check_column_values(catalog: pd.DataFrame, valid_values: dict) -> pd.DataFrame:
+def check_column_values(catalog: pd.DataFrame, valid_values: dict, return_catalog=True) -> pd.DataFrame:
     """
     Check column values against known (valid) values.
 
@@ -55,6 +55,9 @@ def check_column_values(catalog: pd.DataFrame, valid_values: dict) -> pd.DataFra
         a dictionary containing the column names and valid values.
         The dictionary keys must be a subset of the `catalog.columns`
 
+    return_catalog : bool
+        return the catalog? Default is True
+
     Returns
     -------
     None
@@ -66,10 +69,9 @@ def check_column_values(catalog: pd.DataFrame, valid_values: dict) -> pd.DataFra
 
     Examples
     --------
-    >>> catalog = pandas.DataFrame({'ID': ['I', 'I', 'II'], 'Value': [10, 20, 30]})
+    >>> catalog = pd.DataFrame({'ID': ['I', 'I', 'II'], 'Value': [10, 20, 30]})
     >>> valid_values = {'ID': ['I', 'II'], 'Value': [10, 20, 30]}
-    >>> check_column_values(catalog, valid_values)
-
+    >>> check_column_values(catalog, valid_values, return_catalog=False)
     """
 
     # Check that the columns in `valid_values` are in `catalog``
@@ -86,7 +88,8 @@ def check_column_values(catalog: pd.DataFrame, valid_values: dict) -> pd.DataFra
             logger.error(msg)
             # raise ValueError(msg) # !TODO reinstate ValueError
 
-    if catalog["ID"].nunique() != 1 or catalog["ID"].unique()[0] != "I":
-        raise ValueError("Invalid 'ID' values.")
+    # if catalog["ID"].nunique() != 1 or catalog["ID"].unique()[0] != "I":
+    #     raise ValueError("Invalid 'ID' values.")
 
-    return catalog
+    if return_catalog:
+        return catalog
