@@ -1,15 +1,15 @@
 Setting up a Development Environment
 ====================================
 
-To set up a development environment for `ARCCnet`, follow these steps:
+To set up a development environment for ``arccnet``, follow these steps:
 
-1. **Fork the Repository**: Start by forking the `ARCCnet` repository on GitHub. Forking creates a copy of the repository under your GitHub account, allowing you to freely make changes without affecting the original project.
+1. **Fork the Repository**: Start by forking the ``arccnet`` repository on GitHub. Forking creates a copy of the repository under your GitHub account, allowing you to freely make changes without affecting the original project.
 
-2. **Creating a Conda Environment (Optional)**: If you prefer to use Anaconda (herein conda) for managing your development environment, you can create a conda environment specifically for `ARCCnet`:
+2. **Creating a Conda Environment (Optional)**: If you prefer to use Anaconda (herein conda) for managing your development environment, you can create a conda environment specifically for ``arccnet``:
 
    - **Install Conda**: If you haven't installed conda already, follow the installation instructions for your operating system from the official documentation.
 
-   - **Create a Conda Environment**: Use the following command to create a new conda environment for `ARCCnet`, replacing `<environment_name>` with a name of your choice:
+   - **Create a Conda Environment**: Use the following command to create a new conda environment for ``arccnet``, replacing `<environment_name>` with a name of your choice:
 
      .. code-block:: bash
 
@@ -23,7 +23,7 @@ To set up a development environment for `ARCCnet`, follow these steps:
 
      From now on, all the commands you run and packages you install will be within this environment.
 
-3. **Clone the Repository**: After forking and setting up the conda environment, clone the forked repository to your local machine, and install `ARCCnet` in an editable mode using the following commands:
+3. **Clone the Repository**: After forking and setting up the conda environment, clone the forked repository to your local machine, and install ``arccnet`` in an editable mode using the following commands:
 
    .. code-block:: bash
 

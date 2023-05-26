@@ -13,6 +13,22 @@ The recommended way to install ``arccnet`` is with using `pip`.
 
     $ pip install git+https://github.com/ARCAFF/ARCCnet.git
 
+To develop ``arccnet``, first fork the repository, clone the forked repository to your local machine, and install ``arccnet`` in an editable mode using the following commands:
+
+   .. code-block:: bash
+
+      $ git clone https://github.com/<username>/ARCCnet.git
+      $ cd ARCCnet
+      $ pip install -e .[dev]
+
+If you are developing with `zsh` instead of `bash`, the last line should be:
+
+    .. code-block:: zsh
+
+     pip install -e '.[dev]'
+
+For more detailed instructions, see our `contributing guide <https://github.com/ARCAFF/ARCCnet/blob/main/CONTRIBUTING.rst>`__.
+
 Usage
 =====
 
