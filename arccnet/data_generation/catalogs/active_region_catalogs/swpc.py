@@ -7,12 +7,15 @@ import pandas as pd
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.catalogs.base_catalog import BaseCatalog
 from arccnet.data_generation.utils.data_logger import logger
+from arccnet.data_generation.utils.utils import check_column_values, save_df_to_html
 from sunpy.io.special import srs
 from sunpy.net import Fido
 from sunpy.net import attrs as a
 
-__all__ = ["SWPCCatalog", "NoDataError", "save_df_to_html", "check_column_values"]
-# !TODO move these to another place
+__all__ = [
+    "SWPCCatalog",
+    "NoDataError",
+]
 
 
 class SWPCCatalog(BaseCatalog):
@@ -32,18 +35,18 @@ class SWPCCatalog(BaseCatalog):
         fetched data.
 
     _fetched_data : None or `sunpy.net.fido.results.QueryResponse`
-        The fetched SWPC data. Initially set to None.
+        The fetched SWPC data, set by calling `fetch_data()`. Initially set to None.
 
     raw_catalog : None or `pandas.DataFrame`
-        The raw catalog created from the fetched data. Initially set to None.
+        The raw catalog created from the fetched data, set by calling `create_catalog()`. Initially set to None.
 
     raw_catalog_missing : None or `pandas.DataFrame`
         The subset of the raw catalog that contains data files that were not
-        loaded successfully. Initially set to None.
+        loaded successfully, set by calling `create_catalog()`. Initially set to None.
 
     catalog : None or `pandas.DataFrame`
-        The cleaned catalog without NaN values and checked for valid values.
-        Initially set to None.
+        The cleaned catalog without NaN values and checked for valid values,
+        set by calling`clean_data()`. Initially set to None.
 
     Methods
     -------
@@ -57,7 +60,6 @@ class SWPCCatalog(BaseCatalog):
     clean_data()
         Cleans and checks the validity of the SWPC active region classification
         data.
-
     """
 
     def __init__(self):
@@ -133,7 +135,7 @@ class SWPCCatalog(BaseCatalog):
         self,
         save_csv: Optional[bool] = True,
         save_html: Optional[bool] = True,
-    ) -> pd.DataFrame:
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
         Creates an SRS catalog from `self._fetched_data`.
 
@@ -147,8 +149,8 @@ class SWPCCatalog(BaseCatalog):
 
         Returns
         -------
-        pd.DataFrame
-            The raw catalog.
+        Tuple[pd.DataFrame, pd.DataFrame]
+            Tuple containing the raw catalog, and the catalog with missing values.
 
         Raises
         ------
@@ -186,7 +188,6 @@ class SWPCCatalog(BaseCatalog):
 
                 if self.text_format_template is None:
                     # Setting the format_template
-
                     cols = srs_df.select_dtypes(include="int64").columns
                     srs_df[cols] = srs_df[cols].astype("Int64")
                     # self.text_format_template = srs_df.dtypes.replace(
@@ -272,11 +273,13 @@ class SWPCCatalog(BaseCatalog):
             If no SWPC data is found. Call `fetch_data()` first to obtain the data
 
         """
-        if self.raw_catalog is not None:  #! TODO not raw catalog, surely?
+        if self.raw_catalog is not None:
             # Drop rows with NaNs to remove `loaded_successfully` == False
             # Check columns against `VALID_SRS_VALUES`
+            self.catalog = self.raw_catalog.dropna()
+
             check_column_values(
-                catalog=self.raw_catalog.dropna(),
+                catalog=self.catalog,
                 valid_values=dv.VALID_SRS_VALUES,
             )
         else:
@@ -287,96 +290,9 @@ class SWPCCatalog(BaseCatalog):
 
 class NoDataError(Exception):
     """
-    Raises an Exception
+    Raises an Exception when no data is available
     """
 
     def __init__(self, message="No data available."):
         super().__init__(message)
         logger.exception(message)
-
-
-def save_df_to_html(df: pd.DataFrame, filename: str) -> None:
-    """
-    Save the provided `df` to an HTML file with the specified `filename`.
-
-    Parameters
-    ----------
-    df : `pandas.DataFrame`
-        a `pandas.DataFrame` to save to the HTML file
-
-    filename : str
-        the HTML filename
-
-    Returns
-    -------
-    None
-
-    Raises
-    ------
-    ValueError
-        If `filename` is not a string or `df` is not a DataFrame
-
-    """
-
-    if not isinstance(filename, str):
-        raise ValueError("The `filename` must be a string.")
-
-    if not isinstance(df, pd.DataFrame):
-        raise ValueError("The provided object is not a `pandas.DataFrame`.")
-
-    with open(filename, "w") as file:
-        file.write(df.to_html())
-
-
-def check_column_values(catalog: pd.DataFrame, valid_values: dict) -> pd.DataFrame:
-    """
-    Check column values against known (valid) values.
-
-    First check if the columns in `valid_values` are present in the
-    `catalog` DataFrame and verify that the corresponding values in those
-    columns match the known valid values.
-
-    Parameters
-    ----------
-    catalog : pandas.DataFrame
-        a `pandas.DataFrame` that contains a set of columns
-
-    valid_values : dict
-        a dictionary containing the column names and valid values.
-        The dictionary keys must be a subset of the `catalog.columns`
-
-    Returns
-    -------
-    None
-
-    Raises
-    ------
-    ValueError
-        If any columns in `valid_values` are not present in the `catalog`.
-
-    Examples
-    --------
-    >>> catalog = pandas.DataFrame({'ID': ['I', 'I', 'II'], 'Value': [10, 20, 30]})
-    >>> valid_values = {'ID': ['I', 'II'], 'Value': [10, 20, 30]}
-    >>> check_column_values(catalog, valid_values)
-
-    """
-
-    # Check that the columns in `valid_values` are in `catalog``
-    invalid_columns = set(valid_values.keys()) - set(catalog.columns)
-    if invalid_columns:
-        raise ValueError(f"Columns {list(invalid_columns)} in `valid_values` are not present in `catalog`.")
-
-    # Checking values against the `valid_values`
-    for col, vals in valid_values.items():
-        result = catalog[col].isin(vals)
-        invalid_vals = catalog.loc[~result, col].unique().tolist()
-        if invalid_vals:
-            msg = f"Invalid `{col}`; `{col}` = {invalid_vals}"
-            logger.error(msg)
-            # raise ValueError(msg) # !TODO reinstate ValueError
-
-    if catalog["ID"].nunique() != 1 or catalog["ID"].unique()[0] != "I":
-        raise ValueError("Invalid 'ID' values.")
-
-    return catalog

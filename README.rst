@@ -26,13 +26,13 @@ Here is a quick example of importing arccnet:
 Getting Help
 ============
 
-For more information or to ask questions about ``arccnet`` or any other SunPy library, check out our `issues <https://github.com/ARCAFF/ARCCnet/issues>__`
+For more information or to ask questions about ``arccnet`` or any other SunPy library, check out our `issues <https://github.com/ARCAFF/ARCCnet/issues>`__.
 
 
 Acknowledging or Citing ``ARCCnet``
 =================================
 
-If you use ``arccnet`` in we would appreciate your `citing it in your publications <https://github.com/ARCAFF/ARCCnet/blob/main/CITATION.rst`__.
+If you use ``arccnet`` in we would appreciate your `citing it in your publications <https://github.com/ARCAFF/ARCCnet/blob/main/CITATION.rst>`__.
 
 Contributing
 ============
