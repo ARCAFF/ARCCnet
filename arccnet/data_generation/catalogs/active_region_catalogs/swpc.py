@@ -12,10 +12,7 @@ from sunpy.io.special import srs
 from sunpy.net import Fido
 from sunpy.net import attrs as a
 
-__all__ = [
-    "SWPCCatalog",
-    "NoDataError",
-]
+__all__ = ["SWPCCatalog", "NoDataError"]
 
 
 class SWPCCatalog(BaseCatalog):
@@ -46,7 +43,7 @@ class SWPCCatalog(BaseCatalog):
 
     catalog : None or `pandas.DataFrame`
         The cleaned catalog without NaN values and checked for valid values,
-        set by calling`clean_data()`. Initially set to None.
+        set by calling `clean_catalog()`. Initially set to None.
 
     Methods
     -------
@@ -57,7 +54,7 @@ class SWPCCatalog(BaseCatalog):
     create_catalog(save_csv=True, save_html=True)
         Creates an SRS catalog from the fetched data.
 
-    clean_data()
+    clean_catalog()
         Cleans and checks the validity of the SWPC active region classification
         data.
     """
@@ -233,8 +230,8 @@ class SWPCCatalog(BaseCatalog):
 
         #!TODO move to separate method & use default variables
         self.raw_catalog["datetime"] = [
-            datetime.datetime.strptime(filename.replace("SRS.txt", ""), "%Y%m%d").replace(hour=0, minute=30, second=0)
-            for filename in self.raw_catalog["filename"]
+            datetime.datetime.strptime(filename.replace("SRS.txt", ""), "%Y%m%d").replace(hour=0, minute=0, second=0)
+            for filename in self.raw_catalog["filename"]  # SRS valid at 00:00:00
         ]
 
         # extract subset of data that wasn't loaded successfully
@@ -258,7 +255,7 @@ class SWPCCatalog(BaseCatalog):
 
         return self.raw_catalog, self.raw_catalog_missing
 
-    def clean_data(self) -> pd.DataFrame:
+    def clean_catalog(self) -> pd.DataFrame:
         """
         Cleans and checks the validity of the SWPC active region classification data
 
@@ -276,14 +273,16 @@ class SWPCCatalog(BaseCatalog):
         if self.raw_catalog is not None:
             # Drop rows with NaNs to remove `loaded_successfully` == False
             # Check columns against `VALID_SRS_VALUES`
-            self.catalog = self.raw_catalog.dropna()
+            self.catalog = self.raw_catalog.dropna().reset_index(drop=True)
 
-            check_column_values(
+            _ = check_column_values(
                 catalog=self.catalog,
                 valid_values=dv.VALID_SRS_VALUES,
             )
         else:
             raise NoDataError("No SWPC data found. Please call `fetch_data()` first to obtain the data.")
+
+        # save to an intermediate location
 
         return self.catalog
 

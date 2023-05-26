@@ -10,15 +10,23 @@ class BaseCatalog(ABC):
     @abstractmethod
     def fetch_data(self):
         """
-        Fetch data from the catalog for a given time range.
+        Fetch data for a given time range.
         This method must be implemented by concrete subclasses.
         """
         raise NotImplementedError
 
     @abstractmethod
-    def clean_data(self):
+    def create_catalog(self):
         """
-        Clean the data in the catalog.
+        create data catalog from fetched data.
+        This method must be implemented by concrete subclasses.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def clean_catalog(self):
+        """
+        Clean the data catalog.
         This method must be implemented by concrete subclasses.
         """
         raise NotImplementedError
