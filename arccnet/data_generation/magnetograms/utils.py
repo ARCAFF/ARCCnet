@@ -29,13 +29,13 @@ def jsoc_to_datetime(date_string: str):
 
     Parameters
     ----------
-    datetime_obj : datetime.datetime
+    date_string : str
         a JSOC format string to convert to datetime object
 
     Returns
     -------
     datetime.datetime
-        ...
+        a datetime object for the provided `date_string`
 
     """
     return datetime.datetime.strptime(date_string, dv.JSOC_DATE_FORMAT)
