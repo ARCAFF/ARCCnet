@@ -107,6 +107,7 @@ BASE_DIR = (
 
 DATA_DIR = os.path.join(BASE_DIR, "data")
 DATA_DIR_RAW = os.path.join(DATA_DIR, "raw")
+DATA_DIR_INTERMEDIATE = os.path.join(DATA_DIR, "intermediate")
 DATA_DIR_LOGS = os.path.join(DATA_DIR, "logs")
 
 DATA_LOGFILE = os.path.join(
@@ -122,6 +123,9 @@ NOAA_SRS_RAW_DATA_EXCEPT_CSV = os.path.join(NOAA_SRS_DIR, "raw_data_load_error.c
 
 NOAA_SRS_RAW_DATA_HTML = os.path.join(NOAA_SRS_DIR, "raw_data.html")
 NOAA_SRS_RAW_DATA_EXCEPT_HTML = os.path.join(NOAA_SRS_DIR, "raw_data_load_error.html")
+
+NOAA_SRS_INTERMEDIATE_DIR = os.path.join(DATA_DIR_INTERMEDIATE, "noaa_srs")
+NOAA_SRS_INTERMEDIATE_DATA_CSV = os.path.join(NOAA_SRS_INTERMEDIATE_DIR, "clean_catalog.csv")
 
 HMI_MAG_DIR = os.path.join(DATA_DIR_RAW, "hmi_mag")
 MDI_MAG_DIR = os.path.join(DATA_DIR_RAW, "mdi_mag")

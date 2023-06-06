@@ -1,8 +1,9 @@
-import os
 import datetime
 from typing import Optional
+from pathlib import Path
 
 import pandas as pd
+import parfive.results
 
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.catalogs.base_catalog import BaseCatalog
@@ -31,7 +32,7 @@ class SWPCCatalog(BaseCatalog):
         catalog. Initially set to None and later populated based on the
         fetched data.
 
-    _fetched_data : None or `sunpy.net.fido.results.QueryResponse`
+    _fetched_data : None or `parfive.results.Results`
         The fetched SWPC data, set by calling `fetch_data()`. Initially set to None.
 
     raw_catalog : None or `pandas.DataFrame`
@@ -70,7 +71,7 @@ class SWPCCatalog(BaseCatalog):
         self,
         start_date: datetime.datetime = dv.DATA_START_TIME,
         end_date: datetime.datetime = dv.DATA_END_TIME,
-    ) -> pd.DataFrame:
+    ) -> parfive.Results:
         """
         Fetches SWPC active region classification data
         for the specified time range.
@@ -85,7 +86,7 @@ class SWPCCatalog(BaseCatalog):
 
         Returns
         -------
-        `pandas.DataFrame`
+        `parfive.results.Results`
             DataFrame containing SWPC active region
             classification data for the specified time range.
 
@@ -158,6 +159,7 @@ class SWPCCatalog(BaseCatalog):
 
         logger.info(">> loading fetched data")
         for filepath in self._fetched_data:
+            filepath = Path(filepath)
             # instantiate a `pandas.DataFrame` based on our additional info
             # and assign to the SRS `pandas.DataFrame` if not empty.
             # Any issue reading will log the exception as a warning and move
@@ -165,8 +167,8 @@ class SWPCCatalog(BaseCatalog):
             file_info_df = pd.DataFrame(
                 [
                     {
-                        "filepath": filepath,
-                        "filename": os.path.basename(filepath),
+                        "filepath": str(filepath),
+                        "filename": filepath.name,
                         "loaded_successfully": False,
                         "catalog_created_on": time_now,
                     }
@@ -202,16 +204,17 @@ class SWPCCatalog(BaseCatalog):
                     srs_dfs.append(srs_df.assign(**file_info_df.iloc[0]))
 
             except Exception as e:
-                logger.warning(f"Error reading file {filepath}: {str(e)[0:65]}...")  # 0:65 truncates the error
+                logger.warning(f"Error reading file {str(filepath)}: {str(e)[0:65]}...")  # 0:65 truncates the error
 
                 # create the "except directory/folder" if it does not exist
-                if not os.path.exists(dv.NOAA_SRS_TEXT_EXCEPT_DIR):
-                    os.makedirs(dv.NOAA_SRS_TEXT_EXCEPT_DIR)
+                directory_path = Path(dv.NOAA_SRS_TEXT_EXCEPT_DIR)
+                if not directory_path.exists():
+                    directory_path.mkdir(parents=True)
 
                 # Move the file to the "except directory"
-                except_filepath = os.path.join(dv.NOAA_SRS_TEXT_EXCEPT_DIR, os.path.basename(filepath))
-                os.rename(filepath, except_filepath)
-                file_info_df["filepath"] = except_filepath
+                except_filepath = directory_path / filepath.name
+                filepath.replace(except_filepath)
+                file_info_df["filepath"] = str(except_filepath)
 
                 srs_dfs.append(file_info_df)
 
@@ -250,9 +253,14 @@ class SWPCCatalog(BaseCatalog):
 
         return self.raw_catalog, self.raw_catalog_missing
 
-    def clean_catalog(self) -> pd.DataFrame:
+    def clean_catalog(self, save_csv: Optional[bool] = True) -> pd.DataFrame:
         """
         Cleans and checks the validity of the SWPC active region classification data
+
+        Parameters
+        ----------
+        save_csv : Optional[bool], default=True
+            Boolean for saving to CSV.
 
         Returns
         -------
@@ -278,6 +286,10 @@ class SWPCCatalog(BaseCatalog):
             raise NoDataError("No SWPC data found. Please call `fetch_data()` first to obtain the data.")
 
         # save to an intermediate location
+        if save_csv:
+            Path(dv.NOAA_SRS_INTERMEDIATE_DIR).mkdir(parents=True, exist_ok=True)
+            logger.info(f">> saving cleaned catalog `{dv.NOAA_SRS_INTERMEDIATE_DATA_CSV}`")
+            self.catalog.to_csv(dv.NOAA_SRS_INTERMEDIATE_DATA_CSV)
 
         return self.catalog
 
