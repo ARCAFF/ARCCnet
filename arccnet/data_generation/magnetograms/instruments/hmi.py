@@ -50,13 +50,15 @@ class HMIMagnetogram(BaseMagnetogram):
         r = self._c.export(magnetogram_string + "{magnetogram}", method="url", protocol="fits")
         # keys["magnetogram_query_string"] = magnetogram_string
 
-        logger.info(len(r.urls), len(keys))  # the naming is different to other data..
-
         #!TODO move to separate method & use default variables
         # keys["datetime"] = [datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ") for date in keys["DATE-OBS"]]
         keys["datetime"] = [
-            pd.to_datetime(date, format="%Y-%m-%dT%H:%M:%S.%fZ", errors="coerce") for date in keys["DATE-OBS"]
+            pd.to_datetime(date, format=dv.HMI_DATE_FORMAT, errors="coerce") for date in keys["DATE-OBS"]
         ]  # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
+
+        logger.info(
+            f"length of `r.urls`: {len(r.urls)}; length of `keys`: {len(keys)}`"
+        )  # the naming is different to other data..
 
         # keys is the keys, with links to the magnetogram
         # r.urls are urls of pure fits files.

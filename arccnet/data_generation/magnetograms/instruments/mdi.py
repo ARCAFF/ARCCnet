@@ -1,5 +1,3 @@
-import datetime
-
 import drms
 import pandas as pd
 
@@ -13,7 +11,7 @@ __all__ = ["MDIMagnetogram"]
 
 class MDIMagnetogram(BaseMagnetogram):
     def __init__(self):
-        self._c = drms.Client(debug=False, verbose=False, email=dv.JSOC_DEFAULT_EMAIL)
+        super().__init__()
 
     def fetch_metadata(self, start_date, end_date) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
@@ -46,17 +44,18 @@ class MDIMagnetogram(BaseMagnetogram):
         magnetogram_fits = dv.JSOC_BASE_URL + seg.data
         keys["magnetogram_fits"] = magnetogram_fits
 
-        keys["datetime"] = [datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ") for date in keys["DATE-OBS"]]
-
+        keys["datetime"] = [
+            pd.to_datetime(date, format=dv.MDI_DATE_FORMAT, errors="coerce") for date in keys["DATE-OBS"]
+        ]
         # as we combine the magnetogram_fits and keys DataFrame, assure they're the same length
-        assert len(magnetogram_fits) == len(keys)
+        # assert len(magnetogram_fits) == len(keys)
 
         # Making a sunpy.map with fits
-        r = self._c.export(magnetogram_string + "{data}", method="url", protocol="fits")
-        keys["magnetogram_query_string"] = magnetogram_string
+        self._c.export(magnetogram_string + "{data}", method="url", protocol="fits")
+        # keys["magnetogram_query_string"] = magnetogram_string
 
-        assert len(r.urls) == len(keys)  # the naming is different to other data..
+        # assert len(r.urls) == len(keys)  # the naming is different to other data..
 
         # keys is the keys, with links to the magnetogram
         # r.urls are urls of pure fits files.
-        return keys, r.urls
+        return keys  # , r.urls

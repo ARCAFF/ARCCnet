@@ -4,7 +4,7 @@ import pandas as pd
 
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.catalogs.active_region_catalogs.swpc import SWPCCatalog
-from arccnet.data_generation.magnetograms.instruments import HMIMagnetogram
+from arccnet.data_generation.magnetograms.instruments import HMIMagnetogram, MDIMagnetogram
 from arccnet.data_generation.utils.data_logger import logger
 
 __all__ = ["DataManager"]
@@ -30,7 +30,7 @@ class DataManager:
         # instantiate classes
         self.swpc = SWPCCatalog()
         self.hmi = HMIMagnetogram()
-        # self.mdi = MDIMagnetogram()
+        self.mdi = MDIMagnetogram()
 
         # 1. fetch metadata
         logger.info(">> Fetching Metadata")
@@ -71,11 +71,11 @@ class DataManager:
         logger.info(
             f"HMI Keys: \n{self.hmi_k[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits']]}"
         )  # the date-obs or date-avg
-        # self.mdi_k, self.mdi_urls = self.mdi.fetch_metadata(self.start_date, self.end_date)
-        # # logger.info(f"MDI Keys: \n{self.mdi_k}")
-        # logger.info(
-        #     f"MDI Keys: \n{self.mdi_k[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits']]}"
-        # )  # the date-obs or date-avg
+        self.mdi_k = self.mdi.fetch_metadata(self.start_date, self.end_date)
+        # logger.info(f"MDI Keys: \n{self.mdi_k}")
+        logger.info(
+            f"MDI Keys: \n{self.mdi_k[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits']]}"
+        )  # the date-obs or date-avg
 
     def clean_metadata(self):
         """
@@ -129,32 +129,27 @@ class DataManager:
             direction="nearest",
         )
 
+        mdi_keys = self.mdi_k[["magnetogram_fits", "datetime"]]
+        hmi_keys = hmi_keys.rename(
+            columns={
+                "datetime": "datetime_mdi",
+                "magnetogram_fits": "magnetogram_fits_mdi",
+            }
+        )
+        self.merged_df = pd.merge_asof(
+            left=self.merged_df,
+            right=mdi_keys,
+            left_on="datetime_srs",
+            right_on="datetime_mdi",
+            suffixes=["_srs2", "_mdi"],
+            tolerance=tolerance,  # HMI is at 720s (12 min) cadence
+            direction="nearest",
+        )
+
         # do we want to wait until we merge with MDI before dropping nans?
-        self.hmi_dropped_rows = self.merged_df.copy()
-        self.merged_df = self.merged_df.dropna(subset=["datetime_srs", "datetime_hmi"])
-        self.hmi_dropped_rows = self.hmi_dropped_rows[~self.hmi_dropped_rows.index.isin(self.merged_df.index)].copy()
-
-        # mdi_keys = self.mdi_k[["magnetogram_fits", "datetime"]]
-        # hmi_keys = hmi_keys.rename(
-        #     columns={
-        #         "datetime": "datetime_mdi",
-        #         "magnetogram_fits": "magnetogram_fits_mdi",
-        #     }
-        # )
-        # self.merged_df = pd.merge_asof(
-        #     left=self.merged_df,
-        #     right=mdi_keys,
-        #     left_on="datetime_srs",
-        #     right_on="datetime_mdi",
-        #     suffixes=["_srs2", "_mdi"],
-        #     tolerance=tolerance,  # HMI is at 720s (12 min) cadence
-        #     direction="nearest",
-        # )
-
-        # # do we want to wait until we merge with MDI before dropping nans?
-        # self.mdi_dropped_rows = self.merged_df.copy()
-        # self.merged_df = self.merged_df.dropna(subset=["datetime_srs", "datetime_hmi"])
-        # self.mdi_dropped_rows = self.mdi_dropped_rows[~self.mdi_dropped_rows.index.isin(self.merged_df.index)].copy()
+        self.dropped_rows = self.merged_df.copy()
+        self.merged_df = self.merged_df.dropna(subset=["datetime_srs", "datetime_hmi", "datetime_mdi"])
+        self.dropped_rows = self.dropped_rows[~self.dropped_rows.index.isin(self.merged_df.index)].copy()
 
         logger.info(f"merged_df: \n{self.merged_df.head()}")
         logger.info(f"dropped_rows: \n{self.hmi_dropped_rows}")
