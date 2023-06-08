@@ -5,7 +5,7 @@ import arccnet.data_generation.utils.default_variables as dv
 __all__ = ["datetime_to_jsoc", "jsoc_to_datetime"]
 
 
-def datetime_to_jsoc(datetime_obj: datetime.datetime):
+def datetime_to_jsoc(datetime_obj: datetime.datetime) -> str:
     """
     jsoc string from datetime object
 
@@ -16,14 +16,14 @@ def datetime_to_jsoc(datetime_obj: datetime.datetime):
 
     Returns
     -------
-    string
+    str
         string of format `dv.JSOC_DATE_FORMAT`
 
     """
     return datetime_obj.strftime(dv.JSOC_DATE_FORMAT)
 
 
-def jsoc_to_datetime(date_string: str):
+def jsoc_to_datetime(date_string: str) -> datetime.datetime:
     """
     datetime object from jsoc string
 

@@ -1,0 +1,2 @@
+from arccnet.data_generation.magnetograms.instruments.hmi import HMIMagnetogram
+from arccnet.data_generation.magnetograms.instruments.mdi import MDIMagnetogram
