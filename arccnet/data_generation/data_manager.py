@@ -21,6 +21,7 @@ class DataManager:
         self,
         start_date: datetime = dv.DATA_START_TIME,
         end_date: datetime = dv.DATA_END_TIME,
+        merge_tolerance: pd.Timedelta = pd.Timedelta("30m"),
     ):
         self.start_date = start_date
         self.end_date = end_date
@@ -43,9 +44,8 @@ class DataManager:
         logger.info(f"\n{self.srs_clean}")
 
         # # 3. merge metadata sources
-        # tol = pd.Timedelta("30m")
-        # logger.info(f">> Merging Metadata with tolerance {tol}")
-        # self.merged_data = self.merge_metadata_sources(tolerance=tol)
+        logger.info(f">> Merging Metadata with tolerance {merge_tolerance}")
+        self.merged_data = self.merge_metadata_sources(tolerance=merge_tolerance)
 
         # 4a. check if image data exists
         # ...
@@ -130,15 +130,17 @@ class DataManager:
         )
 
         mdi_keys = self.mdi_k[["magnetogram_fits", "datetime"]]
-        hmi_keys = hmi_keys.rename(
+        mdi_keys = mdi_keys.rename(
             columns={
                 "datetime": "datetime_mdi",
                 "magnetogram_fits": "magnetogram_fits_mdi",
             }
         )
+        mdi_keys_dropna = mdi_keys.dropna().reset_index(drop=True)
+
         self.merged_df = pd.merge_asof(
             left=self.merged_df,
-            right=mdi_keys,
+            right=mdi_keys_dropna,
             left_on="datetime_srs",
             right_on="datetime_mdi",
             suffixes=["_srs2", "_mdi"],
@@ -148,11 +150,14 @@ class DataManager:
 
         # do we want to wait until we merge with MDI before dropping nans?
         self.dropped_rows = self.merged_df.copy()
-        self.merged_df = self.merged_df.dropna(subset=["datetime_srs", "datetime_hmi", "datetime_mdi"])
+        # self.merged_df = self.merged_df.dropna(subset=["datetime_srs", "datetime_hmi", "datetime_mdi"])
+        self.merged_df = self.merged_df.dropna(subset=["datetime_srs"])
+        self.merged_df = self.merged_df.dropna(subset=["datetime_hmi", "datetime_mdi"], how="all")
         self.dropped_rows = self.dropped_rows[~self.dropped_rows.index.isin(self.merged_df.index)].copy()
 
-        logger.info(f"merged_df: \n{self.merged_df.head()}")
-        logger.info(f"dropped_rows: \n{self.hmi_dropped_rows}")
+        logger.info(f"merged_df: \n{self.merged_df[['datetime_srs', 'datetime_hmi', 'datetime_mdi']]}")
+        logger.info(f"dropped_rows: \n{self.dropped_rows[['datetime_srs', 'datetime_hmi', 'datetime_mdi']]}")
+        logger.info(f"dates dropped: \n{self.dropped_rows['datetime_srs'].unique()}")
 
 
 if __name__ == "__main__":

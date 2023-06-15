@@ -7,12 +7,15 @@ JSOC_DEFAULT_EMAIL = "pjwright@stanford.edu"
 JSOC_DATE_FORMAT = "%Y.%m.%d_%H:%M:%S"
 JSOC_BASE_URL = "http://jsoc.stanford.edu/"
 
+# -- Magnetograms
 MDI_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+MDI_SEG_COL = "data"
 HMI_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+HMI_SEG_COL = "magnetogram"
 
 # ---- Observation Dates
-DATA_START_TIME = datetime(2010, 12, 1, 0, 0, 0)
-DATA_END_TIME = datetime(2012, 12, 31, 0, 0, 0)
+DATA_START_TIME = datetime(2010, 1, 1, 0, 0, 0)
+DATA_END_TIME = datetime(2010, 12, 31, 0, 0, 0)
 # SRS data is given at 00:30, valid at 00:00
 
 # -- Valid Classes

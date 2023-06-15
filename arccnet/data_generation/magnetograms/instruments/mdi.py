@@ -1,10 +1,8 @@
-import drms
-import pandas as pd
+import datetime
 
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.magnetograms.base_magnetogram import BaseMagnetogram
 from arccnet.data_generation.magnetograms.utils import datetime_to_jsoc
-from arccnet.data_generation.utils.data_logger import logger
 
 __all__ = ["MDIMagnetogram"]
 
@@ -13,49 +11,50 @@ class MDIMagnetogram(BaseMagnetogram):
     def __init__(self):
         super().__init__()
 
-    def fetch_metadata(self, start_date, end_date) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="1d") -> str:
         """
-        Get the fulldisk HMI data.
-
         Returns
         -------
-        Tuple[dict, dict]
-            A tuple containing a dictionary of keys (metadata for the HMI image)
-            and a dictionary of segments
+        str:
+            JSOC Query string
         """
-
-        magnetogram_string = (
-            f"mdi.fd_M_96m_lev182[{datetime_to_jsoc(start_date)}-{datetime_to_jsoc(end_date)}@1d]"  # [? QUALITY=0 ?]"
-        )
         # Line-of-sight magnetic field from 30-second observations in full-disc mode,
         # sampled either once in a minute or averaged over five consecutive minute samples.
         # Whether the data are form a single observation or an average of five is given by
         # the value of the keyword INTERVAL, the length of the sampling interval in seconds.
         # The data are acquired as part of the regular observing program.
+        return f"mdi.fd_M_96m_lev182[{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
 
-        logger.info(f">> MDI Query: {magnetogram_string}")
-        keys, seg = self._c.query(magnetogram_string, key=drms.const.all, seg="data")
+    @property
+    def date_format(self) -> str:
+        """
+        Returns
+        -------
+        str:
+            MDI data format string
+        """
+        return dv.MDI_DATE_FORMAT
 
-        # raise error if there are no keys returned
-        if len(keys) == 0:
-            raise ValueError("returns no results!")
+    @property
+    def segment_column_name(self) -> str:
+        """
+        Returns
+        -------
+        str:
+            Column name for the magnetogram
+        """
+        return dv.MDI_SEG_COL
 
-        # Obtain the segments and set into the keys
-        magnetogram_fits = dv.JSOC_BASE_URL + seg.data
-        keys["magnetogram_fits"] = magnetogram_fits
+    @property
+    def metadata_save_location(self) -> str:
+        return dv.MDI_MAG_DIR
 
-        keys["datetime"] = [
-            pd.to_datetime(date, format=dv.MDI_DATE_FORMAT, errors="coerce") for date in keys["DATE-OBS"]
-        ]
-        # as we combine the magnetogram_fits and keys DataFrame, assure they're the same length
-        # assert len(magnetogram_fits) == len(keys)
+    #     # Making a sunpy.map with fits
+    #     # self._c.export(magnetogram_string + "{data}", method="url", protocol="fits")
+    #     # keys["magnetogram_query_string"] = magnetogram_string
 
-        # Making a sunpy.map with fits
-        self._c.export(magnetogram_string + "{data}", method="url", protocol="fits")
-        # keys["magnetogram_query_string"] = magnetogram_string
+    #     # assert len(r.urls) == len(keys)  # the naming is different to other data..
 
-        # assert len(r.urls) == len(keys)  # the naming is different to other data..
-
-        # keys is the keys, with links to the magnetogram
-        # r.urls are urls of pure fits files.
-        return keys  # , r.urls
+    #     # keys is the keys, with links to the magnetogram
+    #     # r.urls are urls of pure fits files.
+    #     return keys  # , r.urls
