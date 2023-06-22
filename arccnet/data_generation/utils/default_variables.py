@@ -5,7 +5,7 @@ from datetime import datetime
 # ---- JSOC
 JSOC_DEFAULT_EMAIL = "pjwright@stanford.edu"
 JSOC_DATE_FORMAT = "%Y.%m.%d_%H:%M:%S"
-JSOC_BASE_URL = "http://jsoc.stanford.edu/"
+JSOC_BASE_URL = "http://jsoc.stanford.edu"
 
 # -- Magnetograms
 MDI_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"

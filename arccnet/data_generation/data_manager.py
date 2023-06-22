@@ -1,7 +1,9 @@
+import os
 from pathlib import Path
 from datetime import datetime
 
 import pandas as pd
+import wget
 
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.catalogs.active_region_catalogs.swpc import SWPCCatalog
@@ -46,13 +48,15 @@ class DataManager:
 
         # # 3. merge metadata sources
         logger.info(f">> Merging Metadata with tolerance {merge_tolerance}")
-        self.merged_data = self.merge_metadata_sources(tolerance=merge_tolerance)
+        self.merge_metadata_sources(tolerance=merge_tolerance)
+
+        logger.info(f">Asdsasdasdasd {self.merged_df} sdfsddfs ")
 
         # 4a. check if image data exists
         # ...
 
         # 4b. download image data
-        self.fetch_magnetograms(self.merged_data)
+        self.fetch_magnetograms(self.merged_df)
 
         logger.info(">> Execution completed successfully")
 
@@ -165,20 +169,38 @@ class DataManager:
             directory_path.mkdir(parents=True)
         self.merged_df.to_csv(dv.MAG_INTERMEDIATE_DATA_CSV)
 
-        return self.merged_df
-
     def fetch_magnetograms(self, mag_dict):
-        directory_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
-        if not directory_path.exists():
-            directory_path.mkdir(parents=True)
+        """
+        ...
+        """
+        base_directory_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
+        if not base_directory_path.exists():
+            base_directory_path.mkdir(parents=True)
 
-        from astropy.io import fits
+        # just HMI for now...
+        my_hmi_list = list(self.merged_df.magnetogram_fits_hmi.dropna().unique())
 
-        fits.getdata(mag_dict.magnetogram_fits)
+        for file_path_og in my_hmi_list:
+            print(file_path_og)
+            file_path = file_path_og.replace("http://jsoc.stanford.edu/", "")
+            print(file_path)
 
-        mag_dict
+            # Create the output directory path by joining the base directory and the file's relative path
+            output_directory = os.path.join(base_directory_path, os.path.dirname(file_path))
+            print(output_directory)
 
-        pass
+            # Create the output directory if it doesn't exist
+            os.makedirs(output_directory, exist_ok=True)
+
+            # Download the file
+            output_path = os.path.join(output_directory, os.path.basename(file_path))
+            print(file_path_og, output_path)
+
+            try:
+                wget.download(file_path_og, out=output_path)
+                print(f"Downloaded: {file_path_og}")
+            except:  # noqa: E722
+                print(f"Failed to download: {file_path_og}")
 
 
 if __name__ == "__main__":
