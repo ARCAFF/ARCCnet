@@ -1,3 +1,4 @@
+from pathlib import Path
 from datetime import datetime
 
 import pandas as pd
@@ -51,7 +52,7 @@ class DataManager:
         # ...
 
         # 4b. download image data
-        # ...
+        self.fetch_magnetograms(self.merged_data)
 
         logger.info(">> Execution completed successfully")
 
@@ -158,6 +159,26 @@ class DataManager:
         logger.info(f"merged_df: \n{self.merged_df[['datetime_srs', 'datetime_hmi', 'datetime_mdi']]}")
         logger.info(f"dropped_rows: \n{self.dropped_rows[['datetime_srs', 'datetime_hmi', 'datetime_mdi']]}")
         logger.info(f"dates dropped: \n{self.dropped_rows['datetime_srs'].unique()}")
+
+        directory_path = Path(dv.MAG_INTERMEDIATE_DIR)
+        if not directory_path.exists():
+            directory_path.mkdir(parents=True)
+        self.merged_df.to_csv(dv.MAG_INTERMEDIATE_DATA_CSV)
+
+        return self.merged_df
+
+    def fetch_magnetograms(self, mag_dict):
+        directory_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
+        if not directory_path.exists():
+            directory_path.mkdir(parents=True)
+
+        from astropy.io import fits
+
+        fits.getdata(mag_dict.magnetogram_fits)
+
+        mag_dict
+
+        pass
 
 
 if __name__ == "__main__":

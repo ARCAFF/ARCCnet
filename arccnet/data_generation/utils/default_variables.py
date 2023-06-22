@@ -136,6 +136,10 @@ NOAA_SRS_INTERMEDIATE_DATA_CSV = os.path.join(NOAA_SRS_INTERMEDIATE_DIR, "clean_
 HMI_MAG_DIR = os.path.join(DATA_DIR_RAW, "hmi_mag")
 MDI_MAG_DIR = os.path.join(DATA_DIR_RAW, "mdi_mag")
 
+MAG_INTERMEDIATE_DIR = os.path.join(DATA_DIR_INTERMEDIATE, "mag")
+MAG_INTERMEDIATE_DATA_CSV = os.path.join(MAG_INTERMEDIATE_DIR, "clean_catalog.csv")
+MAG_INTERMEDIATE_DATA_DIR = os.path.join(MAG_INTERMEDIATE_DIR, "data")
+
 
 if __name__ == "__main__":
     print(f"The base directory is `{BASE_DIR}`")

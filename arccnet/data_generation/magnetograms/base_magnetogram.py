@@ -46,13 +46,13 @@ class BaseMagnetogram(ABC):
         """
 
         q = self.query(start_date, end_date)
-        logger.info(f">> {self._type} Query: {q}")
-        keys, seg = self._c.query(q, key=drms.const.all, seg=self.segment_column_name())
+        logger.info(f">> {self._type()} Query: {q}")
+        keys, seg = self._c.query(q, key=drms.const.all, seg=self.segment_column_name)
         assert len(keys) == len(seg)
         logger.info(f"\t {len(keys)} entries")
 
         # Obtain the segments and set into the keys
-        magnetogram_fits = dv.JSOC_BASE_URL + seg[self.segment_column_name()]
+        magnetogram_fits = dv.JSOC_BASE_URL + seg[self.segment_column_name]
         keys["magnetogram_fits"] = magnetogram_fits
 
         # as we combine the magnetogram_fits and keys DataFrame, assure they're the same length
@@ -69,14 +69,14 @@ class BaseMagnetogram(ABC):
         #!TODO move to separate method & use default variables
         # keys["datetime"] = [datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ") for date in keys["DATE-OBS"]]
         keys["datetime"] = [
-            pd.to_datetime(date, format=self.date_format(), errors="coerce") for date in keys["DATE-OBS"]
+            pd.to_datetime(date, format=self.date_format, errors="coerce") for date in keys["DATE-OBS"]
         ]  # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
 
         # logger.info(
         #     f"length of `r.urls`: {len(r.urls)}; length of `keys`: {len(keys)}`"
         # )  # the naming is different to other data..
 
-        keys.to_csv(self.metadata_save_location())
+        keys.to_csv(self.metadata_save_location)
 
         # keys is the keys, with links to the magnetogram
         # r.urls are urls of pure fits files.
