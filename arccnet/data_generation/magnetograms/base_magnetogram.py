@@ -63,8 +63,17 @@ class BaseMagnetogram(ABC):
             raise ValueError("returns no results!")
 
         # Making a sunpy.map with fits
-        # r = self._c.export(magnetogram_string + "{magnetogram}", method="url", protocol="fits")
-        # keys["magnetogram_query_string"] = magnetogram_string
+        r = self._c.export(q + "{" + self.segment_column_name + "}", method="url", protocol="fits")
+        # trying to get the `record` to something similar to
+        self.r_urls = r.urls.copy()
+        self.r_urls["extracted_record_timestamp"] = self.r_urls["record"].str.extract(r"\[(.*?)\]")
+        # extract record name (think this is close to the T_REC used elsewhere)
+        # !TODO merge on keys['T_REC'] so that there we can later get the files.
+        # !TODO check this...
+        keys = pd.merge(
+            left=keys, right=self.r_urls, left_on="T_REC", right_on="extracted_record_timestamp", how="left"
+        )
+        # ...
 
         #!TODO move to separate method & use default variables
         # keys["datetime"] = [datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ") for date in keys["DATE-OBS"]]

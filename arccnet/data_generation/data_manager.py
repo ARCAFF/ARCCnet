@@ -46,17 +46,15 @@ class DataManager:
         self.clean_metadata()
         logger.info(f"\n{self.srs_clean}")
 
-        # # 3. merge metadata sources
-        logger.info(f">> Merging Metadata with tolerance {merge_tolerance}")
-        self.merge_metadata_sources(tolerance=merge_tolerance)
+        # # # 3. merge metadata sources
+        # logger.info(f">> Merging Metadata with tolerance {merge_tolerance}")
+        # self.merge_metadata_sources(tolerance=merge_tolerance)
 
-        logger.info(f">Asdsasdasdasd {self.merged_df} sdfsddfs ")
+        # # 4a. check if image data exists
+        # # ...
 
-        # 4a. check if image data exists
-        # ...
-
-        # 4b. download image data
-        self.fetch_magnetograms(self.merged_df)
+        # # 4b. download image data
+        # self.fetch_magnetograms(self.merged_df)
 
         logger.info(">> Execution completed successfully")
 
@@ -74,12 +72,12 @@ class DataManager:
         self.hmi_k = self.hmi.fetch_metadata(self.start_date, self.end_date)
         # logger.info(f"HMI Keys: \n{self.hmi_k}")
         logger.info(
-            f"HMI Keys: \n{self.hmi_k[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits']]}"
+            f"HMI Keys: \n{self.hmi_k[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
         )  # the date-obs or date-avg
         self.mdi_k = self.mdi.fetch_metadata(self.start_date, self.end_date)
         # logger.info(f"MDI Keys: \n{self.mdi_k}")
         logger.info(
-            f"MDI Keys: \n{self.mdi_k[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits']]}"
+            f"MDI Keys: \n{self.mdi_k[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
         )  # the date-obs or date-avg
 
     def clean_metadata(self):
@@ -106,11 +104,12 @@ class DataManager:
         # !TODO do a check for certain keys (no duplicates...)
         # extract only the relevant HMI keys, and rename
         # (should probably do this earlier on)
-        hmi_keys = self.hmi_k[["magnetogram_fits", "datetime"]]
+        hmi_keys = self.hmi_k[["magnetogram_fits", "datetime", "url"]]
         hmi_keys = hmi_keys.rename(
             columns={
                 "datetime": "datetime_hmi",
                 "magnetogram_fits": "magnetogram_fits_hmi",
+                "url": "url_hmi",
             }
         )
         hmi_keys_dropna = hmi_keys.dropna().reset_index(drop=True)
@@ -134,11 +133,12 @@ class DataManager:
             direction="nearest",
         )
 
-        mdi_keys = self.mdi_k[["magnetogram_fits", "datetime"]]
+        mdi_keys = self.mdi_k[["magnetogram_fits", "datetime", "url"]]
         mdi_keys = mdi_keys.rename(
             columns={
                 "datetime": "datetime_mdi",
                 "magnetogram_fits": "magnetogram_fits_mdi",
+                "url": "url_mdi",
             }
         )
         mdi_keys_dropna = mdi_keys.dropna().reset_index(drop=True)
@@ -198,9 +198,9 @@ class DataManager:
 
             try:
                 wget.download(file_path_og, out=output_path)
-                print(f"Downloaded: {file_path_og}")
+                print(f"\nDownloaded: {file_path_og}")
             except:  # noqa: E722
-                print(f"Failed to download: {file_path_og}")
+                print(f"\nFailed to download: {file_path_og}")
 
 
 if __name__ == "__main__":
