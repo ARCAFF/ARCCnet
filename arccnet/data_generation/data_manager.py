@@ -45,12 +45,12 @@ class DataManager:
         self.clean_metadata()
         logger.info(f"\n{self.srs_clean}")
 
-        # # # 3. merge metadata sources
+        # 3. merge metadata sources
         # logger.info(f">> Merging Metadata with tolerance {merge_tolerance}")
         self.merge_metadata_sources(tolerance=merge_tolerance)
 
-        # # 4a. check if image data exists
-        # # ...
+        # 4a. check if image data exists
+        # !TODO implement this
 
         # # 4b. download image data
         _ = self.fetch_magnetograms(self.merged_df)
@@ -86,9 +86,6 @@ class DataManager:
 
         # clean the raw SRS catalog
         self.srs_clean = self.swpc.clean_catalog()
-
-        # clean the raw HMI/MDI catalogs
-        # ...
 
     def merge_metadata_sources(
         self,
