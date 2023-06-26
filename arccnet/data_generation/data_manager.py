@@ -1,14 +1,13 @@
-import os
 from pathlib import Path
 from datetime import datetime
 
 import pandas as pd
-import wget
 
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.catalogs.active_region_catalogs.swpc import SWPCCatalog
 from arccnet.data_generation.magnetograms.instruments import HMIMagnetogram, MDIMagnetogram
 from arccnet.data_generation.utils.data_logger import logger
+from sunpy.util.parfive_helpers import Downloader
 
 __all__ = ["DataManager"]
 
@@ -48,13 +47,13 @@ class DataManager:
 
         # # # 3. merge metadata sources
         # logger.info(f">> Merging Metadata with tolerance {merge_tolerance}")
-        # self.merge_metadata_sources(tolerance=merge_tolerance)
+        self.merge_metadata_sources(tolerance=merge_tolerance)
 
         # # 4a. check if image data exists
         # # ...
 
         # # 4b. download image data
-        # self.fetch_magnetograms(self.merged_df)
+        _ = self.fetch_magnetograms(self.merged_df)
 
         logger.info(">> Execution completed successfully")
 
@@ -169,38 +168,38 @@ class DataManager:
             directory_path.mkdir(parents=True)
         self.merged_df.to_csv(dv.MAG_INTERMEDIATE_DATA_CSV)
 
-    def fetch_magnetograms(self, mag_dict):
+    def fetch_magnetograms(self):
         """
-        ...
+        download the magnetograms using parfive, and return the list of files
         """
         base_directory_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
         if not base_directory_path.exists():
             base_directory_path.mkdir(parents=True)
 
-        # just HMI for now...
-        my_hmi_list = list(self.merged_df.magnetogram_fits_hmi.dropna().unique())
+        # HMI/MDI
+        # !TODO change this so that it's not as specific as `url_hmi`, `url_mdi`
+        urls = list(self.merged_df.url_hmi.dropna().unique()) + list(self.merged_df.url_mdi.dropna().unique())
 
-        for file_path_og in my_hmi_list:
-            print(file_path_og)
-            file_path = file_path_og.replace("http://jsoc.stanford.edu/", "")
-            print(file_path)
+        # Only 1 parallel connection (`max_conn`, `max_splits`)
+        # https://docs.sunpy.org/en/stable/_modules/sunpy/net/jsoc/jsoc.html#JSOCClient
+        downloader = Downloader(
+            max_conn=1,
+            progress=True,
+            overwrite=False,
+            max_splits=1,
+        )
 
-            # Create the output directory path by joining the base directory and the file's relative path
-            output_directory = os.path.join(base_directory_path, os.path.dirname(file_path))
-            print(output_directory)
+        paths = []
+        for url in urls:
+            filename = url.split("/")[-1]  # Extract the filename from the URL
+            file_path = base_directory_path / filename  # Join the path and filename
+            paths.append(file_path)
 
-            # Create the output directory if it doesn't exist
-            os.makedirs(output_directory, exist_ok=True)
+        for aurl, fname in zip(urls, paths):
+            downloader.enqueue_file(aurl, filename=fname, max_splits=1)
 
-            # Download the file
-            output_path = os.path.join(output_directory, os.path.basename(file_path))
-            print(file_path_og, output_path)
-
-            try:
-                wget.download(file_path_og, out=output_path)
-                print(f"\nDownloaded: {file_path_og}")
-            except:  # noqa: E722
-                print(f"\nFailed to download: {file_path_og}")
+        results = downloader.download()
+        return results
 
 
 if __name__ == "__main__":
