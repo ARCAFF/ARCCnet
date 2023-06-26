@@ -99,18 +99,13 @@ class DataManager:
         """
 
         # merge srs_clean and hmi
+        mag_cols = ["magnetogram_fits", "datetime", "url"]
 
         # !TODO do a check for certain keys (no duplicates...)
         # extract only the relevant HMI keys, and rename
         # (should probably do this earlier on)
-        hmi_keys = self.hmi_k[["magnetogram_fits", "datetime", "url"]]
-        hmi_keys = hmi_keys.rename(
-            columns={
-                "datetime": "datetime_hmi",
-                "magnetogram_fits": "magnetogram_fits_hmi",
-                "url": "url_hmi",
-            }
-        )
+        hmi_keys = self.hmi_k[mag_cols]
+        hmi_keys = hmi_keys.add_suffix("_hmi")
         hmi_keys_dropna = hmi_keys.dropna().reset_index(drop=True)
 
         # both `pd.DataFrame` must be sorted based on the key !
@@ -132,14 +127,8 @@ class DataManager:
             direction="nearest",
         )
 
-        mdi_keys = self.mdi_k[["magnetogram_fits", "datetime", "url"]]
-        mdi_keys = mdi_keys.rename(
-            columns={
-                "datetime": "datetime_mdi",
-                "magnetogram_fits": "magnetogram_fits_mdi",
-                "url": "url_mdi",
-            }
-        )
+        mdi_keys = self.mdi_k[mag_cols]
+        mdi_keys = mdi_keys.add_suffix("_mdi")
         mdi_keys_dropna = mdi_keys.dropna().reset_index(drop=True)
 
         self.merged_df = pd.merge_asof(
@@ -147,8 +136,8 @@ class DataManager:
             right=mdi_keys_dropna,
             left_on="datetime_srs",
             right_on="datetime_mdi",
-            suffixes=["_srs2", "_mdi"],
-            tolerance=tolerance,  # HMI is at 720s (12 min) cadence
+            suffixes=["_srs", "_mdi"],
+            tolerance=tolerance,
             direction="nearest",
         )
 
