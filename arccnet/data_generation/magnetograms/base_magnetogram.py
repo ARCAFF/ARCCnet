@@ -90,33 +90,26 @@ class BaseMagnetogram(ABC):
 
         # raise error if there are no keys returned
         if len(keys) == 0:
-            raise ValueError("returns no results!")
+            # !TODO implement custom error message
+            raise (f"No results return for the query: {q}!")
 
-        # Making a sunpy.map with fits
+        # Export the  .fits (data + metadata) for the same query
         r = self._c.export(q + "{" + self.segment_column_name + "}", method="url", protocol="fits")
-        # trying to get the `record` to something similar to
+
+        # extract the `record` and strip the square brackets to return a T_REC-like time (in TAI)
         self.r_urls = r.urls.copy()
         self.r_urls["extracted_record_timestamp"] = self.r_urls["record"].str.extract(r"\[(.*?)\]")
-        # extract record name (think this is close to the T_REC used elsewhere)
-        # !TODO merge on keys['T_REC'] so that there we can later get the files.
-        # !TODO check this...
+        # merge on keys['T_REC'] so that there we can later get the files.
+        # !TODO add testing for this merge
         keys = pd.merge(
             left=keys, right=self.r_urls, left_on="T_REC", right_on="extracted_record_timestamp", how="left"
         )
-        # ...
 
-        #!TODO move to separate method & use default variables
         # keys["datetime"] = [datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ") for date in keys["DATE-OBS"]]
         keys["datetime"] = [
             pd.to_datetime(date, format=self.date_format, errors="coerce") for date in keys["DATE-OBS"]
         ]  # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
 
-        # logger.info(
-        #     f"length of `r.urls`: {len(r.urls)}; length of `keys`: {len(keys)}`"
-        # )  # the naming is different to other data..
-
         keys.to_csv(self.metadata_save_location)
 
-        # keys is the keys, with links to the magnetogram
-        # r.urls are urls of pure fits files.
-        return keys  # , r.urls
+        return keys
