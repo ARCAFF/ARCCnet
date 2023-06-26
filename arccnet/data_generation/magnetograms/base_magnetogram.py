@@ -16,24 +16,54 @@ class BaseMagnetogram(ABC):
 
     @abstractmethod
     def query(self, start_time, end_time, frequency) -> str:
+        """
+        Returns
+        -------
+        str:
+            JSOC Query string
+        """
         raise NotImplementedError("This is the required method in the child class.")
 
     @property
     @abstractmethod
     def date_format(self) -> str:
+        """
+        Returns
+        -------
+        str:
+            instrument date string format
+        """
         raise NotImplementedError("This is the required method in the child class.")
 
     @property
     @abstractmethod
     def segment_column_name(self) -> str:
+        """
+        Returns
+        -------
+        str:
+            Name of the data segment
+        """
         raise NotImplementedError("This is the required method in the child class.")
 
     @property
     @abstractmethod
     def metadata_save_location(self) -> str:
+        """
+        Returns
+        -------
+        str:
+            instrument directory path
+        """
         raise NotImplementedError("This is the required method in the child class.")
 
     def _type(self):
+        """
+        Returns
+        -------
+        str:
+            instantiate class name (e.g. child class if inherited)
+        """
         return self.__class__.__name__
 
     def fetch_metadata(self, start_date, end_date) -> pd.DataFrame:  # tuple[pd.DataFrame, pd.DataFrame]:

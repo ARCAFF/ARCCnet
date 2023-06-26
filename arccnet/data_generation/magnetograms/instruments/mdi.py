@@ -31,7 +31,7 @@ class MDIMagnetogram(BaseMagnetogram):
         Returns
         -------
         str:
-            MDI data format string
+            MDI date string format
         """
         return dv.MDI_DATE_FORMAT
 
@@ -41,20 +41,16 @@ class MDIMagnetogram(BaseMagnetogram):
         Returns
         -------
         str:
-            Column name for the magnetogram
+            Name of the MDI data segment
         """
         return dv.MDI_SEG_COL
 
     @property
     def metadata_save_location(self) -> str:
+        """
+        Returns
+        -------
+        str:
+            MDI directory path
+        """
         return dv.MDI_MAG_DIR
-
-    #     # Making a sunpy.map with fits
-    #     # self._c.export(magnetogram_string + "{data}", method="url", protocol="fits")
-    #     # keys["magnetogram_query_string"] = magnetogram_string
-
-    #     # assert len(r.urls) == len(keys)  # the naming is different to other data..
-
-    #     # keys is the keys, with links to the magnetogram
-    #     # r.urls are urls of pure fits files.
-    #     return keys  # , r.urls
