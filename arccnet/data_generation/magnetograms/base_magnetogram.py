@@ -72,7 +72,12 @@ class BaseMagnetogram(ABC):
 
         Returns
         -------
-            ...
+        keys: pd.DataFrame
+            A `pd.DataFrame` containing all keys (`drms.const.all`) for a JSOC query string and urls corresponding to the request segments (`seg`).
+            The required segment is defined in the child class (for a magnetogram, `seg="magnetogram"` for HMI, and `seg="data"` for MDI).
+
+            The `pd.DataFrame` also contains `urls` to the complete `.fits` files (magnetogram + metadata) that are staged by JSOC for download.
+
         """
 
         q = self.query(start_date, end_date)
