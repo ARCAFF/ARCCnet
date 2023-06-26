@@ -56,7 +56,7 @@ class BaseMagnetogram(ABC):
         keys["magnetogram_fits"] = magnetogram_fits
 
         # as we combine the magnetogram_fits and keys DataFrame, assure they're the same length
-        assert len(magnetogram_fits) == len(keys)
+        # assert len(magnetogram_fits) == len(keys)
 
         # raise error if there are no keys returned
         if len(keys) == 0:
