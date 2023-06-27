@@ -97,16 +97,6 @@ class BaseMagnetogram(ABC):
         keys, segs = self._drms_client.query(q, key=drms.const.all, seg=self.segment_column_name)
         logger.info(f"\t {len(keys)} entries")
 
-        # # !TODO replace with Fido.fetch: e.g.
-        # res = Fido.search(
-        #     a.Time(datetime_to_jsoc(start_date), datetime_to_jsoc(end_date)),
-        #     a.jsoc.Series(self.series_name),
-        #     a.Sample(24 * u.hour),
-        #     a.jsoc.Segment(self.segment_column_name),
-        #     a.jsoc.Notify(dv.JSOC_DEFAULT_EMAIL),
-        # )
-        # res_df = res[0].to_pandas()
-
         # Obtain the segments and set into the keys
         magnetogram_fits = dv.JSOC_BASE_URL + segs[self.segment_column_name]
         keys["magnetogram_fits"] = magnetogram_fits
