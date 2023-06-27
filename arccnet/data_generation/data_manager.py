@@ -155,7 +155,7 @@ class DataManager:
 
         self.merged_df.to_csv(dv.MAG_INTERMEDIATE_DATA_CSV)
 
-    def fetch_magnetograms(self):
+    def fetch_magnetograms(self, mag_df):
         """
         download the magnetograms using parfive (with one connection),
         and return the list of files
@@ -171,7 +171,7 @@ class DataManager:
 
         # HMI/MDI
         # !TODO change this so that it's not as specific as `url_hmi`, `url_mdi`
-        urls = list(self.merged_df.url_hmi.dropna().unique()) + list(self.merged_df.url_mdi.dropna().unique())
+        urls = list(mag_df.url_hmi.dropna().unique()) + list(mag_df.url_mdi.dropna().unique())
 
         # Only 1 parallel connection (`max_conn`, `max_splits`)
         # https://docs.sunpy.org/en/stable/_modules/sunpy/net/jsoc/jsoc.html#JSOCClient
@@ -185,8 +185,7 @@ class DataManager:
         paths = []
         for url in urls:
             filename = url.split("/")[-1]  # Extract the filename from the URL
-            file_path = base_directory_path / filename  # Join the path and filename
-            paths.append(file_path)
+            paths.append(base_directory_path / filename)
 
         for aurl, fname in zip(urls, paths):
             downloader.enqueue_file(aurl, filename=fname, max_splits=1)
