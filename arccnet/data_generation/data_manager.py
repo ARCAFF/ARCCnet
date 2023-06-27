@@ -191,6 +191,13 @@ class DataManager:
             downloader.enqueue_file(aurl, filename=fname, max_splits=1)
 
         results = downloader.download()
+
+        if len(results.errors) != 0:
+            logger.warn(f"results.errors: {results.errors}")
+        else:
+            logger.info("No errors reported by parfive")
+            # !TODO may want to retry
+
         return results
 
 
