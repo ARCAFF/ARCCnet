@@ -1,3 +1,4 @@
+import datetime
 from abc import ABC, abstractmethod
 
 import drms
@@ -12,15 +13,26 @@ __all__ = ["BaseMagnetogram"]
 class BaseMagnetogram(ABC):
     def __init__(self) -> None:
         super().__init__()
-        self._c = drms.Client(debug=False, verbose=False, email=dv.JSOC_DEFAULT_EMAIL)
+        self._drms_client = drms.Client(debug=False, verbose=False, email=dv.JSOC_DEFAULT_EMAIL)
 
     @abstractmethod
-    def query(self, start_time, end_time, frequency) -> str:
+    def generate_drms_query(self, start_time, end_time, frequency) -> str:
         """
         Returns
         -------
         str:
             JSOC Query string
+        """
+        raise NotImplementedError("This is the required method in the child class.")
+
+    @property
+    @abstractmethod
+    def series_name(self) -> str:
+        """
+        Returns
+        -------
+        str:
+            JSOC series name
         """
         raise NotImplementedError("This is the required method in the child class.")
 
@@ -66,7 +78,7 @@ class BaseMagnetogram(ABC):
         """
         return self.__class__.__name__
 
-    def fetch_metadata(self, start_date, end_date) -> pd.DataFrame:  # tuple[pd.DataFrame, pd.DataFrame]:
+    def fetch_metadata(self, start_date: datetime.datetime, end_date: datetime.datetime) -> pd.DataFrame:
         """
         Fetch metadata from JSOC.
 
@@ -80,17 +92,24 @@ class BaseMagnetogram(ABC):
 
         """
 
-        q = self.query(start_date, end_date)
+        q = self.generate_drms_query(start_date, end_date)
         logger.info(f">> {self._type()} Query: {q}")
-        keys, segs = self._c.query(q, key=drms.const.all, seg=self.segment_column_name)
-        assert len(keys) == len(segs)  # segs and keys should be of equal length a
+        keys, segs = self._drms_client.query(q, key=drms.const.all, seg=self.segment_column_name)
         logger.info(f"\t {len(keys)} entries")
+
+        # # !TODO replace with Fido.fetch: e.g.
+        # res = Fido.search(
+        #     a.Time(datetime_to_jsoc(start_date), datetime_to_jsoc(end_date)),
+        #     a.jsoc.Series(self.series_name),
+        #     a.Sample(24 * u.hour),
+        #     a.jsoc.Segment(self.segment_column_name),
+        #     a.jsoc.Notify(dv.JSOC_DEFAULT_EMAIL),
+        # )
+        # res_df = res[0].to_pandas()
 
         # Obtain the segments and set into the keys
         magnetogram_fits = dv.JSOC_BASE_URL + segs[self.segment_column_name]
         keys["magnetogram_fits"] = magnetogram_fits
-
-        # as we combine the magnetogram_fits and keys DataFrame, assure they're the same length
 
         # raise error if there are no keys returned
         if len(keys) == 0:
@@ -98,7 +117,7 @@ class BaseMagnetogram(ABC):
             raise (f"No results return for the query: {q}!")
 
         # Export the  .fits (data + metadata) for the same query
-        r = self._c.export(q + "{" + self.segment_column_name + "}", method="url", protocol="fits")
+        r = self._drms_client.export(q + "{" + self.segment_column_name + "}", method="url", protocol="fits")
 
         # extract the `record` and strip the square brackets to return a T_REC-like time (in TAI)
         self.r_urls = r.urls.copy()

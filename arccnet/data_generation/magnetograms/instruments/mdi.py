@@ -11,7 +11,7 @@ class MDIMagnetogram(BaseMagnetogram):
     def __init__(self):
         super().__init__()
 
-    def query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="1d") -> str:
+    def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="1d") -> str:
         """
         Returns
         -------
@@ -23,7 +23,17 @@ class MDIMagnetogram(BaseMagnetogram):
         # Whether the data are form a single observation or an average of five is given by
         # the value of the keyword INTERVAL, the length of the sampling interval in seconds.
         # The data are acquired as part of the regular observing program.
-        return f"mdi.fd_M_96m_lev182[{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
+        return f"{self.series_name}[{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
+
+    @property
+    def series_name(self) -> str:
+        """
+        Returns
+        -------
+        str:
+            JSOC series name
+        """
+        return "mdi.fd_M_96m_lev182"
 
     @property
     def date_format(self) -> str:
