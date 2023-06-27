@@ -152,11 +152,18 @@ class DataManager:
         directory_path = Path(dv.MAG_INTERMEDIATE_DIR)
         if not directory_path.exists():
             directory_path.mkdir(parents=True)
+
         self.merged_df.to_csv(dv.MAG_INTERMEDIATE_DATA_CSV)
 
     def fetch_magnetograms(self):
         """
-        download the magnetograms using parfive, and return the list of files
+        download the magnetograms using parfive (with one connection),
+        and return the list of files
+
+        Returns
+        -------
+        results : List[str]
+            List of filepaths (strings) for the downloaded files
         """
         base_directory_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
         if not base_directory_path.exists():

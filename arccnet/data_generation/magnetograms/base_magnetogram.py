@@ -82,16 +82,15 @@ class BaseMagnetogram(ABC):
 
         q = self.query(start_date, end_date)
         logger.info(f">> {self._type()} Query: {q}")
-        keys, seg = self._c.query(q, key=drms.const.all, seg=self.segment_column_name)
-        assert len(keys) == len(seg)
+        keys, segs = self._c.query(q, key=drms.const.all, seg=self.segment_column_name)
+        assert len(keys) == len(segs)  # segs and keys should be of equal length a
         logger.info(f"\t {len(keys)} entries")
 
         # Obtain the segments and set into the keys
-        magnetogram_fits = dv.JSOC_BASE_URL + seg[self.segment_column_name]
+        magnetogram_fits = dv.JSOC_BASE_URL + segs[self.segment_column_name]
         keys["magnetogram_fits"] = magnetogram_fits
 
         # as we combine the magnetogram_fits and keys DataFrame, assure they're the same length
-        # assert len(magnetogram_fits) == len(keys)
 
         # raise error if there are no keys returned
         if len(keys) == 0:

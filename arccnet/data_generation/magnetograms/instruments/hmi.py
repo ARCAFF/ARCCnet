@@ -42,7 +42,7 @@ class HMIMagnetogram(BaseMagnetogram):
         Returns
         -------
         str:
-            Name of the data segment
+            Name of the HMI data segment
         """
         return dv.HMI_SEG_COL
 
@@ -52,6 +52,6 @@ class HMIMagnetogram(BaseMagnetogram):
         Returns
         -------
         str:
-            HMI magnetogram directory name
+            HMI directory path
         """
         return dv.HMI_MAG_DIR
