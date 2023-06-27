@@ -62,7 +62,7 @@ class BaseMagnetogram(ABC):
         Returns
         -------
         str:
-            instantiate class name (e.g. child class if inherited)
+            instantiated class name (e.g. child class if inherited)
         """
         return self.__class__.__name__
 
