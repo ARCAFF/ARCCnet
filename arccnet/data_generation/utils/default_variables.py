@@ -105,6 +105,8 @@ VALID_SRS_VALUES = {
     "ID": list(NOAA_SRS_ID_DICT.keys()),  # ["I"],  # , "IA", "II"]
 }
 
+SRS_FILEPATHS_IGNORED = ["19961209SRS.txt"]
+
 # --- Data-related
 
 BASE_DIR = (
@@ -134,7 +136,10 @@ NOAA_SRS_INTERMEDIATE_DIR = os.path.join(DATA_DIR_INTERMEDIATE, "noaa_srs")
 NOAA_SRS_INTERMEDIATE_DATA_CSV = os.path.join(NOAA_SRS_INTERMEDIATE_DIR, "clean_catalog.csv")
 
 HMI_MAG_DIR = os.path.join(DATA_DIR_RAW, "hmi_mag")
+HMI_MAG_RAW_CSV = os.path.join(HMI_MAG_DIR, "raw.csv")
+
 MDI_MAG_DIR = os.path.join(DATA_DIR_RAW, "mdi_mag")
+MDI_MAG_RAW_CSV = os.path.join(MDI_MAG_DIR, "raw.csv")
 
 MAG_INTERMEDIATE_DIR = os.path.join(DATA_DIR_INTERMEDIATE, "mag")
 MAG_INTERMEDIATE_DATA_CSV = os.path.join(MAG_INTERMEDIATE_DIR, "clean_catalog.csv")

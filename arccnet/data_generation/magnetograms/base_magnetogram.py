@@ -1,5 +1,6 @@
 import datetime
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 import drms
 import pandas as pd
@@ -107,10 +108,13 @@ class BaseMagnetogram(ABC):
             raise (f"No results return for the query: {q}!")
 
         # Export the  .fits (data + metadata) for the same query
-        r = self._drms_client.export(q + "{" + self.segment_column_name + "}", method="url", protocol="fits")
+        export_response = self._drms_client.export(
+            q + "{" + self.segment_column_name + "}", method="url", protocol="fits"
+        )
+        export_response.wait()
 
         # extract the `record` and strip the square brackets to return a T_REC-like time (in TAI)
-        self.r_urls = r.urls.copy()
+        self.r_urls = export_response.urls.copy()
         self.r_urls["extracted_record_timestamp"] = self.r_urls["record"].str.extract(r"\[(.*?)\]")
         # merge on keys['T_REC'] so that there we can later get the files.
         # !TODO add testing for this merge
@@ -123,6 +127,10 @@ class BaseMagnetogram(ABC):
             pd.to_datetime(date, format=self.date_format, errors="coerce") for date in keys["DATE-OBS"]
         ]  # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
 
-        keys.to_csv(self.metadata_save_location)
+        directory_path = Path(self.metadata_save_location)
+        if not directory_path.exists():
+            directory_path.mkdir(parents=True)
+
+        keys.to_csv(directory_path / "raw.csv")
 
         return keys

@@ -158,8 +158,13 @@ class SWPCCatalog(BaseCatalog):
             raise NoDataError
 
         logger.info(">> loading fetched data")
-        for filepath in self._fetched_data:
-            filepath = Path(filepath)
+        # include filepaths to ignore
+        processed_filepaths = [
+            Path(filepath)
+            for filepath in self._fetched_data
+            if Path(filepath).parts[-1] not in dv.SRS_FILEPATHS_IGNORED
+        ]
+        for filepath in processed_filepaths:
             # instantiate a `pandas.DataFrame` based on our additional info
             # and assign to the SRS `pandas.DataFrame` if not empty.
             # Any issue reading will log the exception as a warning and move
@@ -278,6 +283,10 @@ class SWPCCatalog(BaseCatalog):
             # Check columns against `VALID_SRS_VALUES`
             self.catalog = self.raw_catalog.dropna().reset_index(drop=True)
 
+            # Fixing the case of Mag Type and Z for capitalised SRS files
+            self.catalog["Mag Type"] = self.catalog["Mag Type"].str.title()
+            self.catalog["Z"] = self.catalog["Z"].str.title()
+
             _ = check_column_values(
                 catalog=self.catalog,
                 valid_values=dv.VALID_SRS_VALUES,
@@ -290,6 +299,9 @@ class SWPCCatalog(BaseCatalog):
             Path(dv.NOAA_SRS_INTERMEDIATE_DIR).mkdir(parents=True, exist_ok=True)
             logger.info(f">> saving cleaned catalog `{dv.NOAA_SRS_INTERMEDIATE_DATA_CSV}`")
             self.catalog.to_csv(dv.NOAA_SRS_INTERMEDIATE_DATA_CSV)
+
+        if len(self.catalog) == 0:
+            raise NoDataError("Cleaned SWPC Catalog is empty")
 
         return self.catalog
 

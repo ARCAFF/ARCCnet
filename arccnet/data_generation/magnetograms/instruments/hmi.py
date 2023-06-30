@@ -62,4 +62,4 @@ class HMIMagnetogram(BaseMagnetogram):
         str:
             HMI directory path
         """
-        return dv.HMI_MAG_DIR
+        return dv.HMI_MAG_RAW_CSV
