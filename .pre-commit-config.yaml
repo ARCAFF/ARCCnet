@@ -6,9 +6,9 @@ repos:
       - id: ruff
         args: ["--fix"]
 
-  -   repo: https://github.com/psf/black
-      rev: 23.3.0
-      hooks:
+  - repo: https://github.com/psf/black
+    rev: 23.3.0
+    hooks:
       - id: black
         exclude: ".*(.fits|.fts|.fit|.txt|.csv)$"
 
@@ -29,7 +29,7 @@ repos:
       - id: check-yaml
       - id: debug-statements
       - id: check-added-large-files
-        args: ['--enforce-all','--maxkb=1054']
+        args: ["--enforce-all", "--maxkb=1054"]
       - id: end-of-file-fixer
         exclude: ".*(.fits|.fts|.fit|.header|.txt|tca.*|.json)$|^CITATION.rst$"
       - id: mixed-line-ending
@@ -39,6 +39,6 @@ repos:
     rev: v2.2.4
     hooks:
       - id: codespell
-        args: ['--config setup.cfg']
+        args: ["--config setup.cfg"]
 ci:
   autofix_prs: false
