@@ -36,9 +36,9 @@ class MagProcessor:
 
         # 1. Load & Rotate
         maps = self.load_data(files)
+        r_maps = self.rotate_data(maps)
 
         # 2. Fix radius
-        r_maps = self.rotate_data(maps)
 
         # 3. ...
 
