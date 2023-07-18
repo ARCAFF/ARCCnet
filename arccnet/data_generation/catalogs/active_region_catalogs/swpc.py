@@ -159,11 +159,11 @@ class SWPCCatalog(BaseCatalog):
 
         logger.info(">> loading fetched data")
         # include filepaths to ignore
+        processed_filepaths = [Path(filepath) for filepath in self._fetched_data]
         processed_filepaths = [
-            Path(filepath)
-            for filepath in self._fetched_data
-            if Path(filepath).parts[-1] not in dv.SRS_FILEPATHS_IGNORED
+            path_obj for path_obj in processed_filepaths if path_obj.name not in dv.SRS_FILEPATHS_IGNORED
         ]
+
         for filepath in processed_filepaths:
             # instantiate a `pandas.DataFrame` based on our additional info
             # and assign to the SRS `pandas.DataFrame` if not empty.
