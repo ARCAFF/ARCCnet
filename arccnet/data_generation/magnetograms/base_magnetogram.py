@@ -124,7 +124,8 @@ class BaseMagnetogram(ABC):
 
         # keys["datetime"] = [datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ") for date in keys["DATE-OBS"]]
         keys["datetime"] = [
-            pd.to_datetime(date, format=self.date_format, errors="coerce") for date in keys["DATE-OBS"]
+            pd.to_datetime(date, format=self.date_format, errors="coerce")
+            for date in keys["DATE-OBS"]  # ensure we want errors="coerce"
         ]  # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
 
         directory_path = Path(self.metadata_save_location)

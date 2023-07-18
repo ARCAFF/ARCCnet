@@ -138,6 +138,9 @@ NOAA_SRS_INTERMEDIATE_DATA_CSV = os.path.join(NOAA_SRS_INTERMEDIATE_DIR, "clean_
 HMI_MAG_DIR = os.path.join(DATA_DIR_RAW, "hmi_mag")
 HMI_MAG_RAW_CSV = os.path.join(HMI_MAG_DIR, "raw.csv")
 
+HMI_IC_DIR = os.path.join(DATA_DIR_RAW, "continuum")
+HMI_IC_RAW_CSV = os.path.join(HMI_IC_DIR, "raw.csv")
+
 MDI_MAG_DIR = os.path.join(DATA_DIR_RAW, "mdi_mag")
 MDI_MAG_RAW_CSV = os.path.join(MDI_MAG_DIR, "raw.csv")
 
