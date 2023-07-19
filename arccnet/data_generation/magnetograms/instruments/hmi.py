@@ -12,7 +12,7 @@ class HMIMagnetogram(BaseMagnetogram):
         super().__init__()
         # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
 
-    def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="7d") -> str:
+    def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="1d") -> str:
         """
         Returns
         -------

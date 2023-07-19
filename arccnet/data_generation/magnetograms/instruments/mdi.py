@@ -11,7 +11,7 @@ class MDIMagnetogram(BaseMagnetogram):
     def __init__(self):
         super().__init__()
 
-    def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="7d") -> str:
+    def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="1d") -> str:
         """
         Returns
         -------
