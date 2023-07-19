@@ -43,7 +43,8 @@ class DataManager:
 
         # 2. clean metadata
         logger.info(">> Cleaning NOAA SRS Metadata")
-        self.clean_metadata()
+        # self.clean_metadata()
+        self.srs_clean = self.swpc.clean_catalog()
         logger.info(f"\n{self.srs_clean}")
 
         # 3. merge metadata sources
@@ -55,6 +56,7 @@ class DataManager:
 
         # # 4b. download image data
         _ = self.fetch_magnetograms(self.merged_df)
+        # !TODO handle the output... want a csv with the filepaths
 
         logger.info(">> Execution completed successfully")
 
@@ -80,13 +82,13 @@ class DataManager:
             f"MDI Keys: \n{self.mdi_k[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
         )  # the date-obs or date-avg
 
-    def clean_metadata(self):
-        """
-        clean data from each instrument
-        """
-
-        # clean the raw SRS catalog
-        self.srs_clean = self.swpc.clean_catalog()
+    # def clean_metadata(self):
+    #     """
+    #     clean metadata from each instrument
+    #     """
+    #
+    #     # clean the raw SRS catalog
+    #     self.srs_clean = self.swpc.clean_catalog()
 
     def merge_metadata_sources(
         self,
