@@ -12,7 +12,7 @@ class HMIMagnetogram(BaseMagnetogram):
         super().__init__()
         # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
 
-    def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="1d") -> str:
+    def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="7d") -> str:
         """
         Returns
         -------
@@ -62,7 +62,7 @@ class HMIMagnetogram(BaseMagnetogram):
         str:
             HMI directory path
         """
-        return dv.HMI_MAG_RAW_CSV
+        return dv.HMI_MAG_DIR
 
 
 class HMIContinuum(HMIMagnetogram):
@@ -97,4 +97,4 @@ class HMIContinuum(HMIMagnetogram):
         str:
             HMI directory path
         """
-        return dv.HMI_IC_RAW_CSV
+        return dv.HMI_IC_DIR

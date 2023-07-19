@@ -11,7 +11,7 @@ class MDIMagnetogram(BaseMagnetogram):
     def __init__(self):
         super().__init__()
 
-    def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="1d") -> str:
+    def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="7d") -> str:
         """
         Returns
         -------
@@ -63,4 +63,4 @@ class MDIMagnetogram(BaseMagnetogram):
         str:
             MDI directory path
         """
-        return dv.MDI_MAG_RAW_CSV
+        return dv.MDI_MAG_DIR

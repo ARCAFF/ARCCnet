@@ -165,7 +165,7 @@ class DataManager:
         results : List[str]
             List of filepaths (strings) for the downloaded files
         """
-        base_directory_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
+        base_directory_path = Path(dv.MAG_RAW_DATA_DIR)
         if not base_directory_path.exists():
             base_directory_path.mkdir(parents=True)
 
@@ -194,9 +194,13 @@ class DataManager:
 
         if len(results.errors) != 0:
             logger.warn(f"results.errors: {results.errors}")
+            # attempt a retry
+            while len(results.errors) != 0:
+                logger.info("retrying...")
+                downloader.retry(results)
+                # could go into an infinite loop
         else:
             logger.info("No errors reported by parfive")
-            # !TODO may want to retry
 
         return results
 

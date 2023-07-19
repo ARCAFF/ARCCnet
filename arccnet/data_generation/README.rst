@@ -50,16 +50,26 @@ The logs and data are saved in the `data` directory
     data
     ├── logs                                 # logs for each run of the data processing pipeline
     │    └── data_processing_<year>_<month>_<day>_<hours><minutes><seconds>.log
-    ├── raw                                  # raw data
-    │    └── noaa_srs                        # noaa srs files
-    │        ├── txt
-    │        │   └── ...                     # files that were loaded correctly
-    │        ├── raw_data.html               # html of compiled (raw) data
-    │        ├── raw_data.csv                # csv of compiled (raw) data
-    │        ├── txt_load_error
-    │        │   └── ...                     # files that encountered a load error
-    │        ├── raw_data_load_error.html    # html of raw data that encountered a load error
-    │        └── raw_data_load_error.csv     # csv of raw data that encountered a load error
     │
-    ├── intermediate    # not implemented
-    └── final           # not implemented
+    ├── 01_raw                              # raw data
+    │   ├── mag
+    │   │   ├── fits                        # raw magnetogram fits files
+    │   │   ├── hmi                         # csv of hmi data
+    │   │   └── mdi                         # csv of mdi data
+    │   └── noaa_srs                        # noaa srs files
+    │       ├── txt
+    │       │   └── ...                     # files that were loaded correctly
+    │       ├── raw_data.html               # html of compiled (raw) data
+    │       ├── raw_data.csv                # csv of compiled (raw) data
+    │       ├── txt_load_error
+    │       │   └── ...                     # files that encountered a load error
+    │       ├── raw_data_load_error.html    # html of raw data that encountered a load error
+    │       └── raw_data_load_error.csv     # csv of raw data that encountered a load error
+    │
+    ├── 02_intermediate
+    │   ├── mag
+    │   │   └── clean_catalog.csv           # cleaned magnetogram catalog. Matched with SRS
+    │   └── noaa_srs
+    │       └── clean_catalog.csv           # cleaned srs catalog.
+    │
+    └── final                               # not implemented
