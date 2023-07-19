@@ -32,16 +32,17 @@ class DataManager:
 
         # instantiate classes
         self.swpc = SWPCCatalog()
+        # !TODO change this into an iterable
         self.hmi = HMIMagnetogram()
         self.mdi = MDIMagnetogram()
 
         # 1. fetch metadata
-        logger.info(">> Fetching Metadata")
+        logger.info(">> Fetching NOAA SRS Metadata")
         self.fetch_metadata()
         logger.info(f"\n{self.srs_raw}")
 
         # 2. clean metadata
-        logger.info(">> Cleaning Metadata")
+        logger.info(">> Cleaning NOAA SRS Metadata")
         self.clean_metadata()
         logger.info(f"\n{self.srs_clean}")
 
@@ -50,7 +51,7 @@ class DataManager:
         self.merge_metadata_sources(tolerance=merge_tolerance)
 
         # 4a. check if image data exists
-        # !TODO implement this
+        # !TODO implement this checking if each file that is expected exists.
 
         # # 4b. download image data
         _ = self.fetch_magnetograms(self.merged_df)
