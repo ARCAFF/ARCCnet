@@ -4,7 +4,7 @@ import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.magnetograms.base_magnetogram import BaseMagnetogram
 from arccnet.data_generation.magnetograms.utils import datetime_to_jsoc
 
-__all__ = ["HMIMagnetogram", "HMIContinuum"]
+__all__ = ["HMIMagnetogram", "HMIMagnetogramNRT", "HMIContinuum"]
 
 
 class HMIMagnetogram(BaseMagnetogram):
@@ -98,3 +98,8 @@ class HMIContinuum(HMIMagnetogram):
             HMI directory path
         """
         return dv.HMI_IC_DIR
+
+
+class HMIMagnetogramNRT(HMIMagnetogram):
+    def __init__(self):
+        raise NotImplementedError("Placeholder class for NRT HMI Magnetograms")
