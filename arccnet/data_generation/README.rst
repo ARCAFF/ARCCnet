@@ -30,8 +30,8 @@ Directory Structure
     │   ├── data_logger.py        # data generation logger
     │   └── default_variables.py  # default variables used for data generation
     │
-    └── data_manager.py           # entry point for obtaining and combining data sources
-
+    ├── data_manager.py           # entry point for obtaining and combining data sources
+    .. └── data_processor.py         # entry point to process data into training data
 
 Example Usage
 =============
@@ -53,9 +53,10 @@ The logs and data are saved in the `data` directory
     │
     ├── 01_raw                              # raw data
     │   ├── mag
-    │   │   ├── fits                        # raw magnetogram fits files
-    │   │   ├── hmi                         # csv of hmi data
-    │   │   └── mdi                         # csv of mdi data
+    │   │   ├── fits                        # raw magnetogram fits files (subset from `02_intermediate/mag/clean_catalog.csv`)
+    │   │   ├── hmi                         # csv of raw hmi meta/fits
+    │   │   └── mdi                         # csv of raw hmi meta/fits
+    │   │
     │   └── noaa_srs                        # noaa srs files
     │       ├── txt
     │       │   └── ...                     # files that were loaded correctly
