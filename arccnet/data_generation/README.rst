@@ -76,4 +76,6 @@ The logs and data are saved in the `data` directory
     │   └── noaa_srs
     │       └── clean_catalog.csv           # cleaned srs catalog.
     │
+    ├── 03_processed
+    │
     └── final                               # not implemented
