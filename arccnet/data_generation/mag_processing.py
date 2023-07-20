@@ -1,14 +1,16 @@
 from pathlib import Path
 
 import pandas as pd
-import tqdm
+from tqdm import tqdm
 
 import arccnet.data_generation.utils.default_variables as dv
 import sunpy.map
 from arccnet.data_generation.utils.data_logger import logger
 
+__all__ = ["MagnetogramProcessor"]
 
-class MagProcessor:
+
+class MagnetogramProcessor:
     """
     Process Magnetograms
     """
@@ -23,38 +25,35 @@ class MagProcessor:
             )
             paths = []
             for url in file_list:
-                filename = url.split("/")[-1]  # Extract the filename from the URL
+                filename = Path(url).name  # Extract the filename from the URL
                 file_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR) / filename  # Join the path and filename
                 paths.append(file_path)
         else:
             raise FileNotFoundError(f"{filename} does not exist. Try running `DataManager` first.")
 
-        _ = self.process_data(paths)
+        paths = paths[0:2]
+        _ = self._process_data(paths)
 
-    def process_data(self, files) -> None:
+    def _process_data(self, files) -> None:
+        # !TODO find a good way to deal with the paths
+
+        for file in tqdm(files, desc="Processing data", unit="file"):
+            self._process_datum(file)
+
+    def _process_datum(self, file) -> None:
         # !TODO find a good way to deal with the paths
 
         # 1. Load & Rotate
-        maps = self.load_data(files)
-        r_maps = self.rotate_data(maps)
+        map = self._load_datum(file)
+        r_map = self._rotate_datum(map)
 
-        # 2. Fix radius
+        # 2. Set a constant radius
 
         # 3. ...
 
         # 4. ...
 
-        return r_maps
-
-    def load_data(self, files) -> None:
-        """
-        load all data from a list
-        """
-        mps = []
-        for file in tqdm(files, desc="Loading data", unit="file"):
-            mps.append(self._load_datum(file))
-
-        return mps
+        return r_map
 
     def _load_datum(self, file) -> sunpy.map.Map:
         """
@@ -62,23 +61,21 @@ class MagProcessor:
         """
         return sunpy.map.Map(file)
 
-    def rotate_data(self, data_maps) -> None:
+    def _rotate_datum(self, amap) -> None:
         """
         rotate a list of maps according to metadata
 
         e.g. before rotation a HMI map may have: `crota2 = 180.082565`
         """
-        r_maps = []
-        for amap in tqdm(data_maps, desc="rotating maps", unit="map"):
-            if "crota2" not in amap.meta:
-                logger.info(f"The MetaDict for {amap.meta['t_rec']} does not have 'crota2' key.")
 
-            r_maps.append(self._rotate_datum(amap))
+        if "crota2" not in amap.meta:
+            logger.info(f"The MetaDict for {amap.meta['t_rec']} does not have 'crota2' key.")
 
-        return r_maps
+            rmap = amap.rotate()
 
-    def _rotate_datum(self, smap) -> sunpy.map.Map:
-        """
-        rotate single data
-        """
-        return smap.rotate()
+        return rmap
+
+
+if __name__ == "__main__":
+    logger.info(f"Executing {__file__} as main program")
+    _ = MagnetogramProcessor()
