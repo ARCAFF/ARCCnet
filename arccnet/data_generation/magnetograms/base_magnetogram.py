@@ -128,11 +128,12 @@ class BaseMagnetogram(ABC):
             for date in keys["DATE-OBS"]  # ensure we want errors="coerce"
         ]  # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
 
-        directory_path = Path(self.metadata_save_location)
-        filename = Path(self.metadata_save_location).name
+        file = Path(self.metadata_save_location)
+        directory_path = file.parent
+        print(file, directory_path)
         if not directory_path.exists():
             directory_path.mkdir(parents=True)
 
-        keys.to_csv(filename)
+        keys.to_csv(file)
 
         return keys

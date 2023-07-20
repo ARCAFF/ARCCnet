@@ -62,7 +62,7 @@ class HMIMagnetogram(BaseMagnetogram):
         str:
             HMI directory path
         """
-        return dv.HMI_MAG_DIR
+        return dv.HMI_MAG_RAW_CSV
 
 
 class HMIContinuum(HMIMagnetogram):
@@ -97,7 +97,7 @@ class HMIContinuum(HMIMagnetogram):
         str:
             HMI directory path
         """
-        return dv.HMI_IC_DIR
+        return dv.HMI_IC_RAW_CSV
 
 
 class HMIMagnetogramNRT(HMIMagnetogram):
