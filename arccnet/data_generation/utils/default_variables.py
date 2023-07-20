@@ -14,8 +14,8 @@ HMI_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 HMI_SEG_COL = "magnetogram"
 
 # ---- Observation Dates
-DATA_START_TIME = datetime(1995, 1, 1, 0, 0, 0)
-DATA_END_TIME = datetime(2022, 12, 31, 0, 0, 0)
+DATA_START_TIME = datetime(2010, 1, 1, 0, 0, 0)
+DATA_END_TIME = datetime(2010, 12, 31, 0, 0, 0)
 # SRS data is given at 00:30, valid at 00:00
 
 # -- Valid Classes
@@ -114,8 +114,8 @@ BASE_DIR = (
 )  #!TODO change to config; and assume current working dir.
 
 DATA_DIR = os.path.join(BASE_DIR, "data")
-DATA_DIR_RAW = os.path.join(DATA_DIR, "raw")
-DATA_DIR_INTERMEDIATE = os.path.join(DATA_DIR, "intermediate")
+DATA_DIR_RAW = os.path.join(DATA_DIR, "01_raw")
+DATA_DIR_INTERMEDIATE = os.path.join(DATA_DIR, "02_intermediate")
 DATA_DIR_LOGS = os.path.join(DATA_DIR, "logs")
 
 DATA_LOGFILE = os.path.join(
@@ -135,16 +135,20 @@ NOAA_SRS_RAW_DATA_EXCEPT_HTML = os.path.join(NOAA_SRS_DIR, "raw_data_load_error.
 NOAA_SRS_INTERMEDIATE_DIR = os.path.join(DATA_DIR_INTERMEDIATE, "noaa_srs")
 NOAA_SRS_INTERMEDIATE_DATA_CSV = os.path.join(NOAA_SRS_INTERMEDIATE_DIR, "clean_catalog.csv")
 
-HMI_MAG_DIR = os.path.join(DATA_DIR_RAW, "hmi_mag")
-HMI_MAG_RAW_CSV = os.path.join(HMI_MAG_DIR, "raw.csv")
+MAG_RAW_DIR = os.path.join(DATA_DIR_RAW, "mag")
 
-HMI_IC_DIR = os.path.join(DATA_DIR_RAW, "continuum")
-HMI_IC_RAW_CSV = os.path.join(HMI_IC_DIR, "raw.csv")
+HMI_MAG_DIR = os.path.join(MAG_RAW_DIR, "hmi")
+# HMI_MAG_RAW_CSV = os.path.join(HMI_MAG_DIR, "raw.csv")
 
-MDI_MAG_DIR = os.path.join(DATA_DIR_RAW, "mdi_mag")
-MDI_MAG_RAW_CSV = os.path.join(MDI_MAG_DIR, "raw.csv")
+HMI_IC_DIR = os.path.join(MAG_RAW_DIR, "continuum")
+# HMI_IC_RAW_CSV = os.path.join(HMI_IC_DIR, "raw.csv")
+
+MDI_MAG_DIR = os.path.join(MAG_RAW_DIR, "mdi")
+# MDI_MAG_RAW_CSV = os.path.join(MDI_MAG_DIR, "raw.csv")
+MAG_RAW_DATA_DIR = os.path.join(MAG_RAW_DIR, "fits")
 
 MAG_INTERMEDIATE_DIR = os.path.join(DATA_DIR_INTERMEDIATE, "mag")
+
 MAG_INTERMEDIATE_DATA_CSV = os.path.join(MAG_INTERMEDIATE_DIR, "clean_catalog.csv")
 MAG_INTERMEDIATE_DATA_DIR = os.path.join(MAG_INTERMEDIATE_DIR, "data")
 
