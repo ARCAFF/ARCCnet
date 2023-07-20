@@ -158,7 +158,7 @@ class DataManager:
 
         self.merged_df.to_csv(dv.MAG_INTERMEDIATE_DATA_CSV)
 
-    def fetch_magnetograms(self, mag_df):
+    def fetch_magnetograms(self, mag_df, max_retries=5):
         """
         download the magnetograms using parfive (with one connection),
         and return the list of files
@@ -198,10 +198,15 @@ class DataManager:
         if len(results.errors) != 0:
             logger.warn(f"results.errors: {results.errors}")
             # attempt a retry
-            while len(results.errors) != 0:
+            retry_count = 0
+            while len(results.errors) != 0 and retry_count < max_retries:
                 logger.info("retrying...")
                 downloader.retry(results)
-                # could go into an infinite loop
+                retry_count += 1
+            if len(results.errors) != 0:
+                logger.error("Failed after maximum retries.")
+            else:
+                logger.info("Errors resolved after retry.")
         else:
             logger.info("No errors reported by parfive")
 
