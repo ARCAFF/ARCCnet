@@ -88,18 +88,21 @@ class ARExtractor:
         columns_to_update = ["url_hmi", "url_mdi"]
         new_columns = ["processed_hmi", "processed_mdi"]
 
+        # !TODO replace with default_variables.py
         dv_base_path = Path("/Users/pjwright/Documents/work/ARCCnet/data/02_intermediate/mag/fits/")
         dv_process_path = Path("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/fits/")
+
         # Iterate through the columns and update the paths
         for old_column, new_column in zip(columns_to_update, new_columns):
             self.loaded_data[new_column] = self.loaded_data[old_column].map(
                 lambda x: dv_base_path / Path(x).name if pd.notna(x) else x
             )
 
-        cutout_list = []
+        # set empty list of cutout for hmi
+        cutout_list_hmi = []
         for index, row in self.loaded_data.iterrows():
             if self.loaded_data.iloc[index]["processed_hmi"] is np.nan:
-                cutout_list.append(np.nan)
+                cutout_list_hmi.append(np.nan)
             else:
                 lat = self.loaded_data.iloc[index]["Latitude"]
                 lng = self.loaded_data.iloc[index]["Longitude"]
@@ -133,9 +136,9 @@ class ARExtractor:
                 print(dv_process_path / f"{dt}_{numbr}.fits")
                 my_hmi_submap.save(dv_process_path / f"{dt}_{numbr}.fits", overwrite=True)
 
-                cutout_list.append(dv_process_path / f"{dt}_{numbr}.fits")
+                cutout_list_hmi.append(dv_process_path / f"{dt}_{numbr}.fits")
 
-        self.loaded_data["hmi_cutout"] = cutout_list
+        self.loaded_data["hmi_cutout"] = cutout_list_hmi
         self.loaded_data.to_csv(Path("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/") / "processed.csv")
 
 
