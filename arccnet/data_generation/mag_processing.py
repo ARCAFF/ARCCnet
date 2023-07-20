@@ -26,42 +26,40 @@ class MagnetogramProcessor:
             paths = []
             for url in file_list:
                 filename = Path(url).name  # Extract the filename from the URL
-                file_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR) / filename  # Join the path and filename
+                file_path = Path(dv.MAG_RAW_DATA_DIR) / filename  # Join the path and filename
                 paths.append(file_path)
         else:
             raise FileNotFoundError(f"{filename} does not exist. Try running `DataManager` first.")
 
-        paths = paths[0:2]
+        base_directory_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
+        if not base_directory_path.exists():
+            base_directory_path.mkdir(parents=True)
+
         _ = self._process_data(paths)
 
     def _process_data(self, files) -> None:
         # !TODO find a good way to deal with the paths
 
         for file in tqdm(files, desc="Processing data", unit="file"):
-            self._process_datum(file)
+            processed_data = self._process_datum(file)
+            # !TODO probably append the name with something
+            processed_data.save(Path(dv.MAG_INTERMEDIATE_DATA_DIR) / file.name, overwrite=True)
 
     def _process_datum(self, file) -> None:
-        # !TODO find a good way to deal with the paths
-
         # 1. Load & Rotate
-        map = self._load_datum(file)
+        map = sunpy.map.Map(file)
         r_map = self._rotate_datum(map)
 
-        # 2. Set a constant radius
+        # 2. set data off-disk to 0 (np.nan would be ideal, but deep learning)
+        r_map.data[~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(r_map))] = 0
 
-        # 3. ...
-
+        # !TODO ...
+        # 3. normalise radius to fixed value
         # 4. ...
 
         return r_map
 
-    def _load_datum(self, file) -> sunpy.map.Map:
-        """
-        load single data
-        """
-        return sunpy.map.Map(file)
-
-    def _rotate_datum(self, amap) -> None:
+    def _rotate_datum(self, amap: sunpy.map.Map) -> sunpy.map.Map:
         """
         rotate a list of maps according to metadata
 
@@ -71,7 +69,7 @@ class MagnetogramProcessor:
         if "crota2" not in amap.meta:
             logger.info(f"The MetaDict for {amap.meta['t_rec']} does not have 'crota2' key.")
 
-            rmap = amap.rotate()
+        rmap = amap.rotate()
 
         return rmap
 

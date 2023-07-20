@@ -15,7 +15,7 @@ HMI_SEG_COL = "magnetogram"
 
 # ---- Observation Dates
 DATA_START_TIME = datetime(2010, 1, 1, 0, 0, 0)
-DATA_END_TIME = datetime(2011, 12, 31, 0, 0, 0)
+DATA_END_TIME = datetime(2010, 12, 31, 0, 0, 0)
 # SRS data is given at 00:30, valid at 00:00
 
 # -- Valid Classes
@@ -148,9 +148,10 @@ MDI_MAG_DIR = os.path.join(MAG_RAW_DIR, "mdi")
 MAG_RAW_DATA_DIR = os.path.join(MAG_RAW_DIR, "fits")
 
 MAG_INTERMEDIATE_DIR = os.path.join(DATA_DIR_INTERMEDIATE, "mag")
+MAG_INTERMEDIATE_DATA_DIR = os.path.join(MAG_INTERMEDIATE_DIR, "fits")
 
 MAG_INTERMEDIATE_DATA_CSV = os.path.join(MAG_INTERMEDIATE_DIR, "clean_catalog.csv")
-MAG_INTERMEDIATE_DATA_DIR = os.path.join(MAG_INTERMEDIATE_DIR, "data")
+# MAG_INTERMEDIATE_DATA_DIR = os.path.join(MAG_INTERMEDIATE_DIR, "data")
 
 
 if __name__ == "__main__":
