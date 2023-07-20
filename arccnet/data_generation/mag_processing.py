@@ -89,8 +89,8 @@ class ARExtractor:
         new_columns = ["processed_hmi", "processed_mdi"]
 
         # !TODO replace with default_variables.py
-        dv_base_path = Path("/Users/pjwright/Documents/work/ARCCnet/data/02_intermediate/mag/fits/")
-        dv_process_path = Path("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/fits/")
+        dv_base_path = dv.MAG_INTERMEDIATE_DATA_DIR
+        dv_process_path = dv.MAG_PROCESSED_DIR
 
         # Iterate through the columns and update the paths
         for old_column, new_column in zip(columns_to_update, new_columns):
@@ -139,7 +139,7 @@ class ARExtractor:
                 cutout_list_hmi.append(dv_process_path / f"{dt}_{numbr}.fits")
 
         self.loaded_data["hmi_cutout"] = cutout_list_hmi
-        self.loaded_data.to_csv(Path("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/") / "processed.csv")
+        self.loaded_data.to_csv(dv_process_path / "processed.csv")
 
 
 if __name__ == "__main__":

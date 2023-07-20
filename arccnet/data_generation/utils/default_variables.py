@@ -3,7 +3,7 @@ import subprocess
 from datetime import datetime
 
 # ---- JSOC
-JSOC_DEFAULT_EMAIL = "pjwright@stanford.edu"
+JSOC_DEFAULT_EMAIL = "paul@wrightai.com"
 JSOC_DATE_FORMAT = "%Y.%m.%d_%H:%M:%S"
 JSOC_BASE_URL = "http://jsoc.stanford.edu"
 
@@ -116,6 +116,8 @@ BASE_DIR = (
 DATA_DIR = os.path.join(BASE_DIR, "data")
 DATA_DIR_RAW = os.path.join(DATA_DIR, "01_raw")
 DATA_DIR_INTERMEDIATE = os.path.join(DATA_DIR, "02_intermediate")
+DATA_DIR_PROCESSED = os.path.join(DATA_DIR, "03_processed")
+
 DATA_DIR_LOGS = os.path.join(DATA_DIR, "logs")
 
 DATA_LOGFILE = os.path.join(
@@ -148,6 +150,8 @@ MDI_MAG_DIR = os.path.join(MAG_RAW_DIR, "mdi")
 MAG_RAW_DATA_DIR = os.path.join(MAG_RAW_DIR, "fits")
 
 MAG_INTERMEDIATE_DIR = os.path.join(DATA_DIR_INTERMEDIATE, "mag")
+MAG_PROCESSED_DIR = os.path.join(DATA_DIR_PROCESSED, "mag")
+
 MAG_INTERMEDIATE_DATA_DIR = os.path.join(MAG_INTERMEDIATE_DIR, "fits")
 
 MAG_INTERMEDIATE_DATA_CSV = os.path.join(MAG_INTERMEDIATE_DIR, "clean_catalog.csv")

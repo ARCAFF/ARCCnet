@@ -129,9 +129,10 @@ class BaseMagnetogram(ABC):
         ]  # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
 
         directory_path = Path(self.metadata_save_location)
+        filename = Path(self.metadata_save_location).name
         if not directory_path.exists():
             directory_path.mkdir(parents=True)
 
-        keys.to_csv(directory_path / "raw.csv")
+        keys.to_csv(filename)
 
         return keys
