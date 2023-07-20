@@ -54,8 +54,11 @@ The logs and data are saved in the `data` directory
     ├── 01_raw                              # raw data
     │   ├── mag
     │   │   ├── fits                        # raw magnetogram fits files (subset from `02_intermediate/mag/clean_catalog.csv`)
-    │   │   ├── hmi                         # csv of raw hmi meta/fits
-    │   │   └── mdi                         # csv of raw hmi meta/fits
+    │   │   │   └── ...
+    │   │   ├── hmi
+    │   │   │   └── raw.csv                 # csv of raw hmi meta/fits
+    │   │   └── mdi
+    │   │       └── raw.csv                 # csv of raw hmi meta/fits
     │   │
     │   └── noaa_srs                        # noaa srs files
     │       ├── txt
