@@ -96,9 +96,10 @@ class ARExtractor:
                 lambda x: dv_base_path / Path(x).name if pd.notna(x) else x
             )
 
+        cutout_list = []
         for index, row in self.loaded_data.iterrows():
             if self.loaded_data.iloc[index]["processed_hmi"] is np.nan:
-                pass
+                cutout_list.append(np.nan)
             else:
                 lat = self.loaded_data.iloc[index]["Latitude"]
                 lng = self.loaded_data.iloc[index]["Longitude"]
@@ -130,7 +131,12 @@ class ARExtractor:
                 my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
                 print(dv_process_path / f"{dt}_{numbr}.fits")
-                my_hmi_submap.save(dv_process_path / f"{dt}_{numbr}.fits")
+                my_hmi_submap.save(dv_process_path / f"{dt}_{numbr}.fits", overwrite=True)
+
+                cutout_list.append(dv_process_path / f"{dt}_{numbr}.fits")
+
+        self.loaded_data["hmi_cutout"] = cutout_list
+        self.loaded_data.to_csv(Path("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/") / "processed.csv")
 
 
 if __name__ == "__main__":
