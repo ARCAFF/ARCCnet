@@ -116,7 +116,7 @@ class SWPCCatalog(BaseCatalog):
 
         table = Fido.fetch(
             result,
-            # path=dv.NOAA_SRS_TEXT_DIR,
+            path=dv.NOAA_SRS_TEXT_DIR,
             progress=True,
             overwrite=False,
         )
@@ -141,7 +141,7 @@ class SWPCCatalog(BaseCatalog):
         self,
         save_csv: Optional[bool] = True,
         save_html: Optional[bool] = True,
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    ) -> "tuple[pd.DataFrame, pd.DataFrame]":
         """
         Creates an SRS catalog from `self._fetched_data`.
 
