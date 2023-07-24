@@ -1,8 +1,9 @@
 import pandas as pd
+from sklearn.model_selection import GroupShuffleSplit
 
 from arccnet.data_generation.utils.data_logger import logger
 
-__all__ = ["save_df_to_html", "check_column_values"]
+__all__ = ["save_df_to_html", "check_column_values", "grouped_stratified_split"]
 
 
 def save_df_to_html(df: pd.DataFrame, filename: str) -> None:
@@ -93,3 +94,9 @@ def check_column_values(catalog: pd.DataFrame, valid_values: dict, return_catalo
 
     if return_catalog:
         return catalog
+
+
+def grouped_stratified_split(df, class_column, group_column):
+    group_shuffle_split = GroupShuffleSplit(n_splits=1, train_size=0.7, test_size=0.3)
+    splits = group_shuffle_split.split(df.index, df[class_column], df[group_column])
+    return splits
