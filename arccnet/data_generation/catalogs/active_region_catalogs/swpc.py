@@ -3,6 +3,7 @@ from typing import Optional
 from pathlib import Path
 
 import pandas as pd
+import parfive
 import parfive.results
 
 import arccnet.data_generation.utils.default_variables as dv
@@ -104,12 +105,24 @@ class SWPCCatalog(BaseCatalog):
         )
 
         logger.info(f">> downloading SRS data to {dv.NOAA_SRS_TEXT_DIR}")
+
+        # Sunpy issue throwing up errors during SRS download so monkey patch problematic method
+        orig_get_ftp = parfive.downloader.get_ftp_size
+
+        async def dummy_get_ftp(*args, **kwargs):
+            return 0
+
+        parfive.downloader.get_ftp_size = dummy_get_ftp
+
         table = Fido.fetch(
             result,
-            path=dv.NOAA_SRS_TEXT_DIR,
+            # path=dv.NOAA_SRS_TEXT_DIR,
             progress=True,
             overwrite=False,
         )
+
+        # Replace original method - not sure if this is needed
+        parfive.downloader.get_ftp_size = orig_get_ftp
 
         if len(table.errors) > 0:
             logger.warning(f">> the following errors were reported: {table.errors}")
