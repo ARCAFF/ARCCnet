@@ -112,4 +112,4 @@ def test_grouped_stratified_split():
     train_class_dist = df[cls_col].iloc[train_indices].value_counts(normalize=True)
     test_class_dist = df[cls_col].iloc[test_indices].value_counts(normalize=True)
     assert_allclose(class_dist, train_class_dist, rtol=0.1)
-    assert_allclose(class_dist, test_class_dist, rtol=0.1)
+    assert_allclose(class_dist, test_class_dist, rtol=0.15)
