@@ -169,5 +169,5 @@ class ARExtractor:
 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
-    # _ = MagnetogramProcessor()
+    _ = MagnetogramProcessor()
     _ = ARExtractor()
