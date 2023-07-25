@@ -11,7 +11,7 @@ import arccnet.data_generation.utils.default_variables as dv
 import sunpy.map
 from arccnet.data_generation.utils.data_logger import logger
 
-__all__ = ["MagnetogramProcessor"]
+__all__ = ["MagnetogramProcessor", "ARExtractor"]
 
 
 class MagnetogramProcessor:
@@ -119,8 +119,10 @@ class ARExtractor:
                 rsun.append(np.nan)
                 dsun.append(np.nan)
             else:
-                lat = self.loaded_subset.iloc[index]["Latitude"]
-                lng = self.loaded_subset.iloc[index]["Longitude"]
+                # lat = self.loaded_subset.iloc[index]["Latitude"]
+                # lng = self.loaded_subset.iloc[index]["Longitude"]
+                lat = 0
+                lng = 0
                 hmi = self.loaded_subset.iloc[index]["processed_hmi"]
                 time = self.loaded_subset.iloc[index]["datetime_hmi"]
 
