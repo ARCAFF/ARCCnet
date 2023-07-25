@@ -151,6 +151,7 @@ MAG_RAW_DATA_DIR = os.path.join(MAG_RAW_DIR, "fits")
 
 MAG_INTERMEDIATE_DIR = os.path.join(DATA_DIR_INTERMEDIATE, "mag")
 MAG_PROCESSED_DIR = os.path.join(DATA_DIR_PROCESSED, "mag")
+MAG_PROCESSED_FITS_DIR = os.path.join(MAG_PROCESSED_DIR, "fits")
 
 MAG_INTERMEDIATE_DATA_DIR = os.path.join(MAG_INTERMEDIATE_DIR, "fits")
 

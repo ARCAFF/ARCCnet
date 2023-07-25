@@ -89,8 +89,11 @@ class ARExtractor:
         new_columns = ["processed_hmi", "processed_mdi"]
 
         # !TODO replace with default_variables.py
-        dv_base_path = dv.MAG_INTERMEDIATE_DATA_DIR
-        dv_process_path = dv.MAG_PROCESSED_DIR
+        dv_base_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
+
+        dv_process_fits_path = Path(dv.MAG_PROCESSED_FITS_DIR)
+        if not dv_process_fits_path.exists():
+            dv_process_fits_path.mkdir(parents=True)
 
         # Iterate through the columns and update the paths
         for old_column, new_column in zip(columns_to_update, new_columns):
@@ -100,17 +103,25 @@ class ARExtractor:
 
         # set empty list of cutout for hmi
         cutout_list_hmi = []
-        for index, row in self.loaded_data.iterrows():
-            if self.loaded_data.iloc[index]["processed_hmi"] is np.nan:
-                cutout_list_hmi.append(np.nan)
-            else:
-                lat = self.loaded_data.iloc[index]["Latitude"]
-                lng = self.loaded_data.iloc[index]["Longitude"]
-                hmi = self.loaded_data.iloc[index]["processed_hmi"]
-                time = self.loaded_data.iloc[index]["datetime_hmi"]
+        cutout_hmi_dim = []
 
-                dt = self.loaded_data.iloc[index]["datetime_srs"]
-                numbr = self.loaded_data.iloc[index]["Number"]
+        self.loaded_subset = self.loaded_data[
+            ["Latitude", "Longitude", "Number", "processed_hmi", "datetime_hmi", "datetime_srs"]
+        ].copy()
+
+        print(self.loaded_subset)
+        for index, row in self.loaded_subset.iterrows():
+            if self.loaded_subset.iloc[index]["processed_hmi"] is np.nan:
+                cutout_list_hmi.append(np.nan)
+                cutout_hmi_dim.append(np.nan)
+            else:
+                lat = self.loaded_subset.iloc[index]["Latitude"]
+                lng = self.loaded_subset.iloc[index]["Longitude"]
+                hmi = self.loaded_subset.iloc[index]["processed_hmi"]
+                time = self.loaded_subset.iloc[index]["datetime_hmi"]
+
+                dt = self.loaded_subset.iloc[index]["datetime_srs"]
+                numbr = self.loaded_subset.iloc[index]["Number"]
 
                 my_hmi_map = sunpy.map.Map(hmi)
 
@@ -133,16 +144,19 @@ class ARExtractor:
                 bottom_left = SkyCoord(bl_x, bl_y, frame=my_hmi_map.coordinate_frame)
                 my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
-                print(dv_process_path / f"{dt}_{numbr}.fits")
-                my_hmi_submap.save(dv_process_path / f"{dt}_{numbr}.fits", overwrite=True)
+                print(dv_process_fits_path / f"{dt}_{numbr}.fits")
+                my_hmi_submap.save(dv_process_fits_path / f"{dt}_{numbr}.fits", overwrite=True)
 
-                cutout_list_hmi.append(dv_process_path / f"{dt}_{numbr}.fits")
+                cutout_list_hmi.append(dv_process_fits_path / f"{dt}_{numbr}.fits")
+                cutout_hmi_dim.append(my_hmi_submap.data.shape)
 
-        self.loaded_data["hmi_cutout"] = cutout_list_hmi
-        self.loaded_data.to_csv(dv_process_path / "processed.csv")
+        self.loaded_subset.loc[:, "hmi_cutout"] = cutout_list_hmi
+        self.loaded_subset.loc[:, "hmi_cutout_dim"] = cutout_hmi_dim
+
+        self.loaded_subset.to_csv(Path(dv.MAG_PROCESSED_DIR) / "processed.csv")
 
 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
-    _ = MagnetogramProcessor()
+    # _ = MagnetogramProcessor()
     _ = ARExtractor()
