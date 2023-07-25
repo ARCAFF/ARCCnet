@@ -1,11 +1,11 @@
 import os
 import tempfile
-from random import shuffle
 from itertools import chain
 
+import numpy as np
 import pandas as pd
 import pytest
-from numpy.testing import assert_allclose
+from numpy.testing import assert_allclose, assert_array_equal
 
 from arccnet.data_generation.utils.utils import check_column_values, grouped_stratified_split, save_df_to_html
 
@@ -91,25 +91,59 @@ def test_check_column_values_return_catalog(sample_dataframe, valid_values):
 
 
 def test_grouped_stratified_split():
-    list(range(100))
-    groups = list(chain.from_iterable([[i] * 10 for i in range(10)]))
-    classes = [0] * 20 + [1] * 30 + [2] * 50
-    shuffle(classes)
+    groups = list(chain.from_iterable([[i] * 10 for i in range(100)]))
+    classes = [1] * 10 + [2] * 40 + [2] * 200 + [4] * 750
+    np.random.seed(42)
+    np.random.shuffle(classes)
     data = list(zip(classes, groups))
     cls_col = "class"
     grp_col = "group"
     df = pd.DataFrame(data, columns=[cls_col, grp_col])
 
-    splits = list(grouped_stratified_split(df, cls_col, grp_col))
-    train_indices, test_indices = splits[0]
+    train_indices, test_indices = grouped_stratified_split(df, class_col=cls_col, group_col=grp_col, random_state=42)
 
+    # make sure no group appears in both sets
     train_groups = df[grp_col].iloc[train_indices]
     test_groups = df[grp_col].iloc[test_indices]
     groups_intersection = set(train_groups).intersection(set(test_groups))
     assert len(groups_intersection) == 0
 
+    # make sure distribution of sets classes are close to dist of original
     class_dist = df[cls_col].value_counts(normalize=True)
     train_class_dist = df[cls_col].iloc[train_indices].value_counts(normalize=True)
     test_class_dist = df[cls_col].iloc[test_indices].value_counts(normalize=True)
-    assert_allclose(class_dist, train_class_dist, rtol=0.1)
-    assert_allclose(class_dist, test_class_dist, rtol=0.15)
+    assert_allclose(class_dist, train_class_dist, atol=0.02)  # 2% error
+    assert_allclose(class_dist, test_class_dist, atol=0.02)  # 2% error
+
+    # make sure all data is used
+    assert_array_equal(np.arange(1000), np.sort(np.hstack([train_indices, test_indices])))
+
+
+def test_grouped_stratified_split_string_classes():
+    np.random.default_rng(42)
+    groups = list(chain.from_iterable([[i] * 10 for i in range(100)]))
+    classes = ["a"] * 10 + ["b"] * 40 + ["c"] * 200 + ["d"] * 750
+    np.random.seed(42)
+    np.random.shuffle(classes)
+    data = list(zip(classes, groups))
+    cls_col = "class"
+    grp_col = "group"
+    df = pd.DataFrame(data, columns=[cls_col, grp_col])
+
+    train_indices, test_indices = grouped_stratified_split(df, class_col=cls_col, group_col=grp_col, random_state=42)
+
+    # make sure no group appears in both sets
+    train_groups = df[grp_col].iloc[train_indices]
+    test_groups = df[grp_col].iloc[test_indices]
+    groups_intersection = set(train_groups).intersection(set(test_groups))
+    assert len(groups_intersection) == 0  # same group no in train and test sets
+
+    # make sure distribution of sets classes are close to dist of original
+    class_dist = df[cls_col].value_counts(normalize=True)
+    train_class_dist = df[cls_col].iloc[train_indices].value_counts(normalize=True)
+    test_class_dist = df[cls_col].iloc[test_indices].value_counts(normalize=True)
+    assert_allclose(class_dist, train_class_dist, atol=0.02)  # 2% error
+    assert_allclose(class_dist, test_class_dist, atol=0.02)  # 2% error
+
+    # make sure all data is used
+    assert_array_equal(np.arange(1000), np.sort(np.hstack([train_indices, test_indices])))

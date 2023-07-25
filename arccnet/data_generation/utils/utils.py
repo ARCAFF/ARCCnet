@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.model_selection import GroupShuffleSplit
+from sklearn.model_selection import StratifiedGroupKFold
 
 from arccnet.data_generation.utils.data_logger import logger
 
@@ -96,7 +96,49 @@ def check_column_values(catalog: pd.DataFrame, valid_values: dict, return_catalo
         return catalog
 
 
-def grouped_stratified_split(df, class_column, group_column):
-    group_shuffle_split = GroupShuffleSplit(n_splits=1, train_size=0.7, test_size=0.3)
-    splits = group_shuffle_split.split(df.index, df[class_column], df[group_column])
-    return splits
+def grouped_stratified_split(
+    df, *, class_col, group_col, train_size=0.7, test_size=0.3, shuffle=True, random_state=None
+):
+    r"""
+    Return grouped stratified splits for given data with train test sizes
+
+    This is really not going to be very efficient or exact for all given sizes but saves time having to implement from
+    scratch. Abuse StratifiedGroupKFold and n_splits to get desired ~desired ratio and then only return 1st split.
+
+    Parameters
+    ----------
+    df : `pandas.DataFrame`
+        Data
+    class_col : `str`
+        Name of the column containing classes
+    group_col
+        Name of the column containing groups
+    test_size: `float`
+        Size of test set
+    train_size: `float`
+        Size of train set
+    n_splits: `int`
+        Number of splits
+    random_state : `int` or `RandomState` instance, default=None
+        Random state info passed on to StratifiedGroupKFold
+    shuffle : `boolean` default True
+        If the data should be shuffled
+    Returns
+    -------
+
+    """
+    if train_size + test_size != 1.0:
+        raise ValueError("Train and test size must sum to 1.0")
+
+    train_index = train_size * 10
+    test_index = train_size * 10
+    if not train_index.is_integer() or not test_index.is_integer():
+        raise ValueError("Train and test size must be given in multiples of 0.1")
+
+    n_splits = int(1 / test_size)
+
+    sgkf = StratifiedGroupKFold(n_splits=n_splits, random_state=random_state, shuffle=shuffle)
+    splits = list(sgkf.split(df.index.tolist(), df[class_col], df[group_col]))
+    train, test = splits[0]
+
+    return train, test
