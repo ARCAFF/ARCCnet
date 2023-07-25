@@ -151,8 +151,8 @@ class ARExtractor:
 
                 # Perform in pixel coordinates
                 #
-                x_extent = 400 - 1
-                y_extent = 200 - 1
+                x_extent = 800 - 1
+                y_extent = 400 - 1
                 #
                 ar_centre = transformed.to_pixel(my_hmi_map.wcs)
                 top_right = [ar_centre[0] + x_extent / 2, ar_centre[1] + y_extent / 2] * u.pix
