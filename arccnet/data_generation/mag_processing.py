@@ -104,16 +104,20 @@ class ARExtractor:
         # set empty list of cutout for hmi
         cutout_list_hmi = []
         cutout_hmi_dim = []
+        rsun = []
+        dsun = []
 
         self.loaded_subset = self.loaded_data[
             ["Latitude", "Longitude", "Number", "processed_hmi", "datetime_hmi", "datetime_srs"]
         ].copy()
 
         print(self.loaded_subset)
-        for index, row in self.loaded_subset.iterrows():
+        for index, _ in self.loaded_subset.iterrows():
             if self.loaded_subset.iloc[index]["processed_hmi"] is np.nan:
                 cutout_list_hmi.append(np.nan)
                 cutout_hmi_dim.append(np.nan)
+                rsun.append(np.nan)
+                dsun.append(np.nan)
             else:
                 lat = self.loaded_subset.iloc[index]["Latitude"]
                 lng = self.loaded_subset.iloc[index]["Longitude"]
@@ -150,8 +154,13 @@ class ARExtractor:
                 cutout_list_hmi.append(dv_process_fits_path / f"{dt}_{numbr}.fits")
                 cutout_hmi_dim.append(my_hmi_submap.data.shape)
 
+                rsun.append(my_hmi_submap.meta["rsun_obs"])
+                dsun.append(my_hmi_submap.meta["dsun_obs"])
+
         self.loaded_subset.loc[:, "hmi_cutout"] = cutout_list_hmi
         self.loaded_subset.loc[:, "hmi_cutout_dim"] = cutout_hmi_dim
+        self.loaded_subset.loc[:, "rsun_obs"] = rsun
+        self.loaded_subset.loc[:, "dsun_obs"] = dsun
 
         self.loaded_subset.to_csv(Path(dv.MAG_PROCESSED_DIR) / "processed.csv")
 
