@@ -119,10 +119,9 @@ class ARExtractor:
                 rsun.append(np.nan)
                 dsun.append(np.nan)
             else:
-                # lat = self.loaded_subset.iloc[index]["Latitude"]
-                # lng = self.loaded_subset.iloc[index]["Longitude"]
-                lat = 0
-                lng = 0
+                # lat, lng = 0, 0 # Testing with center sun
+                lat = self.loaded_subset.iloc[index]["Latitude"]
+                lng = self.loaded_subset.iloc[index]["Longitude"]
                 hmi = self.loaded_subset.iloc[index]["processed_hmi"]
                 time = self.loaded_subset.iloc[index]["datetime_hmi"]
 
@@ -140,15 +139,31 @@ class ARExtractor:
 
                 transformed = _cd.transform_to(my_hmi_map.coordinate_frame)
 
-                tr_x = transformed.helioprojective.Tx + 200 * u.arcsec
-                tr_y = transformed.helioprojective.Ty + 100 * u.arcsec
+                # Performed in arcseconds
+                #
+                # tr_x = transformed.helioprojective.Tx + 200 * u.arcsec
+                # tr_y = transformed.helioprojective.Ty + 100 * u.arcsec
+                # bl_x = transformed.helioprojective.Tx - 200 * u.arcsec
+                # bl_y = transformed.helioprojective.Ty - 100 * u.arcsec
+                # top_right = SkyCoord(tr_x, tr_y, frame=my_hmi_map.coordinate_frame)
+                # bottom_left = SkyCoord(bl_x, bl_y, frame=my_hmi_map.coordinate_frame)
+                # my_hmi_submap = my_hmi_map.susbmap(bottom_left, top_right=top_right)
 
-                bl_x = transformed.helioprojective.Tx - 200 * u.arcsec
-                bl_y = transformed.helioprojective.Ty - 100 * u.arcsec
-
-                top_right = SkyCoord(tr_x, tr_y, frame=my_hmi_map.coordinate_frame)
-                bottom_left = SkyCoord(bl_x, bl_y, frame=my_hmi_map.coordinate_frame)
+                # Perform in pixel coordinates
+                #
+                x_extent = 400 - 1
+                y_extent = 200 - 1
+                #
+                ar_centre = transformed.to_pixel(my_hmi_map.wcs)
+                top_right = [ar_centre[0] + x_extent / 2, ar_centre[1] + y_extent / 2] * u.pix
+                bottom_left = [ar_centre[0] - x_extent / 2, ar_centre[1] - y_extent / 2] * u.pix
                 my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
+
+                # the y range should always be the same.... x may change
+                assert my_hmi_submap.data.shape[0] == y_extent + 1
+
+                # !TODO see
+                # https://gitlab.com/frontierdevelopmentlab/living-with-our-star/super-resolution-maps-of-solar-magnetic-field/-/blob/master/source/prep.py?ref_type=heads
 
                 print(dv_process_fits_path / f"{dt}_{numbr}.fits")
                 my_hmi_submap.save(dv_process_fits_path / f"{dt}_{numbr}.fits", overwrite=True)
@@ -169,5 +184,5 @@ class ARExtractor:
 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
-    _ = MagnetogramProcessor()
+    # _ = MagnetogramProcessor()
     _ = ARExtractor()
