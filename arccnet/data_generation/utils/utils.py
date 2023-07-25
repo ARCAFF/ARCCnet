@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedGroupKFold
 
@@ -98,12 +99,12 @@ def check_column_values(catalog: pd.DataFrame, valid_values: dict, return_catalo
 
 def grouped_stratified_split(
     df, *, class_col, group_col, train_size=0.7, test_size=0.3, shuffle=True, random_state=None
-):
+) -> tuple[np.ndarray[int], np.ndarray[int]]:
     r"""
     Return grouped stratified splits for given data with train test sizes
 
-    This is really not going to be very efficient or exact for all given sizes but saves time having to implement from
-    scratch. Abuse StratifiedGroupKFold and n_splits to get desired ~desired ratio and then only return 1st split.
+    Not super efficient or exact but saves time having to implement from scratch. Abuse StratifiedGroupKFold and
+    n_splits to get approximately desired sizes and then only return 1st split.
 
     Parameters
     ----------
@@ -117,15 +118,13 @@ def grouped_stratified_split(
         Size of test set
     train_size: `float`
         Size of train set
-    n_splits: `int`
-        Number of splits
     random_state : `int` or `RandomState` instance, default=None
         Random state info passed on to StratifiedGroupKFold
     shuffle : `boolean` default True
         If the data should be shuffled
     Returns
     -------
-
+    Train and test indices
     """
     if train_size + test_size != 1.0:
         raise ValueError("Train and test size must sum to 1.0")
