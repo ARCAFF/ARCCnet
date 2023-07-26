@@ -60,7 +60,7 @@ The logs and data are saved in the `data` directory
     │   │   └── mdi
     │   │       └── raw.csv                 # csv of raw hmi meta/fits
     │   │
-    │   └── noaa_srs                        # noaa srs files
+    │   └── noaa_srs                        # noaa SRS files
     │       ├── txt
     │       │   └── ...                     # files that were loaded correctly
     │       ├── raw_data.html               # html of compiled (raw) data
@@ -74,8 +74,12 @@ The logs and data are saved in the `data` directory
     │   ├── mag
     │   │   └── clean_catalog.csv           # cleaned magnetogram catalog. Matched with SRS
     │   └── noaa_srs
-    │       └── clean_catalog.csv           # cleaned srs catalog.
+    │       └── clean_catalog.csv           # cleaned SRS catalog.
     │
     ├── 03_processed
+    │   ├── mag
+    │   │   └── fits
+    │   │       └── ...                     # AR Cutouts `<year>-<month>-<day>_<NOAA_ARNUM>.fits`
+    │   └── processed.csv                   # CSV regarding processed data
     │
     └── final                               # not implemented

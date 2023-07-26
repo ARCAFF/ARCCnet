@@ -56,10 +56,11 @@ class MagnetogramProcessor:
 
         # 2. set data off-disk to 0 (np.nan would be ideal, but deep learning)
         r_map.data[~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(r_map))] = 0
+        # !TODO understand why this isn't working with MDI (leaves a white ring around the disk)
 
         # !TODO
         # 3. normalise radius to fixed value
-        # 4. ...
+        # 4. project to a certain location in space
 
         return r_map
 
@@ -151,16 +152,16 @@ class ARExtractor:
 
                 # Perform in pixel coordinates
                 #
-                x_extent = 800 - 1
-                y_extent = 400 - 1
+                x_extent = 800
+                y_extent = 400
                 #
                 ar_centre = transformed.to_pixel(my_hmi_map.wcs)
-                top_right = [ar_centre[0] + x_extent / 2, ar_centre[1] + y_extent / 2] * u.pix
-                bottom_left = [ar_centre[0] - x_extent / 2, ar_centre[1] - y_extent / 2] * u.pix
+                top_right = [ar_centre[0] + (x_extent - 1) / 2, ar_centre[1] + (y_extent - 1) / 2] * u.pix
+                bottom_left = [ar_centre[0] - (x_extent - 1) / 2, ar_centre[1] - (y_extent - 1) / 2] * u.pix
                 my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
                 # the y range should always be the same.... x may change
-                assert my_hmi_submap.data.shape[0] == y_extent + 1
+                assert my_hmi_submap.data.shape[0] == y_extent
 
                 # !TODO see
                 # https://gitlab.com/frontierdevelopmentlab/living-with-our-star/super-resolution-maps-of-solar-magnetic-field/-/blob/master/source/prep.py?ref_type=heads
@@ -184,5 +185,5 @@ class ARExtractor:
 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
-    # _ = MagnetogramProcessor()
+    _ = MagnetogramProcessor()
     _ = ARExtractor()
