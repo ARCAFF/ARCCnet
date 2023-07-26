@@ -13,10 +13,19 @@ __all__ = ["DataManager"]
 
 
 class DataManager:
-    """
-    Main data management class.
+    r"""
+    Main data management responsible for data search, download, processing, and storage.
 
-    This class instantiates and handles data acquisition for the individual instruments
+    Parameters
+    ----------
+    start_date : `datetime`
+        Start date
+    end_date : `datetime`
+        End date
+    merge_tolerance : `pandas.Timedelta`
+        Time tolerance for merging data
+    skip_download : `bool` False
+        No search and download process existing data
     """
 
     def __init__(
@@ -24,17 +33,21 @@ class DataManager:
         start_date: datetime = dv.DATA_START_TIME,
         end_date: datetime = dv.DATA_END_TIME,
         merge_tolerance: pd.Timedelta = pd.Timedelta("30m"),
+        skip_download: bool = False,
+        skip_processing: bool = False,
     ):
+        self.skip_download = skip_download
+        self.skip_processing = skip_processing
         self.start_date = start_date
         self.end_date = end_date
 
         logger.info(f"Instantiated `DataManager` for {self.start_date} -> {self.end_date}")
 
         # instantiate classes
-        self.swpc = SWPCCatalog()
+        self.swpc = SWPCCatalog(skip_download=skip_download, skip_processing=skip_processing)
         # !TODO change this into an iterable
-        self.hmi = HMIMagnetogram()
-        self.mdi = MDIMagnetogram()
+        self.hmi = HMIMagnetogram(skip_download=self.skip_download)
+        self.mdi = MDIMagnetogram(skip_download=self.skip_download)
 
         # 1. fetch metadata
         logger.info(">> Fetching NOAA SRS Metadata")
@@ -118,7 +131,7 @@ class DataManager:
                     "loaded_successfully": "loaded_successfully_srs",
                     "catalog_created_on": "catalog_created_on_srs",
                 }
-            ),
+            ).sort_values("datetime_srs"),
             right=hmi_keys_dropna,
             left_on="datetime_srs",
             right_on="datetime_hmi",
@@ -171,6 +184,9 @@ class DataManager:
         base_directory_path = Path(dv.MAG_RAW_DATA_DIR)
         if not base_directory_path.exists():
             base_directory_path.mkdir(parents=True)
+
+        if self.skip_download:
+            return list(base_directory_path.glob("*.fits"))
 
         # HMI/MDI
         # !TODO change this so that it's not as specific as `url_hmi`, `url_mdi`

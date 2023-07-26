@@ -8,8 +8,8 @@ __all__ = ["HMIMagnetogram", "HMIMagnetogramNRT", "HMIContinuum"]
 
 
 class HMIMagnetogram(BaseMagnetogram):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
 
     def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="1d") -> str:

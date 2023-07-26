@@ -12,9 +12,10 @@ __all__ = ["BaseMagnetogram"]
 
 
 class BaseMagnetogram(ABC):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, *args, skip_download, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         self._drms_client = drms.Client(debug=False, verbose=False, email=dv.JSOC_DEFAULT_EMAIL)
+        self.skip_download = skip_download
 
     @abstractmethod
     def generate_drms_query(self, start_time, end_time, frequency) -> str:
@@ -92,6 +93,14 @@ class BaseMagnetogram(ABC):
             The `pd.DataFrame` also contains `urls` to the complete `.fits` files (magnetogram + metadata) that are staged by JSOC for download.
 
         """
+        directory_path = Path(self.metadata_save_location)
+        filename = directory_path / "raw.csv"
+        if self.skip_download:
+            if filename.exists():
+                raw_df = pd.read_csv(filename, parse_dates=["datetime"])
+                return raw_df
+
+            raise RuntimeError(f"Tried to skip download but required data: {filename} not found")
 
         q = self.generate_drms_query(start_date, end_date)
         logger.info(f">> {self._type()} Query: {q}")
@@ -128,7 +137,6 @@ class BaseMagnetogram(ABC):
             for date in keys["DATE-OBS"]  # ensure we want errors="coerce"
         ]  # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
 
-        directory_path = Path(self.metadata_save_location)
         if not directory_path.exists():
             directory_path.mkdir(parents=True)
 

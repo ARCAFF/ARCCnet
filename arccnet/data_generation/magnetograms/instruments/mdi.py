@@ -8,8 +8,8 @@ __all__ = ["MDIMagnetogram"]
 
 
 class MDIMagnetogram(BaseMagnetogram):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="1d") -> str:
         """

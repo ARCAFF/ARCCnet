@@ -61,12 +61,14 @@ class SWPCCatalog(BaseCatalog):
         data.
     """
 
-    def __init__(self):
+    def __init__(self, skip_processing=False, skip_download=False):
         self.text_format_template = None
         self._fetched_data = None
         self.raw_catalog = None
         self.raw_catalog_missing = None
         self.catalog = None
+        self.skip_download = skip_download
+        self.skip_processing = skip_processing
 
     def fetch_data(
         self,
@@ -97,7 +99,9 @@ class SWPCCatalog(BaseCatalog):
             If the table returned by `Fido.fetch` is of length zero.
 
         """
-
+        if self.skip_download:
+            logger.info(f">> Skipping searching and download for SRS data between {start_date} and {end_date}")
+            return
         logger.info(f">> searching for SRS data between {start_date} and {end_date}")
         result = Fido.search(
             a.Time(start_date, end_date),
@@ -167,10 +171,23 @@ class SWPCCatalog(BaseCatalog):
         srs_dfs = []
         time_now = datetime.datetime.utcnow()
 
-        if self._fetched_data is None:
+        if self._fetched_data is None and not self.skip_download:
             raise NoDataError
 
-        logger.info(">> loading fetched data")
+        if self.skip_download:
+            self._fetched_data = list(Path(dv.NOAA_SRS_TEXT_DIR).glob("*.txt"))
+
+        logger.info(">> Loading SRS Data")
+
+        if self.skip_processing:
+            raw_catalog = pd.read_csv(dv.NOAA_SRS_RAW_DATA_CSV, parse_dates=["datetime"])
+            raw_catalog_missing = pd.read_csv(dv.NOAA_SRS_RAW_DATA_EXCEPT_CSV, parse_dates=["datetime"])
+
+            self.raw_catalog = raw_catalog
+            self.raw_catalog_missing = raw_catalog_missing
+
+            return raw_catalog, raw_catalog_missing
+
         # include filepaths to ignore
         processed_filepaths = [Path(filepath) for filepath in self._fetched_data]
         processed_filepaths = [
