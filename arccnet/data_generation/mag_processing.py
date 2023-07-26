@@ -188,7 +188,7 @@ class ARExtractor:
             dv_final_path.mkdir(parents=True)
         self.loaded_subset_cleaned = self.loaded_subset[self.loaded_subset["hmi_cutout_dim"] == (y_extent, x_extent)]
         self.loaded_subset.dropna(inplace=True)
-        self.loaded_subset_cleaned.to_csv(Path(dv.DATA_DIR_FINAL) / "cleaned.csv")  # need to reset index
+        self.loaded_subset_cleaned.to_csv(Path(dv.DATA_DIR_FINAL) / "arcutout_clean.csv")  # need to reset index
 
 
 if __name__ == "__main__":
