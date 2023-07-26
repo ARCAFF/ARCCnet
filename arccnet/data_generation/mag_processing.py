@@ -182,8 +182,16 @@ class ARExtractor:
 
         self.loaded_subset.to_csv(Path(dv.MAG_PROCESSED_DIR) / "processed.csv")
 
+        # clean data
+        dv_final_path = Path(dv.DATA_DIR_FINAL)
+        if not dv_final_path.exists():
+            dv_final_path.mkdir(parents=True)
+        self.loaded_subset_cleaned = self.loaded_subset[self.loaded_subset["hmi_cutout_dim"] == (y_extent, x_extent)]
+        self.loaded_subset.dropna(inplace=True)
+        self.loaded_subset_cleaned.to_csv(Path(dv.DATA_DIR_FINAL) / "cleaned.csv")  # need to reset index
+
 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
-    _ = MagnetogramProcessor()
+    # _ = MagnetogramProcessor()
     _ = ARExtractor()
