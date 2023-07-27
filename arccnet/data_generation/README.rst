@@ -31,7 +31,7 @@ Directory Structure
     │   └── default_variables.py  # default variables used for data generation
     │
     ├── data_manager.py           # entry point for obtaining and combining data sources
-    .. └── data_processor.py         # entry point to process data into training data
+    └── data_processor.py         # entry point to process data into training data
 
 Example Usage
 =============
