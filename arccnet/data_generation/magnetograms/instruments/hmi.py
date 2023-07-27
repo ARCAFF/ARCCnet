@@ -65,6 +65,21 @@ class HMILOSMagnetogram(BaseMagnetogram):
         return dv.HMI_MAG_RAW_CSV
 
 
+class HMIBMagnetogram(HMILOSMagnetogram):
+    def __init__(self):
+        super().__init__()
+
+    @property
+    def series_name(self) -> str:
+        """
+        Returns
+        -------
+        str:
+            JSOC series name
+        """
+        return "hmi.B_720s"
+
+
 class HMIContinuum(HMILOSMagnetogram):
     def __init__(self):
         super().__init__()
