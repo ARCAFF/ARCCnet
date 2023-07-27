@@ -6,7 +6,7 @@ from sunpy.util.parfive_helpers import Downloader
 
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.catalogs.active_region_catalogs.swpc import SWPCCatalog
-from arccnet.data_generation.magnetograms.instruments import HMIMagnetogram, MDIMagnetogram
+from arccnet.data_generation.magnetograms.instruments import HMILOSMagnetogram, MDILOSMagnetogram
 from arccnet.data_generation.utils.data_logger import logger
 
 __all__ = ["DataManager"]
@@ -33,8 +33,8 @@ class DataManager:
         # instantiate classes
         self.swpc = SWPCCatalog()
         # !TODO change this into an iterable
-        self.hmi = HMIMagnetogram()
-        self.mdi = MDIMagnetogram()
+        self.hmi = HMILOSMagnetogram()
+        self.mdi = MDILOSMagnetogram()
 
         # 1. fetch metadata
         logger.info(">> Fetching NOAA SRS Metadata")

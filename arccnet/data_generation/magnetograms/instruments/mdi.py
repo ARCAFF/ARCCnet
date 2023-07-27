@@ -4,10 +4,10 @@ import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.magnetograms.base_magnetogram import BaseMagnetogram
 from arccnet.data_generation.magnetograms.utils import datetime_to_jsoc
 
-__all__ = ["MDIMagnetogram"]
+__all__ = ["MDILOSMagnetogram"]
 
 
-class MDIMagnetogram(BaseMagnetogram):
+class MDILOSMagnetogram(BaseMagnetogram):
     def __init__(self):
         super().__init__()
 

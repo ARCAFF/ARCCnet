@@ -4,10 +4,10 @@ import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.magnetograms.base_magnetogram import BaseMagnetogram
 from arccnet.data_generation.magnetograms.utils import datetime_to_jsoc
 
-__all__ = ["HMIMagnetogram", "HMIMagnetogramNRT", "HMIContinuum"]
+__all__ = ["HMILOSMagnetogram", "HMIMagnetogramNRT", "HMIContinuum"]
 
 
-class HMIMagnetogram(BaseMagnetogram):
+class HMILOSMagnetogram(BaseMagnetogram):
     def __init__(self):
         super().__init__()
         # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
@@ -32,7 +32,7 @@ class HMIMagnetogram(BaseMagnetogram):
         str:
             JSOC series name
         """
-        return "hmi.M_720s"
+        return "hmi.M_720s"  # hmi.B_720s for the full-disk
 
     @property
     def date_format(self) -> str:
@@ -65,7 +65,7 @@ class HMIMagnetogram(BaseMagnetogram):
         return dv.HMI_MAG_RAW_CSV
 
 
-class HMIContinuum(HMIMagnetogram):
+class HMIContinuum(HMILOSMagnetogram):
     def __init__(self):
         super().__init__()
 
@@ -100,6 +100,6 @@ class HMIContinuum(HMIMagnetogram):
         return dv.HMI_IC_RAW_CSV
 
 
-class HMIMagnetogramNRT(HMIMagnetogram):
+class HMIMagnetogramNRT(HMILOSMagnetogram):
     def __init__(self):
         raise NotImplementedError("Placeholder class for NRT HMI Magnetograms")
