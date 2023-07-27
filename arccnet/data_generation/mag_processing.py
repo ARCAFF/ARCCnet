@@ -132,12 +132,11 @@ class ARExtractor:
         # !TODO go through HMI and MDI separately
         self.loaded_subset.dropna(inplace=True)
 
+        # group by SRS files
         grouped_data = self.loaded_subset.groupby("datetime_srs")
 
         for time_srs, group in grouped_data:
-            tr_arr = []
-            bl_arr = []
-            ar_num = []
+            summary_info = []
 
             my_hmi_map = sunpy.map.Map(group.processed_hmi.unique()[0])  # take the first hmi
             time_hmi = group.datetime_hmi.unique()[0]
@@ -176,9 +175,7 @@ class ARExtractor:
                 bottom_left = [ar_centre[0] - (dv.X_EXTENT - 1) / 2, ar_centre[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
                 my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
-                tr_arr.append(top_right)
-                bl_arr.append(bottom_left)
-                ar_num.append(numbr)
+                summary_info.append([top_right, bottom_left, numbr, my_hmi_submap.data.shape])
 
                 # the y range should always be the same.... x may change
                 # assert my_hmi_submap.data.shape[0] == dv.Y_EXTENT
@@ -191,24 +188,38 @@ class ARExtractor:
                 cutout_list_hmi.append(dv_process_fits_path / f"{time_srs}_{numbr}.fits")
                 cutout_hmi_dim.append(my_hmi_submap.data.shape)
 
-                rsun.append(my_hmi_submap.meta["rsun_obs"])
+                rsun.append(my_hmi_submap.meta["rsun_obs"])  # want to move it
                 dsun.append(my_hmi_submap.meta["dsun_obs"])
 
                 del my_hmi_submap  # delete the submap
 
             # Plotting and saving
-            #
+            # !TODO move to a new function
             fig = plt.figure(figsize=(5, 5))
             ax = fig.add_subplot(projection=my_hmi_map)
             my_hmi_map.plot_settings["norm"].vmin = -1500
             my_hmi_map.plot_settings["norm"].vmax = 1500
             my_hmi_map.plot(axes=ax, cmap="hmimag")
 
-            for bl, tr, arnum in zip(bl_arr, tr_arr, ar_num):
+            for i, (tr, bl, num, shape) in enumerate(summary_info):
+                if shape == (dv.Y_EXTENT, dv.X_EXTENT):
+                    rectangle_cr = "red"
+                    rectangle_ls = "-"
+                else:
+                    rectangle_cr = "black"
+                    rectangle_ls = "-."
+
                 my_hmi_map.draw_quadrangle(
-                    bl, axes=ax, top_right=tr, edgecolor="red", linestyle="-", linewidth=1, label=str(arnum)
+                    bl,
+                    axes=ax,
+                    top_right=tr,
+                    edgecolor=rectangle_cr,
+                    linestyle=rectangle_ls,
+                    linewidth=1,
+                    label=str(num),
                 )
 
+            ax.legend()
             plt.savefig(dv_summary_plots_path / f"{time_srs}.png")
 
         self.loaded_subset.loc[:, "hmi_cutout"] = cutout_list_hmi
