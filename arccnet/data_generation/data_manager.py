@@ -111,6 +111,14 @@ class DataManager:
         method to merge the data sources
         """
 
+        if self.skip_processing:
+            merged_df = pd.read_csv(
+                dv.MAG_INTERMEDIATE_DATA_CSV,
+                parse_dates=["catalog_created_on_srs", "datetime_srs", "datetime_hmi", "datetime_mdi"],
+            )
+            self.merged_df = merged_df
+            return merged_df
+
         # merge srs_clean and hmi
         mag_cols = ["magnetogram_fits", "datetime", "url"]
 
@@ -231,4 +239,4 @@ class DataManager:
 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
-    _ = DataManager(dv.DATA_START_TIME, dv.DATA_END_TIME)
+    _ = DataManager(dv.DATA_START_TIME, dv.DATA_END_TIME, skip_download=True, skip_processing=True)
