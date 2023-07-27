@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import numpy as np
+import matplotlib.pyplot as plt
 import pandas as pd
 from tqdm import tqdm
 
@@ -96,6 +96,10 @@ class ARExtractor:
         if not dv_process_fits_path.exists():
             dv_process_fits_path.mkdir(parents=True)
 
+        dv_summary_plots_path = Path(dv.MAG_PROCESSED_SUMMARYPLOTS_DIR)
+        if not dv_summary_plots_path.exists():
+            dv_summary_plots_path.mkdir(parents=True)
+
         # Iterate through the columns and update the paths
         for old_column, new_column in zip(columns_to_update, new_columns):
             self.loaded_data[new_column] = self.loaded_data[old_column].map(
@@ -122,29 +126,35 @@ class ARExtractor:
             ]
         ].copy()
 
-        print(self.loaded_subset)
-        for index, _ in self.loaded_subset.iterrows():
-            if self.loaded_subset.iloc[index]["processed_hmi"] is np.nan:
-                cutout_list_hmi.append(np.nan)
-                cutout_hmi_dim.append(np.nan)
-                rsun.append(np.nan)
-                dsun.append(np.nan)
-            else:
-                # lat, lng = 0, 0 # Testing with center sun
-                lat = self.loaded_subset.iloc[index]["Latitude"]
-                lng = self.loaded_subset.iloc[index]["Longitude"]
-                hmi = self.loaded_subset.iloc[index]["processed_hmi"]
-                time = self.loaded_subset.iloc[index]["datetime_hmi"]
+        logger.info(self.loaded_subset)
 
-                dt = self.loaded_subset.iloc[index]["datetime_srs"]
-                numbr = self.loaded_subset.iloc[index]["Number"]
+        # drop rows with NaN (so drop none with HMI)
+        # !TODO go through HMI and MDI separately
+        self.loaded_subset.dropna(inplace=True)
 
-                my_hmi_map = sunpy.map.Map(hmi)
+        grouped_data = self.loaded_subset.groupby("datetime_srs")
+
+        for time_srs, group in grouped_data:
+            tr_arr = []
+            bl_arr = []
+            ar_num = []
+
+            my_hmi_map = sunpy.map.Map(group.processed_hmi.unique()[0])  # take the first hmi
+            time_hmi = group.datetime_hmi.unique()[0]
+
+            logger.info(
+                f"the srs time is {time_srs}, and the hmi time is {time_hmi}. The size of the group is len(group) {len(group)}"
+            )
+
+            for _, row in group.iterrows():
+                # extract the lat/long and NOAA AR Number (for saving)
+                lat, lng, numbr = row[["Latitude", "Longitude", "Number"]]
+                logger.info(f" >>> {lat}, {lng}, {numbr}")
 
                 _cd = SkyCoord(
                     lng * u.deg,
                     lat * u.deg,
-                    obstime=time,
+                    obstime=time_hmi,
                     frame=sunpy.coordinates.frames.HeliographicStonyhurst,
                 )
 
@@ -161,27 +171,45 @@ class ARExtractor:
                 # my_hmi_submap = my_hmi_map.susbmap(bottom_left, top_right=top_right)
 
                 # Perform in pixel coordinates
-                #
-                #
                 ar_centre = transformed.to_pixel(my_hmi_map.wcs)
                 top_right = [ar_centre[0] + (dv.X_EXTENT - 1) / 2, ar_centre[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
                 bottom_left = [ar_centre[0] - (dv.X_EXTENT - 1) / 2, ar_centre[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
                 my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
+                tr_arr.append(top_right)
+                bl_arr.append(bottom_left)
+                ar_num.append(numbr)
+
                 # the y range should always be the same.... x may change
-                assert my_hmi_submap.data.shape[0] == dv.Y_EXTENT
+                # assert my_hmi_submap.data.shape[0] == dv.Y_EXTENT
 
                 # !TODO see
                 # https://gitlab.com/frontierdevelopmentlab/living-with-our-star/super-resolution-maps-of-solar-magnetic-field/-/blob/master/source/prep.py?ref_type=heads
+                # logger.info(f"saving {dv_process_fits_path}/{time_srs}_{numbr}.fits")
+                my_hmi_submap.save(dv_process_fits_path / f"{time_srs}_{numbr}.fits", overwrite=True)
 
-                print(dv_process_fits_path / f"{dt}_{numbr}.fits")
-                my_hmi_submap.save(dv_process_fits_path / f"{dt}_{numbr}.fits", overwrite=True)
-
-                cutout_list_hmi.append(dv_process_fits_path / f"{dt}_{numbr}.fits")
+                cutout_list_hmi.append(dv_process_fits_path / f"{time_srs}_{numbr}.fits")
                 cutout_hmi_dim.append(my_hmi_submap.data.shape)
 
                 rsun.append(my_hmi_submap.meta["rsun_obs"])
                 dsun.append(my_hmi_submap.meta["dsun_obs"])
+
+                del my_hmi_submap  # delete the submap
+
+            # Plotting and saving
+            #
+            fig = plt.figure(figsize=(5, 5))
+            ax = fig.add_subplot(projection=my_hmi_map)
+            my_hmi_map.plot_settings["norm"].vmin = -1500
+            my_hmi_map.plot_settings["norm"].vmax = 1500
+            my_hmi_map.plot(axes=ax, cmap="hmimag")
+
+            for bl, tr, arnum in zip(bl_arr, tr_arr, ar_num):
+                my_hmi_map.draw_quadrangle(
+                    bl, axes=ax, top_right=tr, edgecolor="red", linestyle="-", linewidth=1, label=str(arnum)
+                )
+
+            plt.savefig(dv_summary_plots_path / f"{time_srs}.png")
 
         self.loaded_subset.loc[:, "hmi_cutout"] = cutout_list_hmi
         self.loaded_subset.loc[:, "hmi_cutout_dim"] = cutout_hmi_dim
