@@ -109,7 +109,17 @@ class ARExtractor:
         dsun = []
 
         self.loaded_subset = self.loaded_data[
-            ["Latitude", "Longitude", "Number", "processed_hmi", "datetime_hmi", "datetime_srs"]
+            [
+                "Latitude",
+                "Longitude",
+                "Number",
+                "Area",
+                "Z",
+                "Mag Type",
+                "processed_hmi",
+                "datetime_hmi",
+                "datetime_srs",
+            ]
         ].copy()
 
         print(self.loaded_subset)
@@ -152,16 +162,14 @@ class ARExtractor:
 
                 # Perform in pixel coordinates
                 #
-                x_extent = 800
-                y_extent = 400
                 #
                 ar_centre = transformed.to_pixel(my_hmi_map.wcs)
-                top_right = [ar_centre[0] + (x_extent - 1) / 2, ar_centre[1] + (y_extent - 1) / 2] * u.pix
-                bottom_left = [ar_centre[0] - (x_extent - 1) / 2, ar_centre[1] - (y_extent - 1) / 2] * u.pix
+                top_right = [ar_centre[0] + (dv.X_EXTENT - 1) / 2, ar_centre[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
+                bottom_left = [ar_centre[0] - (dv.X_EXTENT - 1) / 2, ar_centre[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
                 my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
                 # the y range should always be the same.... x may change
-                assert my_hmi_submap.data.shape[0] == y_extent
+                assert my_hmi_submap.data.shape[0] == dv.Y_EXTENT
 
                 # !TODO see
                 # https://gitlab.com/frontierdevelopmentlab/living-with-our-star/super-resolution-maps-of-solar-magnetic-field/-/blob/master/source/prep.py?ref_type=heads
@@ -186,8 +194,11 @@ class ARExtractor:
         dv_final_path = Path(dv.DATA_DIR_FINAL)
         if not dv_final_path.exists():
             dv_final_path.mkdir(parents=True)
-        self.loaded_subset_cleaned = self.loaded_subset[self.loaded_subset["hmi_cutout_dim"] == (y_extent, x_extent)]
-        self.loaded_subset.dropna(inplace=True)
+        self.loaded_subset_cleaned = self.loaded_subset[
+            self.loaded_subset["hmi_cutout_dim"] == (dv.Y_EXTENT, dv.X_EXTENT)
+        ]
+        self.loaded_subset_cleaned = self.loaded_subset_cleaned.dropna()
+        self.loaded_subset_cleaned = self.loaded_subset_cleaned.reset_index()
         self.loaded_subset_cleaned.to_csv(Path(dv.DATA_DIR_FINAL) / "arcutout_clean.csv")  # need to reset index
 
 

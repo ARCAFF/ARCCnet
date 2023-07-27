@@ -32,6 +32,13 @@ For more detailed instructions, see our `contributing guide <https://github.com/
 Usage
 =====
 
+To download and process the data arccnet:
+
+.. code:: shell
+
+   python arccnet/data_generation/data_generation.py
+   python arccnet/data_generation/mag_processing.py
+
 Here is a quick example of importing arccnet:
 
 .. code:: python
