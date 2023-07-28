@@ -32,7 +32,7 @@ For more detailed instructions, see our `contributing guide <https://github.com/
 Usage
 =====
 
-To download and process the data arccnet:
+To download and process the arccnet data:
 
 .. code:: shell
 
