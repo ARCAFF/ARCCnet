@@ -175,7 +175,7 @@ class ARExtractor:
                 bottom_left = [ar_centre[0] - (dv.X_EXTENT - 1) / 2, ar_centre[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
                 my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
-                summary_info.append([top_right, bottom_left, numbr, my_hmi_submap.data.shape])
+                summary_info.append([top_right, bottom_left, numbr, my_hmi_submap.data.shape, ar_centre])
 
                 # the y range should always be the same.... x may change
                 # assert my_hmi_submap.data.shape[0] == dv.Y_EXTENT
@@ -201,7 +201,7 @@ class ARExtractor:
             my_hmi_map.plot_settings["norm"].vmax = 1500
             my_hmi_map.plot(axes=ax, cmap="hmimag")
 
-            for i, (tr, bl, num, shape) in enumerate(summary_info):
+            for i, (tr, bl, num, shape, arc) in enumerate(summary_info):
                 if shape == (dv.Y_EXTENT, dv.X_EXTENT):
                     rectangle_cr = "red"
                     rectangle_ls = "-"
@@ -219,7 +219,14 @@ class ARExtractor:
                     label=str(num),
                 )
 
-            plt.savefig(dv_summary_plots_path / f"{time_srs}.png")
+                ax.text(
+                    arc[0],
+                    arc[1] + (dv.Y_EXTENT / 2) + 5,
+                    num,
+                    **{"size": "x-small", "color": "black", "ha": "center"},
+                )
+
+            plt.savefig(dv_summary_plots_path / f"{time_srs}.png", dpi=300)
 
         self.loaded_subset.loc[:, "hmi_cutout"] = cutout_list_hmi
         self.loaded_subset.loc[:, "hmi_cutout_dim"] = cutout_hmi_dim
@@ -232,9 +239,13 @@ class ARExtractor:
         dv_final_path = Path(dv.DATA_DIR_FINAL)
         if not dv_final_path.exists():
             dv_final_path.mkdir(parents=True)
+
+        # clean data
+        # 1. Ensure the data is (400, 800)
         self.loaded_subset_cleaned = self.loaded_subset[
             self.loaded_subset["hmi_cutout_dim"] == (dv.Y_EXTENT, dv.X_EXTENT)
         ]
+        # Drop NaN, Reset Index, Save to `arcutout_clean.csv`
         self.loaded_subset_cleaned = self.loaded_subset_cleaned.dropna()
         self.loaded_subset_cleaned = self.loaded_subset_cleaned.reset_index()
         self.loaded_subset_cleaned.to_csv(Path(dv.DATA_DIR_FINAL) / "arcutout_clean.csv")  # need to reset index
@@ -242,5 +253,5 @@ class ARExtractor:
 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
-    _ = MagnetogramProcessor()
+    # _ = MagnetogramProcessor()
     _ = ARExtractor()
