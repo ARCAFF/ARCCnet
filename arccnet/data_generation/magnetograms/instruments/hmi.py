@@ -32,7 +32,7 @@ class HMILOSMagnetogram(BaseMagnetogram):
         str:
             JSOC series name
         """
-        return "hmi.M_720s"  # hmi.B_720s for the full-disk
+        return "hmi.M_720s"
 
     @property
     def date_format(self) -> str:
