@@ -1,4 +1,6 @@
+import random
 from pathlib import Path
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -11,7 +13,7 @@ import arccnet.data_generation.utils.default_variables as dv
 import sunpy.map
 from arccnet.data_generation.utils.data_logger import logger
 
-__all__ = ["MagnetogramProcessor", "ARExtractor"]
+__all__ = ["MagnetogramProcessor", "ARExtractor", "QSExtractor"]
 
 
 class MagnetogramProcessor:
@@ -111,6 +113,8 @@ class ARExtractor:
         cutout_hmi_dim = []
         rsun = []
         dsun = []
+        bls = []
+        trs = []
 
         self.loaded_subset = self.loaded_data[
             [
@@ -190,6 +194,8 @@ class ARExtractor:
 
                 rsun.append(my_hmi_submap.meta["rsun_obs"])  # want to move it
                 dsun.append(my_hmi_submap.meta["dsun_obs"])
+                bls.append(bottom_left)
+                trs.append(top_right)
 
                 del my_hmi_submap  # delete the submap
 
@@ -201,7 +207,7 @@ class ARExtractor:
             my_hmi_map.plot_settings["norm"].vmax = 1500
             my_hmi_map.plot(axes=ax, cmap="hmimag")
 
-            for i, (tr, bl, num, shape, arc) in enumerate(summary_info):
+            for _, (tr, bl, num, shape, arc) in enumerate(summary_info):
                 if shape == (dv.Y_EXTENT, dv.X_EXTENT):
                     rectangle_cr = "red"
                     rectangle_ls = "-"
@@ -232,6 +238,8 @@ class ARExtractor:
         self.loaded_subset.loc[:, "hmi_cutout_dim"] = cutout_hmi_dim
         self.loaded_subset.loc[:, "rsun_obs"] = rsun
         self.loaded_subset.loc[:, "dsun_obs"] = dsun
+        self.loaded_subset.loc[:, "bottom_left"] = bls
+        self.loaded_subset.loc[:, "top_right"] = trs
 
         self.loaded_subset.to_csv(Path(dv.MAG_PROCESSED_DIR) / "processed.csv")
 
@@ -251,7 +259,125 @@ class ARExtractor:
         self.loaded_subset_cleaned.to_csv(Path(dv.DATA_DIR_FINAL) / "arcutout_clean.csv")  # need to reset index
 
 
+class QSExtractor:
+    def __init__(self, start_date=datetime(2010, 1, 1), end_date=datetime(2022, 12, 31)):
+        self.start = start_date
+        self.end = end_date
+
+        filename = Path(dv.MAG_PROCESSED_DIR) / "processed.csv"
+
+        if filename.exists():
+            self.loaded_data = pd.read_csv(filename)
+
+        self.loaded_data["datetime_srs"] = pd.to_datetime(self.loaded_data["datetime_srs"])
+
+        self.subset_df = self.loaded_data[
+            (self.loaded_data["datetime_srs"] >= self.start) & (self.loaded_data["datetime_srs"] <= self.end)
+        ]
+
+        grouped_data = self.subset_df.groupby("datetime_srs")
+
+        for time_srs, group in grouped_data:
+            my_hmi_map = sunpy.map.Map(group.processed_hmi.unique()[0])  # take the first hmi
+            time_hmi = group.datetime_hmi.unique()[0]
+
+            vals = []
+            for _, row in group.iterrows():
+                # extract the lat/long and NOAA AR Number (for saving)
+                lat, lng, numbr = row[["Latitude", "Longitude", "Number"]]
+                logger.info(f" >>> {lat}, {lng}, {numbr}")
+
+                ar_centre = (
+                    SkyCoord(
+                        lng * u.deg,
+                        lat * u.deg,
+                        obstime=time_hmi,
+                        frame=sunpy.coordinates.frames.HeliographicStonyhurst,
+                    )
+                    .transform_to(my_hmi_map.coordinate_frame)
+                    .to_pixel(my_hmi_map.wcs)
+                )
+
+                vals.append(ar_centre)
+
+            print(vals)
+            logger.info(
+                f"the srs time is {time_srs}, and the hmi time is {time_hmi}. The size of the group is len(group) {len(group)}"
+            )
+
+            rand_1 = random.uniform(-1000, 1000) * u.arcsec
+            rand_2 = random.uniform(-500, 500) * u.arcsec
+
+            _cd = SkyCoord(
+                rand_1,
+                rand_2,
+                frame=my_hmi_map.coordinate_frame,
+            ).to_pixel(my_hmi_map.wcs)
+
+            print(_cd)
+
+            tt = []
+            for v in vals:
+                tt.append(self.is_point_far_from_point(_cd[0], _cd[1], v[0], v[1], dv.X_EXTENT * 2, dv.Y_EXTENT * 2))
+
+            if all(tt):
+                top_right = [_cd[0] + (dv.X_EXTENT - 1) / 2, _cd[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
+                bottom_left = [_cd[0] - (dv.X_EXTENT - 1) / 2, _cd[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
+                my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
+
+                fig = plt.figure(figsize=(5, 5))
+                ax = fig.add_subplot(projection=my_hmi_submap)
+                my_hmi_submap.plot_settings["norm"].vmin = -1500
+                my_hmi_submap.plot_settings["norm"].vmax = 1500
+                my_hmi_submap.plot(axes=ax, cmap="hmimag")
+
+                my_hmi_submap.save(
+                    Path(
+                        "/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_fits"
+                    )  # need to make this manually
+                    / f"{time_srs}_QS.fits",
+                    overwrite=True,
+                )
+
+                fig = plt.figure(figsize=(5, 5))
+                ax = fig.add_subplot(projection=my_hmi_map)
+                my_hmi_map.plot_settings["norm"].vmin = -1500
+                my_hmi_map.plot_settings["norm"].vmax = 1500
+                my_hmi_map.plot(axes=ax, cmap="hmimag")
+
+                if my_hmi_submap.data.shape == (dv.Y_EXTENT, dv.X_EXTENT):
+                    rectangle_cr = "red"
+                    rectangle_ls = "-"
+                else:
+                    rectangle_cr = "black"
+                    rectangle_ls = "-."
+
+                my_hmi_map.draw_quadrangle(
+                    bottom_left,
+                    axes=ax,
+                    top_right=top_right,
+                    edgecolor=rectangle_cr,
+                    linestyle=rectangle_ls,
+                    linewidth=1,
+                )
+
+                plt.savefig(
+                    Path("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_summary_plots")
+                    / f"{time_srs}.png",
+                    dpi=300,
+                )
+
+    # def is_value_outside_rectangle(self, x, y, x1, y1, x2, y2):
+    #     # Check if the value is outside the rectangle
+    #     return x < x1 or x > x2 or y < y1 or y > y2
+
+    def is_point_far_from_point(self, x, y, x1, y1, threshold_x, threshold_y):
+        # test this code
+        return abs(x - x1) > threshold_x or abs(y - y1) > threshold_y
+
+
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
-    # _ = MagnetogramProcessor()
+    _ = MagnetogramProcessor()
     _ = ARExtractor()
+    _ = QSExtractor()
