@@ -149,9 +149,13 @@ HMI_MAG_RAW_CSV = os.path.join(HMI_MAG_DIR, "raw.csv")
 HMI_IC_DIR = os.path.join(MAG_RAW_DIR, "continuum")
 HMI_IC_RAW_CSV = os.path.join(HMI_IC_DIR, "raw.csv")
 
+HMI_SHARPS_DIR = os.path.join(MAG_RAW_DIR, "sharps")
+HMI_SHARPS_RAW_CSV = os.path.join(HMI_SHARPS_DIR, "raw.csv")
+
 MDI_MAG_DIR = os.path.join(MAG_RAW_DIR, "mdi")
 MDI_MAG_RAW_CSV = os.path.join(MDI_MAG_DIR, "raw.csv")
 MAG_RAW_DATA_DIR = os.path.join(MAG_RAW_DIR, "fits")
+MAG_RAW_SHARP_DATA_DIR = os.path.join(MAG_RAW_DIR, "sharp_fits")
 
 MAG_INTERMEDIATE_DIR = os.path.join(DATA_DIR_INTERMEDIATE, "mag")
 MAG_PROCESSED_DIR = os.path.join(DATA_DIR_PROCESSED, "mag")

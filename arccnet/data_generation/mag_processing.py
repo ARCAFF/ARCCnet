@@ -11,9 +11,10 @@ from astropy.coordinates import SkyCoord
 
 import arccnet.data_generation.utils.default_variables as dv
 import sunpy.map
+from arccnet.data_generation.magnetograms.instruments import HMISHARPs
 from arccnet.data_generation.utils.data_logger import logger
 
-__all__ = ["MagnetogramProcessor", "ARExtractor", "QSExtractor"]
+__all__ = ["MagnetogramProcessor", "ARExtractor", "QSExtractor", "ARDetection"]
 
 
 class MagnetogramProcessor:
@@ -397,6 +398,92 @@ class QSExtractor:
     def is_point_far_from_point(self, x, y, x1, y1, threshold_x, threshold_y):
         # test this code
         return abs(x - x1) > threshold_x or abs(y - y1) > threshold_y
+
+
+class ARDetection:
+    def __init__(self):
+        filename = Path(dv.MAG_INTERMEDIATE_DATA_CSV)
+
+        if filename.exists():
+            self.loaded_data = pd.read_csv(filename)
+
+        columns_to_update = ["url_hmi", "url_mdi"]
+        new_columns = ["processed_hmi", "processed_mdi"]
+
+        # !TODO replace with default_variables.py
+        dv_base_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
+
+        dv_process_fits_path = Path(dv.MAG_PROCESSED_FITS_DIR)
+        if not dv_process_fits_path.exists():
+            dv_process_fits_path.mkdir(parents=True)
+
+        dv_summary_plots_path = Path(dv.MAG_PROCESSED_SUMMARYPLOTS_DIR)
+        if not dv_summary_plots_path.exists():
+            dv_summary_plots_path.mkdir(parents=True)
+
+        # Iterate through the columns and update the paths
+        for old_column, new_column in zip(columns_to_update, new_columns):
+            self.loaded_data[new_column] = self.loaded_data[old_column].map(
+                lambda x: dv_base_path / Path(x).name if pd.notna(x) else x
+            )
+
+        # 1. Get SHARPs data
+        self.start_date = dv.DATA_START_TIME
+        self.end_date = dv.DATA_END_TIME
+        #   1a. sort df by datetime
+        #   1b. extract min/max time
+        # !TODO fix this as it currently doesn't work
+        sharps_data = HMISHARPs()
+        #   1c. JSOC query to get df.
+        sharps_data.fetch_metadata(self.start_date, self.end_date)
+        #   1d. Do we need to pull down data? Yes
+        urls = list(sharps_data.url.dropna().unique())
+
+        # copied from `DataManager.fetch_magnetograms`
+        # obviously remove this... but for now...
+        from sunpy.util.parfive_helpers import Downloader
+
+        #
+        base_directory_path = Path(dv.MAG_RAW_SHARP_DATA_DIR)
+        if not base_directory_path.exists():
+            base_directory_path.mkdir(parents=True)
+        #
+        downloader = Downloader(
+            max_conn=1,
+            progress=True,
+            overwrite=False,
+            max_splits=1,
+        )
+        #
+        paths = []
+        for url in urls:
+            filename = url.split("/")[-1]  # Extract the filename from the URL
+            paths.append(base_directory_path / filename)
+        #
+        for aurl, fname in zip(urls, paths):
+            downloader.enqueue_file(aurl, filename=fname, max_splits=1)
+        #
+        results = downloader.download()
+        #
+        if len(results.errors) != 0:
+            logger.warn(f"results.errors: {results.errors}")
+            # attempt a retry
+            retry_count = 0
+            while len(results.errors) != 0 and retry_count < 3:
+                logger.info("retrying...")
+                downloader.retry(results)
+                retry_count += 1
+            if len(results.errors) != 0:
+                logger.error("Failed after maximum retries.")
+            else:
+                logger.info("Errors resolved after retry.")
+        else:
+            logger.info("No errors reported by parfive")
+
+        # 2. Set Regions into a df
+        #   2a. arcseconds
+        #   2b. pixels
+        # 3. Save df of active regions
 
 
 if __name__ == "__main__":
