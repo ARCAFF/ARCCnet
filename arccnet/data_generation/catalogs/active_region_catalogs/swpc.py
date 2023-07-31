@@ -382,8 +382,11 @@ class SWPCCatalog(BaseCatalog):
                 catalog=catalog,
                 valid_values=dv.VALID_SRS_VALUES,
             )
-
+            logger.info(f"Len of SRS before filtering {self.raw_catalog.shape}")
             catalog, dropped = filter_srs(catalog)
+            dropped_info = {k: len(v) for k, v in dropped.items()}
+            logger.info(f"Found bad data: {dropped_info}")
+            logger.info(f"Len of SRS after filtering {self.raw_catalog.shape}")
             self.catalog = catalog
         else:
             raise NoDataError("No SWPC data found. Please call `fetch_data()` first to obtain the data.")
