@@ -2,12 +2,12 @@ from pathlib import Path
 from datetime import datetime
 
 import pandas as pd
+from sunpy.util.parfive_helpers import Downloader
 
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.catalogs.active_region_catalogs.swpc import SWPCCatalog
 from arccnet.data_generation.magnetograms.instruments import HMIMagnetogram, MDIMagnetogram
 from arccnet.data_generation.utils.data_logger import logger
-from sunpy.util.parfive_helpers import Downloader
 
 __all__ = ["DataManager"]
 
