@@ -4,19 +4,81 @@ from typing import Union, Optional
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 
+import numpy as np
 import pandas as pd
-import parfive
 import parfive.results
+from sunpy.io.special import srs
+from sunpy.net import Fido
+from sunpy.net import attrs as a
+from sunpy.sun.constants import mean_synodic_period
+
+import astropy.units as u
 
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.catalogs.base_catalog import BaseCatalog
 from arccnet.data_generation.utils.data_logger import logger
 from arccnet.data_generation.utils.utils import check_column_values, save_df_to_html
-from sunpy.io.special import srs
-from sunpy.net import Fido
-from sunpy.net import attrs as a
 
 __all__ = ["SWPCCatalog", "NoDataError"]
+
+
+@u.quantity_input
+def filter_srs(
+    catalog: pd.DataFrame,
+    lat_limit: u.degree = 60 * u.deg,
+    lat_rate_limit: u.degree / u.day = 7.5 * u.degree / u.day,
+    lon_rate_limit: u.degree / u.day = 7.5 * u.degree / u.day,
+) -> pd.DataFrame:
+    r"""
+    Filter SRS for unphysical position or rate of change of positions
+
+    Parameters
+    ----------
+    catalog : `pandas.Dataframe`
+        SRS catalog
+    lat_limit: `astropy.units.Quantity`
+        Latitude limit filters `abs(Lat > lat_limit)`
+    lat_rate_limit : `astropy.units.Quantity`
+        Latitude rate limit filter based on rate of change of lat
+    lon_rate_limit : `astropy.units.Quantity`
+        Longitude rate limit filter based on rate of change of lat
+    Returns
+    -------
+    `pandas.DataFrame`
+        The filtered srs catalog
+    """
+    bad_indices = {}
+    bad_latitudes = catalog.Latitude.abs() > lat_limit
+
+    bad_indices["bad_lat"] = catalog[bad_latitudes].index.values
+    filtered = catalog[~bad_latitudes]
+
+    synodic_rate = (360 * u.degree) / mean_synodic_period
+
+    bad_indices["bad_lat_rate"] = []
+    bad_indices["bad_lon_rate"] = []
+    for number, group in filtered.groupby("Number"):
+        dt = group.datetime.diff().dt.days.values << u.day
+        dlat = group.Latitude.diff().values << u.degree
+        dlon = group.Longitude.diff().values << u.degree
+
+        lat_rate = dlat / dt
+        lon_rate = dlon / dt
+
+        # Without further checks hard to know which data point is incorrect so drop entire groups
+        bad_lat_rates = np.abs(lat_rate) > lat_rate_limit
+        if np.any(bad_lat_rates):
+            bad_indices["bad_lat_rate"].append(group.index.values)
+            filtered.drop(group.index, inplace=True, errors="ignore")
+            logger.debug(f"Dropping data for {number},  bad latitude rate: {dlat, dt}")
+
+        bad_lon_rates = (lon_rate < (synodic_rate - lon_rate_limit)) | (lon_rate > (synodic_rate + lon_rate_limit))
+        if np.any(bad_lon_rates):
+            bad_indices["bad_lon_rate"].append(group.index.values)
+            filtered.drop(group.index, inplace=True, errors="ignore")
+            logger.debug(f"Dropping data for {number},  bad longitude rate: {dlon, dt}")
+
+    return filtered, bad_indices
 
 
 class SWPCCatalog(BaseCatalog):
@@ -308,16 +370,20 @@ class SWPCCatalog(BaseCatalog):
         if self.raw_catalog is not None:
             # Drop rows with NaNs to remove `loaded_successfully` == False
             # Check columns against `VALID_SRS_VALUES`
-            self.catalog = self.raw_catalog.dropna().reset_index(drop=True)
+            logger.info(f"Len of SRS before drop {self.raw_catalog.shape}")
+            catalog = self.raw_catalog.dropna().reset_index(drop=True)
+            logger.info(f"Lon of SRS after drop {self.raw_catalog.shape}")
 
             # Fixing the case of Mag Type and Z for capitalised SRS files
-            self.catalog["Mag Type"] = self.catalog["Mag Type"].str.title()
-            self.catalog["Z"] = self.catalog["Z"].str.title()
+            catalog["Mag Type"] = catalog["Mag Type"].str.title()
+            catalog["Z"] = catalog["Z"].str.title()
 
             _ = check_column_values(
-                catalog=self.catalog,
+                catalog=catalog,
                 valid_values=dv.VALID_SRS_VALUES,
             )
+
+            filter_srs(catalog)
         else:
             raise NoDataError("No SWPC data found. Please call `fetch_data()` first to obtain the data.")
 

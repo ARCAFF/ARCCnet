@@ -1,12 +1,13 @@
 import shutil
-import datetime
 from pathlib import Path
 from unittest.mock import patch
+from datetime import datetime
 
 import pandas as pd
 import pytest
+from numpy.testing import assert_array_equal
 
-from arccnet.data_generation.catalogs.active_region_catalogs.swpc import NoDataError, SWPCCatalog
+from arccnet.data_generation.catalogs.active_region_catalogs.swpc import NoDataError, SWPCCatalog, filter_srs
 
 
 @pytest.fixture
@@ -16,12 +17,12 @@ def swpc_catalog():
 
 @pytest.fixture
 def valid_start_date():
-    return datetime.datetime(2012, 1, 1)
+    return datetime(2012, 1, 1)
 
 
 @pytest.fixture
 def valid_end_date():
-    return datetime.datetime(2012, 1, 3)
+    return datetime(2012, 1, 3)
 
 
 def test_fetch_data_with_valid_dates(swpc_catalog, valid_start_date, valid_end_date):
@@ -33,8 +34,8 @@ def test_fetch_data_with_no_data(swpc_catalog):
     """
     test with 1st Jan 1980.
     """
-    start_date = datetime.datetime(1980, 1, 1)
-    end_date = datetime.datetime(1980, 1, 2)
+    start_date = datetime(1980, 1, 1)
+    end_date = datetime(1980, 1, 2)
     with pytest.raises(NoDataError):
         swpc_catalog.fetch_data(start_date, end_date)
 
@@ -72,7 +73,7 @@ def test_create_catalog_with_valid_data_srs_loading_issues(swpc_catalog):
     Test times when SRS doesn't load
     """
     # Call fetch_data before create_catalog
-    swpc_catalog.fetch_data(datetime.datetime(1999, 1, 1), datetime.datetime(1999, 1, 31))
+    swpc_catalog.fetch_data(datetime(1999, 1, 1), datetime(1999, 1, 31))
     raw_catalog, raw_catalog_missing = swpc_catalog.create_catalog()
     assert raw_catalog is not None
     assert raw_catalog_missing is not None
@@ -91,6 +92,9 @@ def test_clean_catalog(swpc_catalog):
     # Synthetic the raw_catalog
     swpc_catalog.raw_catalog = pd.DataFrame(
         {
+            "Latitude": [15, 15, 15],
+            "Longitude": [-74, -60, -46],
+            "datetime": [datetime(2023, 1, 1), datetime(2023, 1, 2), datetime(2023, 1, 3)],
             "loaded_successfully": [True, True, False],
             "column1": [1, 2, None],
             "column2": [3, 4, 5],
@@ -103,3 +107,30 @@ def test_clean_catalog(swpc_catalog):
     assert catalog is not None
     assert len(catalog) == 2
     assert catalog["column1"].isnull().sum() == 0
+
+
+def test_filter_srs():
+    # Synthetic the raw_catalog
+    catalog = pd.DataFrame(
+        {
+            "Latitude": [70, 10, 10, 50, 20, -20, -20, -20],
+            "Longitude": [40, 10, 40, 20, 34, -75, -61, -47],
+            "Number": [0, 1, 1, 2, 2, 3, 3, 3],
+            "datetime": [
+                datetime(2023, 1, 1),
+                datetime(2023, 1, 1),
+                datetime(2023, 1, 2),
+                datetime(2023, 1, 1),
+                datetime(2023, 1, 2),
+                datetime(2023, 1, 1),
+                datetime(2023, 1, 2),
+                datetime(2023, 1, 3),
+            ],
+        }
+    )
+    filtered, bad = filter_srs(catalog)
+    assert len(filtered) == 3
+    bad["bad_lat"][0] == 0
+    assert len(bad["bad_lat"]) == 1
+    assert_array_equal([3, 4], bad["bad_lat_rate"][0])
+    assert_array_equal([1, 2], bad["bad_lon_rate"][0])
