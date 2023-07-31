@@ -305,45 +305,65 @@ class QSExtractor:
                 f"the srs time is {time_srs}, and the hmi time is {time_hmi}. The size of the group is len(group) {len(group)}"
             )
 
-            rand_1 = random.uniform(-1000, 1000) * u.arcsec
-            rand_2 = random.uniform(-500, 500) * u.arcsec
+            qs_reg = []
+            for i in range(0, 50):
+                # create random location
+                rand_1 = random.uniform(-1000, 1000) * u.arcsec
+                rand_2 = random.uniform(-500, 500) * u.arcsec
 
-            _cd = SkyCoord(
-                rand_1,
-                rand_2,
-                frame=my_hmi_map.coordinate_frame,
-            ).to_pixel(my_hmi_map.wcs)
+                # convert to pixel coordinates
+                _cd = SkyCoord(
+                    rand_1,
+                    rand_2,
+                    frame=my_hmi_map.coordinate_frame,
+                ).to_pixel(my_hmi_map.wcs)
 
-            print(_cd)
+                print(_cd)
 
-            tt = []
-            for v in vals:
-                tt.append(self.is_point_far_from_point(_cd[0], _cd[1], v[0], v[1], dv.X_EXTENT * 2, dv.Y_EXTENT * 2))
+                tt = []
 
-            if all(tt):
-                top_right = [_cd[0] + (dv.X_EXTENT - 1) / 2, _cd[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
-                bottom_left = [_cd[0] - (dv.X_EXTENT - 1) / 2, _cd[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
+                # check _cd is far enough from other vals
+                for v in vals:
+                    tt.append(
+                        self.is_point_far_from_point(_cd[0], _cd[1], v[0], v[1], dv.X_EXTENT * 1.2, dv.Y_EXTENT * 1.2)
+                    )
+
+                if all(tt):
+                    print("far enough from other points")
+                    top_right = [_cd[0] + (dv.X_EXTENT - 1) / 2, _cd[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
+                    bottom_left = [_cd[0] - (dv.X_EXTENT - 1) / 2, _cd[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
+                    my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
+
+                    fig = plt.figure(figsize=(5, 5))
+                    ax = fig.add_subplot(projection=my_hmi_submap)
+                    my_hmi_submap.plot_settings["norm"].vmin = -1500
+                    my_hmi_submap.plot_settings["norm"].vmax = 1500
+                    my_hmi_submap.plot(axes=ax, cmap="hmimag")
+
+                    my_hmi_submap.save(
+                        Path(
+                            "/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_fits"
+                        )  # need to make this manually
+                        / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS_{i}.fits",
+                        overwrite=True,
+                    )
+
+                    del my_hmi_submap
+                    vals.append(_cd)
+                    qs_reg.append(_cd)
+
+                print("vals", vals)
+
+            fig = plt.figure(figsize=(5, 5))
+            ax = fig.add_subplot(projection=my_hmi_map)
+            my_hmi_map.plot_settings["norm"].vmin = -1500
+            my_hmi_map.plot_settings["norm"].vmax = 1500
+            my_hmi_map.plot(axes=ax, cmap="hmimag")
+
+            for value in vals:
+                top_right = [value[0] + (dv.X_EXTENT - 1) / 2, value[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
+                bottom_left = [value[0] - (dv.X_EXTENT - 1) / 2, value[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
                 my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
-
-                fig = plt.figure(figsize=(5, 5))
-                ax = fig.add_subplot(projection=my_hmi_submap)
-                my_hmi_submap.plot_settings["norm"].vmin = -1500
-                my_hmi_submap.plot_settings["norm"].vmax = 1500
-                my_hmi_submap.plot(axes=ax, cmap="hmimag")
-
-                my_hmi_submap.save(
-                    Path(
-                        "/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_fits"
-                    )  # need to make this manually
-                    / f"{time_srs}_QS.fits",
-                    overwrite=True,
-                )
-
-                fig = plt.figure(figsize=(5, 5))
-                ax = fig.add_subplot(projection=my_hmi_map)
-                my_hmi_map.plot_settings["norm"].vmin = -1500
-                my_hmi_map.plot_settings["norm"].vmax = 1500
-                my_hmi_map.plot(axes=ax, cmap="hmimag")
 
                 if my_hmi_submap.data.shape == (dv.Y_EXTENT, dv.X_EXTENT):
                     rectangle_cr = "red"
@@ -351,6 +371,9 @@ class QSExtractor:
                 else:
                     rectangle_cr = "black"
                     rectangle_ls = "-."
+
+                if value in qs_reg:
+                    rectangle_cr = "blue"
 
                 my_hmi_map.draw_quadrangle(
                     bottom_left,
@@ -361,11 +384,11 @@ class QSExtractor:
                     linewidth=1,
                 )
 
-                plt.savefig(
-                    Path("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_summary_plots")
-                    / f"{time_srs}.png",
-                    dpi=300,
-                )
+            plt.savefig(
+                Path("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_summary_plots")
+                / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS.png",
+                dpi=300,
+            )
 
     # def is_value_outside_rectangle(self, x, y, x1, y1, x2, y2):
     #     # Check if the value is outside the rectangle
