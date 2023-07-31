@@ -383,7 +383,8 @@ class SWPCCatalog(BaseCatalog):
                 valid_values=dv.VALID_SRS_VALUES,
             )
 
-            filter_srs(catalog)
+            catalog, dropped = filter_srs(catalog)
+            self.catalog = catalog
         else:
             raise NoDataError("No SWPC data found. Please call `fetch_data()` first to obtain the data.")
 

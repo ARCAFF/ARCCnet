@@ -94,6 +94,7 @@ def test_clean_catalog(swpc_catalog):
         {
             "Latitude": [15, 15, 15],
             "Longitude": [-74, -60, -46],
+            "Number": [1234, 1234, 1234],
             "datetime": [datetime(2023, 1, 1), datetime(2023, 1, 2), datetime(2023, 1, 3)],
             "loaded_successfully": [True, True, False],
             "column1": [1, 2, None],
