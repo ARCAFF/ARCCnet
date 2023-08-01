@@ -1,6 +1,8 @@
+import pathlib
 import datetime
-from typing import Optional
+from typing import Union, Optional
 from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor
 
 import pandas as pd
 import parfive
@@ -137,6 +139,17 @@ class SWPCCatalog(BaseCatalog):
         self._fetched_data = table
         return table
 
+    @staticmethod
+    def _parse_srs(filepath: list[pathlib.Path]) -> tuple[pathlib.Path, Union[bool, pd.DataFrame]]:
+        try:
+            srs_table = srs.read_srs(filepath)
+            result = srs_table.to_pandas()
+        except Exception as e:
+            logger.warning(f"Error reading file {str(filepath)}: {str(e)[0:65]}...")  # 0:65 truncates the error
+            result = False
+
+        return filepath, result
+
     def create_catalog(
         self,
         save_csv: Optional[bool] = True,
@@ -172,12 +185,15 @@ class SWPCCatalog(BaseCatalog):
 
         logger.info(">> loading fetched data")
         # include filepaths to ignore
-        processed_filepaths = [Path(filepath) for filepath in self._fetched_data]
-        processed_filepaths = [
-            path_obj for path_obj in processed_filepaths if path_obj.name not in dv.SRS_FILEPATHS_IGNORED
+        downloaded_filepaths = [Path(filepath) for filepath in self._fetched_data]
+        downloaded_filepaths = [
+            path_obj for path_obj in downloaded_filepaths if path_obj.name not in dv.SRS_FILEPATHS_IGNORED
         ]
 
-        for filepath in processed_filepaths:
+        with ProcessPoolExecutor() as exec:
+            results = exec.map(self._parse_srs, downloaded_filepaths)
+
+        for filepath, data in results:
             # instantiate a `pandas.DataFrame` based on our additional info
             # and assign to the SRS `pandas.DataFrame` if not empty.
             # Any issue reading will log the exception as a warning and move
@@ -193,7 +209,7 @@ class SWPCCatalog(BaseCatalog):
                 ]
             )
 
-            try:
+            if data is not False:
                 srs_table = srs.read_srs(filepath)
                 srs_df = srs_table.to_pandas()
                 file_info_df["loaded_successfully"] = True
@@ -221,9 +237,7 @@ class SWPCCatalog(BaseCatalog):
                 else:
                     srs_dfs.append(srs_df.assign(**file_info_df.iloc[0]))
 
-            except Exception as e:
-                logger.warning(f"Error reading file {str(filepath)}: {str(e)[0:65]}...")  # 0:65 truncates the error
-
+            elif data is False:
                 # create the "except directory/folder" if it does not exist
                 directory_path = Path(dv.NOAA_SRS_TEXT_EXCEPT_DIR)
                 if not directory_path.exists():
