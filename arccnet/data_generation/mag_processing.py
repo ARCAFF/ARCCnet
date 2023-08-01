@@ -433,13 +433,33 @@ class ARDetection:
         self.end_date = dv.DATA_END_TIME
         #   1a. sort df by datetime
         #   1b. extract min/max time
-        # !TODO fix this as it currently doesn't work
         sharps_data = HMISHARPs()
         #   1c. JSOC query to get df.
-        self.meta = sharps_data.fetch_metadata(self.start_date, self.end_date)
+        meta = sharps_data.fetch_metadata(self.start_date, self.end_date)
+        logger.info(
+            f"SHARP Keys: \n{meta[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
+        )  # the date-obs or date-avg
+
+        print(list(meta.columns))
+        sharp_keys = meta[["magnetogram_fits", "datetime", "url"]].add_suffix("_sharp")
         # !TODO match with a df of HMI images to get the fulldisk too
-        # #   1d. Do we need to pull down data? Yes
-        urls = list(self.meta.url.dropna().unique())
+        # !TODO test this
+        print(list(self.loaded_data.columns))
+        self.loaded_data = self.loaded_data[["magnetogram_fits_hmi", "datetime_hmi", "url_hmi"]]
+        self.loaded_data["datetime_hmi"] = pd.to_datetime(self.loaded_data["datetime_hmi"])
+        self.loaded_data = self.loaded_data.dropna().reset_index()
+        #
+        self.merged_df = pd.merge(
+            self.loaded_data, sharp_keys, left_on="datetime_hmi", right_on="datetime_sharp"
+        )  # no tolerance as should be exact
+
+        print(list(self.merged_df))
+
+        logger.info(
+            f"Merged Keys: \n{self.merged_df[['datetime_hmi','datetime_sharp','url_sharp', 'url_hmi']]}"
+        )  # the date-obs or date-avg
+        # #   1d. Do we need to pull down data? Yesxe
+        urls = list(self.merged_df.url_sharp.dropna().unique())
 
         # # copied from `DataManager.fetch_magnetograms`
         # # obviously remove this... but for now...
@@ -484,25 +504,41 @@ class ARDetection:
         # 2. Set SHARP Regions into a df
         bottom_left_list = []
         top_right_list = []
-        for file in self.meta.filename:
-            # !TODO open a full-disk map
-            # a_fd_map = sunpy.map.Map(...)
-            a_sharp_map = sunpy.map.Map(file)
+
+        bottom_left_list_px = []
+        top_right_list_px = []
+        # !TODO groupby fd HMI image.
+        for sharp_file, fd_file in tqdm(zip(self.merged_df.url_sharp, self.merged_df.url_hmi)):
+            # full-disk map
+            a_fd_map = sunpy.map.Map(
+                Path("/Users/pjwright/Documents/work/ARCCnet/data/02_intermediate/mag/fits/") / Path(fd_file).name
+            )
+            # sharp map
+            a_sharp_map = sunpy.map.Map(base_directory_path / Path(sharp_file).name)
+            a_sharp_map = a_sharp_map.rotate()
             # Get the bottom-left and top-right coordinates
             #   2a. Extent of rectangle (arcseconds, pixels)
             #   2a. Extent of smooth bounding curve (arcseconds, pixels)
-            bl = a_sharp_map.bottom_left_coord
-            tr = a_sharp_map.top_right_coord
+            # !TODO want to store the data in a QTable?
+            bl = (a_sharp_map.bottom_left_coord.Tx.value, a_sharp_map.bottom_left_coord.Ty.value)
+            tr = (a_sharp_map.top_right_coord.Tx.value, a_sharp_map.top_right_coord.Ty.value)
             # !TODO check if NOAA AR lands inside the image...
             # !TODO reproject these into the full-disk map
+            bl_transformed = a_sharp_map.bottom_left_coord.transform_to(a_fd_map.coordinate_frame).to_pixel(
+                a_fd_map.wcs
+            )
+            tr_transformed = a_sharp_map.top_right_coord.transform_to(a_fd_map.coordinate_frame).to_pixel(a_fd_map.wcs)
 
-            # Append the reprojected coordinates to the respective lists
             bottom_left_list.append(bl)
             top_right_list.append(tr)
+            bottom_left_list_px.append(bl_transformed)
+            top_right_list_px.append(tr_transformed)
 
         # Add the new "bottom_left" and "top_right" columns to self.meta DataFrame
-        self.meta["bottom_left"] = bottom_left_list
-        self.meta["top_right"] = top_right_list
+        self.merged_df["bottom_left_TxTy_arcsec"] = bottom_left_list
+        self.merged_df["top_right_TxTy_arcsec"] = top_right_list
+        self.merged_df["bottom_left_TxTy_px"] = bottom_left_list_px
+        self.merged_df["top_right_TxTy_px"] = top_right_list_px
 
         # 4. Save df of ARs (NOAA matched SHARP along with NOAA classification)
         # !TODO self.meta should have:
@@ -511,9 +547,12 @@ class ARDetection:
         # 3. HMI and SHARP fits files
         # 4. Bounding region in HMI that can be plotted
 
+        self.merged_df.to_csv(base_directory_path / "meta.csv")
+
 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
-    _ = MagnetogramProcessor()
-    _ = ARExtractor()
-    _ = QSExtractor()
+    # _ = MagnetogramProcessor()
+    # _ = ARExtractor()
+    # _ = QSExtractor()
+    _ = ARDetection()
