@@ -1,7 +1,7 @@
 import shutil
 from pathlib import Path
-from unittest.mock import patch
 from datetime import datetime
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
