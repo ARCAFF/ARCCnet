@@ -436,13 +436,13 @@ class ARDetection:
         # !TODO fix this as it currently doesn't work
         sharps_data = HMISHARPs()
         #   1c. JSOC query to get df.
-        sharps_data.fetch_metadata(self.start_date, self.end_date)
-        #   1d. Do we need to pull down data? Yes
-        urls = list(sharps_data.url.dropna().unique())
+        self.meta = sharps_data.fetch_metadata(self.start_date, self.end_date)
+        # #   1d. Do we need to pull down data? Yes
+        urls = list(self.meta.url.dropna().unique())
 
-        # copied from `DataManager.fetch_magnetograms`
-        # obviously remove this... but for now...
-        #
+        # # copied from `DataManager.fetch_magnetograms`
+        # # obviously remove this... but for now...
+        # #
         base_directory_path = Path(dv.MAG_RAW_SHARP_DATA_DIR)
         if not base_directory_path.exists():
             base_directory_path.mkdir(parents=True)

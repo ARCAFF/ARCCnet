@@ -124,7 +124,7 @@ class HMISHARPs(HMILOSMagnetogram):
         # many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead.
         # To get a de-fragmented frame, use `newframe = frame.copy()` keys["magnetogram_fits"] = magnetogram_fits
 
-    def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="365d") -> str:
+    def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="1d") -> str:
         """
         Returns
         -------
@@ -153,7 +153,7 @@ class HMISHARPs(HMILOSMagnetogram):
         str:
             Name of the HMI data segment
         """
-        return ["bitmap"]
+        return "bitmap"
 
     @property
     def metadata_save_location(self) -> str:
