@@ -13,6 +13,7 @@ import arccnet.data_generation.utils.default_variables as dv
 import sunpy.map
 from arccnet.data_generation.magnetograms.instruments import HMISHARPs
 from arccnet.data_generation.utils.data_logger import logger
+from sunpy.util.parfive_helpers import Downloader
 
 __all__ = ["MagnetogramProcessor", "ARExtractor", "QSExtractor", "ARDetection"]
 
@@ -441,8 +442,6 @@ class ARDetection:
 
         # copied from `DataManager.fetch_magnetograms`
         # obviously remove this... but for now...
-        from sunpy.util.parfive_helpers import Downloader
-
         #
         base_directory_path = Path(dv.MAG_RAW_SHARP_DATA_DIR)
         if not base_directory_path.exists():
