@@ -479,10 +479,10 @@ class ARDetection:
         else:
             logger.info("No errors reported by parfive")
 
-        # 2. Set Regions into a df
-        #   2a. arcseconds
-        #   2b. pixels
-        # 3. Save df of active regions
+        # 2. Set SHARP Regions into a df
+        #   2a. Extent of rectangle (arcseconds, pixels)
+        #   2a. Extent of smooth bounding curve (arcseconds, pixels)
+        # 4. Save df of ARs (NOAA matched SHARP along with NOAA classification)
 
 
 if __name__ == "__main__":
