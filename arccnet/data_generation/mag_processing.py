@@ -437,6 +437,7 @@ class ARDetection:
         sharps_data = HMISHARPs()
         #   1c. JSOC query to get df.
         self.meta = sharps_data.fetch_metadata(self.start_date, self.end_date)
+        # !TODO match with a df of HMI images to get the fulldisk too
         # #   1d. Do we need to pull down data? Yes
         urls = list(self.meta.url.dropna().unique())
 
@@ -479,10 +480,36 @@ class ARDetection:
         else:
             logger.info("No errors reported by parfive")
 
+        self.results = results
         # 2. Set SHARP Regions into a df
-        #   2a. Extent of rectangle (arcseconds, pixels)
-        #   2a. Extent of smooth bounding curve (arcseconds, pixels)
+        bottom_left_list = []
+        top_right_list = []
+        for file in self.meta.filename:
+            # !TODO open a full-disk map
+            # a_fd_map = sunpy.map.Map(...)
+            a_sharp_map = sunpy.map.Map(file)
+            # Get the bottom-left and top-right coordinates
+            #   2a. Extent of rectangle (arcseconds, pixels)
+            #   2a. Extent of smooth bounding curve (arcseconds, pixels)
+            bl = a_sharp_map.bottom_left_coord
+            tr = a_sharp_map.top_right_coord
+            # !TODO check if NOAA AR lands inside the image...
+            # !TODO reproject these into the full-disk map
+
+            # Append the reprojected coordinates to the respective lists
+            bottom_left_list.append(bl)
+            top_right_list.append(tr)
+
+        # Add the new "bottom_left" and "top_right" columns to self.meta DataFrame
+        self.meta["bottom_left"] = bottom_left_list
+        self.meta["top_right"] = top_right_list
+
         # 4. Save df of ARs (NOAA matched SHARP along with NOAA classification)
+        # !TODO self.meta should have:
+        # 1. NOAA AR info
+        # 2. SHARP info
+        # 3. HMI and SHARP fits files
+        # 4. Bounding region in HMI that can be plotted
 
 
 if __name__ == "__main__":
