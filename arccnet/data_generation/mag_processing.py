@@ -105,6 +105,7 @@ class ARExtractor:
             dv_summary_plots_path.mkdir(parents=True)
 
         # Iterate through the columns and update the paths
+        # !TODO deal with earlier on in the codebase
         for old_column, new_column in zip(columns_to_update, new_columns):
             self.loaded_data[new_column] = self.loaded_data[old_column].map(
                 lambda x: dv_base_path / Path(x).name if pd.notna(x) else x
@@ -113,8 +114,6 @@ class ARExtractor:
         # set empty list of cutout for hmi
         cutout_list_hmi = []
         cutout_hmi_dim = []
-        rsun = []
-        dsun = []
         bls = []
         trs = []
 
@@ -194,8 +193,6 @@ class ARExtractor:
                 cutout_list_hmi.append(dv_process_fits_path / f"{time_srs}_{numbr}.fits")
                 cutout_hmi_dim.append(my_hmi_submap.data.shape)
 
-                rsun.append(my_hmi_submap.meta["rsun_obs"])  # want to move it
-                dsun.append(my_hmi_submap.meta["dsun_obs"])
                 bls.append(bottom_left)
                 trs.append(top_right)
 
@@ -238,8 +235,6 @@ class ARExtractor:
 
         self.loaded_subset.loc[:, "hmi_cutout"] = cutout_list_hmi
         self.loaded_subset.loc[:, "hmi_cutout_dim"] = cutout_hmi_dim
-        self.loaded_subset.loc[:, "rsun_obs"] = rsun
-        self.loaded_subset.loc[:, "dsun_obs"] = dsun
         self.loaded_subset.loc[:, "bottom_left"] = bls
         self.loaded_subset.loc[:, "top_right"] = trs
 
@@ -262,23 +257,18 @@ class ARExtractor:
 
 
 class QSExtractor:
-    def __init__(self, start_date=datetime(2010, 1, 1), end_date=datetime(2022, 12, 31)):
-        self.start = start_date
-        self.end = end_date
-
+    def __init__(self, num_attempts=50):
         filename = Path(dv.MAG_PROCESSED_DIR) / "processed.csv"
 
         if filename.exists():
             self.loaded_data = pd.read_csv(filename)
 
         self.loaded_data["datetime_srs"] = pd.to_datetime(self.loaded_data["datetime_srs"])
+        grouped_data = self.loaded_data.groupby("datetime_srs")
 
-        self.subset_df = self.loaded_data[
-            (self.loaded_data["datetime_srs"] >= self.start) & (self.loaded_data["datetime_srs"] <= self.end)
-        ]
+        qs_df = pd.DataFrame(columns=["datetime_srs", "datetime_hmi", "qs_fits"])
 
-        grouped_data = self.subset_df.groupby("datetime_srs")
-
+        all_qs = []
         for time_srs, group in grouped_data:
             my_hmi_map = sunpy.map.Map(group.processed_hmi.unique()[0])  # take the first hmi
             time_hmi = group.datetime_hmi.unique()[0]
@@ -300,15 +290,17 @@ class QSExtractor:
                     .to_pixel(my_hmi_map.wcs)
                 )
 
+                # all active region centres
                 vals.append(ar_centre)
 
-            print(vals)
             logger.info(
                 f"the srs time is {time_srs}, and the hmi time is {time_hmi}. The size of the group is len(group) {len(group)}"
             )
 
+            logger.info(group)
+
             qs_reg = []
-            for i in range(0, 50):
+            for i in range(0, num_attempts):
                 # create random location
                 rand_1 = random.uniform(-1000, 1000) * u.arcsec
                 rand_2 = random.uniform(-500, 500) * u.arcsec
@@ -320,18 +312,17 @@ class QSExtractor:
                     frame=my_hmi_map.coordinate_frame,
                 ).to_pixel(my_hmi_map.wcs)
 
-                print(_cd)
-
-                tt = []
-
                 # check _cd is far enough from other vals
-                for v in vals:
-                    tt.append(
-                        self.is_point_far_from_point(_cd[0], _cd[1], v[0], v[1], dv.X_EXTENT * 1.2, dv.Y_EXTENT * 1.2)
+                tt = list(
+                    map(
+                        lambda v: self.is_point_far_from_point(
+                            _cd[0], _cd[1], v[0], v[1], dv.X_EXTENT * 1.2, dv.Y_EXTENT * 1.2
+                        ),
+                        vals,
                     )
+                )
 
-                if all(tt):
-                    print("far enough from other points")
+                if all(tt):  # len of tt?
                     top_right = [_cd[0] + (dv.X_EXTENT - 1) / 2, _cd[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
                     bottom_left = [_cd[0] - (dv.X_EXTENT - 1) / 2, _cd[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
                     my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
@@ -342,19 +333,44 @@ class QSExtractor:
                     my_hmi_submap.plot_settings["norm"].vmax = 1500
                     my_hmi_submap.plot(axes=ax, cmap="hmimag")
 
-                    my_hmi_submap.save(
-                        Path(
+                    fn = (
+                        Path(  # need to make this manually
                             "/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_fits"
-                        )  # need to make this manually
-                        / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS_{i}.fits",
+                        )
+                        / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS_{i}.fits"
+                    )
+
+                    my_hmi_submap.save(
+                        fn,
                         overwrite=True,
                     )
+
+                    qs_temp = pd.DataFrame(
+                        {
+                            "datetime_hmi": group.datetime_hmi.unique()[0],
+                            "datetime_srs": group.datetime_srs.unique()[0],
+                            "qs_fits": str(fn),
+                        },
+                        index=[0],
+                    )
+
+                    # print(qs_df)
+                    # print(qs_temp)
+                    # test this
+                    # qs_df = qs_df.append(
+                    #     pd.DataFrame({"datetime_srs": group.datetime_srs.unique()[0], "qs_fits": str(fn)}, index=[0]),
+                    #     ignore_index=True,
+                    # )
+
+                    qs_df = pd.concat([qs_df, qs_temp], ignore_index=True)
 
                     del my_hmi_submap
                     vals.append(_cd)
                     qs_reg.append(_cd)
 
                 print("vals", vals)
+
+            all_qs.append(qs_reg)
 
             fig = plt.figure(figsize=(5, 5))
             ax = fig.add_subplot(projection=my_hmi_map)
@@ -392,9 +408,10 @@ class QSExtractor:
                 dpi=300,
             )
 
-    # def is_value_outside_rectangle(self, x, y, x1, y1, x2, y2):
-    #     # Check if the value is outside the rectangle
-    #     return x < x1 or x > x2 or y < y1 or y > y2
+            print(qs_df)
+            print(len(all_qs))
+
+            qs_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_fits.csv")
 
     def is_point_far_from_point(self, x, y, x1, y1, threshold_x, threshold_y):
         # test this code
@@ -430,12 +447,16 @@ class ARDetection:
 
         # 1. Get SHARPs data
         self.start_date = dv.DATA_START_TIME
-        self.end_date = dv.DATA_END_TIME
+        self.mid_date = datetime(2011, 1, 1)
+        self.end_date = datetime(2012, 1, 1)  # dv.DATA_END_TIME
         #   1a. sort df by datetime
         #   1b. extract min/max time
         sharps_data = HMISHARPs()
         #   1c. JSOC query to get df.
-        meta = sharps_data.fetch_metadata(self.start_date, self.end_date)
+        meta1 = sharps_data.fetch_metadata(self.start_date, self.mid_date)
+        meta2 = sharps_data.fetch_metadata(self.mid_date, self.end_date)
+        meta = pd.concat([meta1, meta2]).drop_duplicates()
+
         logger.info(
             f"SHARP Keys: \n{meta[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
         )  # the date-obs or date-avg
@@ -541,18 +562,13 @@ class ARDetection:
         self.merged_df["top_right_TxTy_px"] = top_right_list_px
 
         # 4. Save df of ARs (NOAA matched SHARP along with NOAA classification)
-        # !TODO self.meta should have:
-        # 1. NOAA AR info
-        # 2. SHARP info
-        # 3. HMI and SHARP fits files
-        # 4. Bounding region in HMI that can be plotted
-
-        self.merged_df.to_csv(base_directory_path / "meta.csv")
+        # !TODO merge with NOAA AR info (on lat/lng)
+        self.merged_df.to_csv(Path(dv.DATA_DIR_PROCESSED) / "hmi_sharp_cutouts.csv")
 
 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
     # _ = MagnetogramProcessor()
     # _ = ARExtractor()
-    # _ = QSExtractor()
-    _ = ARDetection()
+    _ = QSExtractor()
+    # _ = ARDetection()
