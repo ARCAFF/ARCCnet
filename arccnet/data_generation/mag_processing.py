@@ -4,6 +4,7 @@ from datetime import datetime
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from dateutil.relativedelta import relativedelta
 from tqdm import tqdm
 
 import astropy.units as u
@@ -370,7 +371,7 @@ class QSExtractor:
 
             print("len(qs_reg)", len(qs_reg))
 
-            all_qs.append(qs_reg)
+            all_qs += qs_reg[:]
 
             fig = plt.figure(figsize=(5, 5))
             ax = fig.add_subplot(projection=my_hmi_map)
@@ -408,10 +409,11 @@ class QSExtractor:
                 dpi=300,
             )
 
-            print(qs_df)
-            print(all_qs)
+            print("qs_df", qs_df)
+            print("len(all_qs)", len(all_qs))
 
             qs_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_fits.csv")
+            self.data = qs_df
 
     def is_point_far_from_point(self, x, y, x1, y1, threshold_x, threshold_y):
         # test this code
@@ -446,16 +448,46 @@ class ARDetection:
             )
 
         # 1. Get SHARPs data
-        self.start_date = dv.DATA_START_TIME
-        self.mid_date = datetime(2011, 1, 1)
-        self.end_date = datetime(2012, 1, 1)  # dv.DATA_END_TIME
+        start_date = dv.DATA_START_TIME
+        end_date = dv.DATA_END_TIME
+
+        # Calculate the total interval between mid_date and end_date
+        date_diff = relativedelta(end_date, start_date)
+        full_years = date_diff.years  # full years
+        remaining_period = relativedelta(end_date, start_date + relativedelta(years=full_years))  # remaining period
+
+        # Initialize a list to store the ranges
+        year_ranges = []
+
+        # Generate the ranges for full years
+        for i in range(full_years):
+            start_range = datetime(start_date.year + i, start_date.month, start_date.day)
+            end_range = datetime(
+                start_date.year + i + 1, start_date.month, start_date.day
+            )  # this will be in the next year, but later drop duplicates
+            year_ranges.append((start_range, end_range))
+
+        # Generate the range for the remaining period
+        if remaining_period.years > 0 or remaining_period.months > 0 or remaining_period.days > 0:
+            start_range = datetime(
+                end_date.year - remaining_period.years,
+                end_date.month - remaining_period.months,
+                end_date.day - remaining_period.days,
+            )
+            end_range = end_date
+            year_ranges.append((start_range, end_range))
+
         #   1a. sort df by datetime
         #   1b. extract min/max time
         sharps_data = HMISHARPs()
-        #   1c. JSOC query to get df.
-        meta1 = sharps_data.fetch_metadata(self.start_date, self.mid_date)
-        meta2 = sharps_data.fetch_metadata(self.mid_date, self.end_date)
-        meta = pd.concat([meta1, meta2]).drop_duplicates()
+
+        # Generate the ranges
+        for i, (start, end) in enumerate(year_ranges):
+            logger.info(f">> range {i + 1}: {start} - {end}")
+            if i == 0:
+                meta = sharps_data.fetch_metadata(start, end)
+            else:
+                meta = pd.concat([meta, sharps_data.fetch_metadata(start, end)]).drop_duplicates()
 
         logger.info(
             f"SHARP Keys: \n{meta[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
@@ -482,9 +514,9 @@ class ARDetection:
         # #   1d. Do we need to pull down data? Yesxe
         urls = list(self.merged_df.url_sharp.dropna().unique())
 
-        # # copied from `DataManager.fetch_magnetograms`
-        # # obviously remove this... but for now...
-        # #
+        # copied from `DataManager.fetch_magnetograms`
+        # obviously remove this... but for now...
+        # ######### ###### ####### ### ### ######
         base_directory_path = Path(dv.MAG_RAW_SHARP_DATA_DIR)
         if not base_directory_path.exists():
             base_directory_path.mkdir(parents=True)
@@ -568,7 +600,22 @@ class ARDetection:
 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
-    # _ = MagnetogramProcessor()
-    # _ = ARExtractor()
-    _ = QSExtractor()
-    # _ = ARDetection()
+
+    mag_process = False
+    ar_classification = False
+    ar_detection = True
+
+    if mag_process:
+        MagnetogramProcessor()
+
+    if ar_classification:
+        ar_df = ARExtractor()
+        qs_df = QSExtractor()
+        arccnet_df = pd.concat([ar_df.loaded_subset_cleaned, qs_df.data], ignore_index=True).sort_values(
+            by="datetime_hmi", ignore_index=True
+        )
+        arccnet_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/04_final/AR-QS_data.csv")
+
+    if ar_detection:
+        ard = ARDetection()
+        ard.merged_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/04_final/SHARP_AR_detection.csv")
