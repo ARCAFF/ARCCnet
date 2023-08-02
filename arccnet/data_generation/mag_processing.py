@@ -297,7 +297,7 @@ class QSExtractor:
                 f"the srs time is {time_srs}, and the hmi time is {time_hmi}. The size of the group is len(group) {len(group)}"
             )
 
-            logger.info(group)
+            # logger.info(group)
 
             qs_reg = []
             for i in range(0, num_attempts):
@@ -368,7 +368,7 @@ class QSExtractor:
                     vals.append(_cd)
                     qs_reg.append(_cd)
 
-                print("vals", vals)
+            print("len(qs_reg)", len(qs_reg))
 
             all_qs.append(qs_reg)
 
@@ -409,7 +409,7 @@ class QSExtractor:
             )
 
             print(qs_df)
-            print(len(all_qs))
+            print(all_qs)
 
             qs_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_fits.csv")
 
