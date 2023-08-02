@@ -38,13 +38,15 @@ class MagnetogramProcessor:
                 file_path = Path(dv.MAG_RAW_DATA_DIR) / filename  # Join the path and filename
                 paths.append(file_path)
         else:
-            raise FileNotFoundError(f"{filename} does not exist. Try running `DataManager` first.")
+            raise FileNotFoundError(f"{filename} does not exist.")
 
         base_directory_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
         if not base_directory_path.exists():
             base_directory_path.mkdir(parents=True)
 
-        _ = self._process_data(paths)
+        self._process_data(paths)
+
+        return
 
     def _process_data(self, files) -> None:
         # !TODO find a good way to deal with the paths
@@ -86,16 +88,7 @@ class MagnetogramProcessor:
 
 class ARExtractor:
     def __init__(self) -> None:
-        filename = Path(dv.MAG_INTERMEDIATE_DATA_CSV)
-
-        if filename.exists():
-            self.loaded_data = pd.read_csv(filename)
-
-        columns_to_update = ["url_hmi", "url_mdi"]
-        new_columns = ["processed_hmi", "processed_mdi"]
-
-        # !TODO replace with default_variables.py
-        dv_base_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
+        self.loaded_data = load_filename()
 
         dv_process_fits_path = Path(dv.MAG_PROCESSED_FITS_DIR)
         if not dv_process_fits_path.exists():
@@ -104,13 +97,8 @@ class ARExtractor:
         dv_summary_plots_path = Path(dv.MAG_PROCESSED_SUMMARYPLOTS_DIR)
         if not dv_summary_plots_path.exists():
             dv_summary_plots_path.mkdir(parents=True)
-
         # Iterate through the columns and update the paths
         # !TODO deal with earlier on in the codebase
-        for old_column, new_column in zip(columns_to_update, new_columns):
-            self.loaded_data[new_column] = self.loaded_data[old_column].map(
-                lambda x: dv_base_path / Path(x).name if pd.notna(x) else x
-            )
 
         # set empty list of cutout for hmi
         cutout_list_hmi = []
@@ -165,16 +153,6 @@ class ARExtractor:
 
                 transformed = _cd.transform_to(my_hmi_map.coordinate_frame)
 
-                # Performed in arcseconds
-                #
-                # tr_x = transformed.helioprojective.Tx + 200 * u.arcsec
-                # tr_y = transformed.helioprojective.Ty + 100 * u.arcsec
-                # bl_x = transformed.helioprojective.Tx - 200 * u.arcsec
-                # bl_y = transformed.helioprojective.Ty - 100 * u.arcsec
-                # top_right = SkyCoord(tr_x, tr_y, frame=my_hmi_map.coordinate_frame)
-                # bottom_left = SkyCoord(bl_x, bl_y, frame=my_hmi_map.coordinate_frame)
-                # my_hmi_submap = my_hmi_map.susbmap(bottom_left, top_right=top_right)
-
                 # Perform in pixel coordinates
                 ar_centre = transformed.to_pixel(my_hmi_map.wcs)
                 top_right = [ar_centre[0] + (dv.X_EXTENT - 1) / 2, ar_centre[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
@@ -185,7 +163,6 @@ class ARExtractor:
 
                 # the y range should always be the same.... x may change
                 # assert my_hmi_submap.data.shape[0] == dv.Y_EXTENT
-
                 # !TODO see
                 # https://gitlab.com/frontierdevelopmentlab/living-with-our-star/super-resolution-maps-of-solar-magnetic-field/-/blob/master/source/prep.py?ref_type=heads
                 # logger.info(f"saving {dv_process_fits_path}/{time_srs}_{numbr}.fits")
@@ -233,6 +210,7 @@ class ARExtractor:
                 )
 
             plt.savefig(dv_summary_plots_path / f"{time_srs}.png", dpi=300)
+            plt.close()
 
         self.loaded_subset.loc[:, "hmi_cutout"] = cutout_list_hmi
         self.loaded_subset.loc[:, "hmi_cutout_dim"] = cutout_hmi_dim
@@ -408,6 +386,7 @@ class QSExtractor:
                 / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS.png",
                 dpi=300,
             )
+            plt.close()
 
             print("qs_df", qs_df)
             print("len(all_qs)", len(all_qs))
@@ -422,30 +401,7 @@ class QSExtractor:
 
 class ARDetection:
     def __init__(self):
-        filename = Path(dv.MAG_INTERMEDIATE_DATA_CSV)
-
-        if filename.exists():
-            self.loaded_data = pd.read_csv(filename)
-
-        columns_to_update = ["url_hmi", "url_mdi"]
-        new_columns = ["processed_hmi", "processed_mdi"]
-
-        # !TODO replace with default_variables.py
-        dv_base_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
-
-        dv_process_fits_path = Path(dv.MAG_PROCESSED_FITS_DIR)
-        if not dv_process_fits_path.exists():
-            dv_process_fits_path.mkdir(parents=True)
-
-        dv_summary_plots_path = Path(dv.MAG_PROCESSED_SUMMARYPLOTS_DIR)
-        if not dv_summary_plots_path.exists():
-            dv_summary_plots_path.mkdir(parents=True)
-
-        # Iterate through the columns and update the paths
-        for old_column, new_column in zip(columns_to_update, new_columns):
-            self.loaded_data[new_column] = self.loaded_data[old_column].map(
-                lambda x: dv_base_path / Path(x).name if pd.notna(x) else x
-            )
+        self.loaded_data = load_filename()  # Iterate through the columns and update the paths
 
         # 1. Get SHARPs data
         start_date = dv.DATA_START_TIME
@@ -580,12 +536,13 @@ class ARDetection:
             bl_transformed = a_sharp_map.bottom_left_coord.transform_to(a_fd_map.coordinate_frame).to_pixel(
                 a_fd_map.wcs
             )
+
             tr_transformed = a_sharp_map.top_right_coord.transform_to(a_fd_map.coordinate_frame).to_pixel(a_fd_map.wcs)
 
             bottom_left_list.append(bl)
             top_right_list.append(tr)
-            bottom_left_list_px.append(bl_transformed)
-            top_right_list_px.append(tr_transformed)
+            bottom_left_list_px.append((bl_transformed[0].item(), bl_transformed[1].item()))
+            top_right_list_px.append((tr_transformed[0].item(), tr_transformed[1].item()))
 
         # Add the new "bottom_left" and "top_right" columns to self.meta DataFrame
         self.merged_df["bottom_left_TxTy_arcsec"] = bottom_left_list
@@ -598,16 +555,40 @@ class ARDetection:
         self.merged_df.to_csv(Path(dv.DATA_DIR_PROCESSED) / "hmi_sharp_cutouts.csv")
 
 
+def load_filename():
+    filename = Path(dv.MAG_INTERMEDIATE_DATA_CSV)
+
+    if filename.exists():
+        loaded_data = pd.read_csv(filename)
+
+    columns_to_update = ["url_hmi", "url_mdi"]
+    new_columns = ["processed_hmi", "processed_mdi"]
+
+    # !TODO replace with default_variables.py
+    dv_base_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
+
+    # Iterate through the columns and update the paths
+    # !TODO deal with earlier on in the codebase
+    for old_column, new_column in zip(columns_to_update, new_columns):
+        loaded_data[new_column] = loaded_data[old_column].map(
+            lambda x: dv_base_path / Path(x).name if pd.notna(x) else x
+        )
+
+    return loaded_data
+
+
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
 
     mag_process = False
-    ar_classification = False
+    ar_classification = True
     ar_detection = True
 
+    # 1. Process full-disk magnetograms
     if mag_process:
         MagnetogramProcessor()
 
+    # 2. Extract NOAA ARs and QS regions
     if ar_classification:
         ar_df = ARExtractor()
         qs_df = QSExtractor()
@@ -616,6 +597,8 @@ if __name__ == "__main__":
         )
         arccnet_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/04_final/AR-QS_data.csv")
 
+    # 3. Extract SHARP regions for AR Classification
+    # !TODO ideally we want these SHARP around NOAA AR # along with classification in one df.
     if ar_detection:
         ard = ARDetection()
         ard.merged_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/04_final/SHARP_AR_detection.csv")
