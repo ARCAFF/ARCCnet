@@ -3,13 +3,13 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import sunpy.map
 from tqdm import tqdm
 
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 
 import arccnet.data_generation.utils.default_variables as dv
-import sunpy.map
 from arccnet.data_generation.utils.data_logger import logger
 
 __all__ = ["MagnetogramProcessor", "ARExtractor", "QSExtractor"]  # , "ARDetection"]
