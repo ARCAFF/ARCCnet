@@ -133,9 +133,9 @@ class ARExtractor:
             my_hmi_map = sunpy.map.Map(group.processed_hmi.unique()[0])  # take the first hmi
             time_hmi = group.datetime_hmi.unique()[0]
 
-            # iterate through the groups (by datetime_hmi)
-            for hmi_dt, row in group.iterrows():
-                logger.info(hmi_dt)
+            # iterate through the groups (by datetime_srs)
+            for srs_dt, row in group.iterrows():
+                logger.info(srs_dt)
                 # extract the lat/long and NOAA AR Number (for saving)
                 lat, lng, numbr = row[["Latitude", "Longitude", "Number"]]
                 logger.info(f" >>> {lat}, {lng}, {numbr}")
@@ -294,9 +294,7 @@ class QSExtractor:
                     my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
                     fn = (
-                        Path(  # need to make this manually
-                            "/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_fits"
-                        )
+                        Path(dv.MAG_PROCESSED_QSFITS_DIR)  # need to make this manually
                         / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS_{i}.fits"
                     )
 
