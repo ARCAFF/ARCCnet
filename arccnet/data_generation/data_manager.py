@@ -196,7 +196,7 @@ class DataManager:
         results = downloader.download()
 
         if len(results.errors) != 0:
-            logger.warn(f"results.errors: {results.errors}")
+            logger.warning(f"results.errors: {results.errors}")
             # attempt a retry
             retry_count = 0
             while len(results.errors) != 0 and retry_count < max_retries:

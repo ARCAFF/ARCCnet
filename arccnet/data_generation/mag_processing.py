@@ -1,10 +1,8 @@
 import random
 from pathlib import Path
-from datetime import datetime
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from dateutil.relativedelta import relativedelta
 from tqdm import tqdm
 
 import astropy.units as u
@@ -12,11 +10,9 @@ from astropy.coordinates import SkyCoord
 
 import arccnet.data_generation.utils.default_variables as dv
 import sunpy.map
-from arccnet.data_generation.magnetograms.instruments import HMISHARPs
 from arccnet.data_generation.utils.data_logger import logger
-from sunpy.util.parfive_helpers import Downloader
 
-__all__ = ["MagnetogramProcessor", "ARExtractor", "QSExtractor", "ARDetection"]
+__all__ = ["MagnetogramProcessor", "ARExtractor", "QSExtractor"]  # , "ARDetection"]
 
 
 class MagnetogramProcessor:
@@ -135,10 +131,7 @@ class ARExtractor:
             my_hmi_map = sunpy.map.Map(group.processed_hmi.unique()[0])  # take the first hmi
             time_hmi = group.datetime_hmi.unique()[0]
 
-            logger.info(
-                f"the srs time is {time_srs}, and the hmi time is {time_hmi}. The size of the group is len(group) {len(group)}"
-            )
-
+            # iterate through the groups (by datetime_hmi)
             for _, row in group.iterrows():
                 # extract the lat/long and NOAA AR Number (for saving)
                 lat, lng, numbr = row[["Latitude", "Longitude", "Number"]]
@@ -152,24 +145,21 @@ class ARExtractor:
                 )
 
                 transformed = _cd.transform_to(my_hmi_map.coordinate_frame)
+                ar_centre = transformed.to_pixel(my_hmi_map.wcs)
 
                 # Perform in pixel coordinates
-                ar_centre = transformed.to_pixel(my_hmi_map.wcs)
                 top_right = [ar_centre[0] + (dv.X_EXTENT - 1) / 2, ar_centre[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
                 bottom_left = [ar_centre[0] - (dv.X_EXTENT - 1) / 2, ar_centre[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
                 my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
+                # append to summary info for plotting
                 summary_info.append([top_right, bottom_left, numbr, my_hmi_submap.data.shape, ar_centre])
-
-                # the y range should always be the same.... x may change
-                # assert my_hmi_submap.data.shape[0] == dv.Y_EXTENT
-                # !TODO see
-                # https://gitlab.com/frontierdevelopmentlab/living-with-our-star/super-resolution-maps-of-solar-magnetic-field/-/blob/master/source/prep.py?ref_type=heads
-                # logger.info(f"saving {dv_process_fits_path}/{time_srs}_{numbr}.fits")
-                my_hmi_submap.save(dv_process_fits_path / f"{time_srs}_{numbr}.fits", overwrite=True)
-
                 cutout_list_hmi.append(dv_process_fits_path / f"{time_srs}_{numbr}.fits")
                 cutout_hmi_dim.append(my_hmi_submap.data.shape)
+
+                # !TODO see
+                # https://gitlab.com/frontierdevelopmentlab/living-with-our-star/super-resolution-maps-of-solar-magnetic-field/-/blob/master/source/prep.py?ref_type=heads
+                my_hmi_submap.save(dv_process_fits_path / f"{time_srs}_{numbr}.fits", overwrite=True)
 
                 bls.append(bottom_left)
                 trs.append(top_right)
@@ -245,7 +235,7 @@ class QSExtractor:
         self.loaded_data["datetime_srs"] = pd.to_datetime(self.loaded_data["datetime_srs"])
         grouped_data = self.loaded_data.groupby("datetime_srs")
 
-        qs_df = pd.DataFrame(columns=["datetime_srs", "datetime_hmi", "qs_fits"])
+        qs_df = pd.DataFrame(columns=["datetime_srs", "datetime_hmi", "hmi_cutout", "hmi_cutout_dim"])
 
         all_qs = []
         for time_srs, group in grouped_data:
@@ -272,9 +262,9 @@ class QSExtractor:
                 # all active region centres
                 vals.append(ar_centre)
 
-            logger.info(
-                f"the srs time is {time_srs}, and the hmi time is {time_hmi}. The size of the group is len(group) {len(group)}"
-            )
+            # logger.info(
+            #     f"the srs time is {time_srs}, and the hmi time is {time_hmi}. The size of the group is len(group) {len(group)}"
+            # )
 
             # logger.info(group)
 
@@ -306,12 +296,6 @@ class QSExtractor:
                     bottom_left = [_cd[0] - (dv.X_EXTENT - 1) / 2, _cd[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
                     my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
-                    fig = plt.figure(figsize=(5, 5))
-                    ax = fig.add_subplot(projection=my_hmi_submap)
-                    my_hmi_submap.plot_settings["norm"].vmin = -1500
-                    my_hmi_submap.plot_settings["norm"].vmax = 1500
-                    my_hmi_submap.plot(axes=ax, cmap="hmimag")
-
                     fn = (
                         Path(  # need to make this manually
                             "/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_fits"
@@ -327,27 +311,19 @@ class QSExtractor:
                     qs_temp = pd.DataFrame(
                         {
                             "datetime_hmi": group.datetime_hmi.unique()[0],
-                            "datetime_srs": group.datetime_srs.unique()[0],
-                            "qs_fits": str(fn),
+                            "datetime_srs": pd.to_datetime(group.datetime_srs.unique()[0]).date(),
+                            "hmi_cutout": str(fn),
+                            "hmi_cutout_dim": [my_hmi_submap.data.shape],
                         },
                         index=[0],
                     )
 
-                    # print(qs_df)
-                    # print(qs_temp)
-                    # test this
-                    # qs_df = qs_df.append(
-                    #     pd.DataFrame({"datetime_srs": group.datetime_srs.unique()[0], "qs_fits": str(fn)}, index=[0]),
-                    #     ignore_index=True,
-                    # )
-
                     qs_df = pd.concat([qs_df, qs_temp], ignore_index=True)
 
                     del my_hmi_submap
+
                     vals.append(_cd)
                     qs_reg.append(_cd)
-
-            print("len(qs_reg)", len(qs_reg))
 
             all_qs += qs_reg[:]
 
@@ -388,171 +364,12 @@ class QSExtractor:
             )
             plt.close()
 
-            print("qs_df", qs_df)
-            print("len(all_qs)", len(all_qs))
-
             qs_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_fits.csv")
             self.data = qs_df
 
     def is_point_far_from_point(self, x, y, x1, y1, threshold_x, threshold_y):
         # test this code
         return abs(x - x1) > threshold_x or abs(y - y1) > threshold_y
-
-
-class ARDetection:
-    def __init__(self):
-        self.loaded_data = load_filename()  # Iterate through the columns and update the paths
-
-        # 1. Get SHARPs data
-        start_date = dv.DATA_START_TIME
-        end_date = dv.DATA_END_TIME
-
-        # Calculate the total interval between mid_date and end_date
-        date_diff = relativedelta(end_date, start_date)
-        full_years = date_diff.years  # full years
-        remaining_period = relativedelta(end_date, start_date + relativedelta(years=full_years))  # remaining period
-
-        # Initialize a list to store the ranges
-        year_ranges = []
-
-        # Generate the ranges for full years
-        for i in range(full_years):
-            start_range = datetime(start_date.year + i, start_date.month, start_date.day)
-            end_range = datetime(
-                start_date.year + i + 1, start_date.month, start_date.day
-            )  # this will be in the next year, but later drop duplicates
-            year_ranges.append((start_range, end_range))
-
-        # Generate the range for the remaining period
-        if remaining_period.years > 0 or remaining_period.months > 0 or remaining_period.days > 0:
-            start_range = datetime(
-                end_date.year - remaining_period.years,
-                end_date.month - remaining_period.months,
-                end_date.day - remaining_period.days,
-            )
-            end_range = end_date
-            year_ranges.append((start_range, end_range))
-
-        #   1a. sort df by datetime
-        #   1b. extract min/max time
-        sharps_data = HMISHARPs()
-
-        # Generate the ranges
-        for i, (start, end) in enumerate(year_ranges):
-            logger.info(f">> range {i + 1}: {start} - {end}")
-            if i == 0:
-                meta = sharps_data.fetch_metadata(start, end)
-            else:
-                meta = pd.concat([meta, sharps_data.fetch_metadata(start, end)]).drop_duplicates()
-
-        logger.info(
-            f"SHARP Keys: \n{meta[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
-        )  # the date-obs or date-avg
-
-        print(list(meta.columns))
-        sharp_keys = meta[["magnetogram_fits", "datetime", "url"]].add_suffix("_sharp")
-        # !TODO match with a df of HMI images to get the fulldisk too
-        # !TODO test this
-        print(list(self.loaded_data.columns))
-        self.loaded_data = self.loaded_data[["magnetogram_fits_hmi", "datetime_hmi", "url_hmi"]]
-        self.loaded_data["datetime_hmi"] = pd.to_datetime(self.loaded_data["datetime_hmi"])
-        self.loaded_data = self.loaded_data.dropna().reset_index()
-        #
-        self.merged_df = pd.merge(
-            self.loaded_data, sharp_keys, left_on="datetime_hmi", right_on="datetime_sharp"
-        )  # no tolerance as should be exact
-
-        print(list(self.merged_df))
-
-        logger.info(
-            f"Merged Keys: \n{self.merged_df[['datetime_hmi','datetime_sharp','url_sharp', 'url_hmi']]}"
-        )  # the date-obs or date-avg
-        # #   1d. Do we need to pull down data? Yesxe
-        urls = list(self.merged_df.url_sharp.dropna().unique())
-
-        # copied from `DataManager.fetch_magnetograms`
-        # obviously remove this... but for now...
-        # ######### ###### ####### ### ### ######
-        base_directory_path = Path(dv.MAG_RAW_SHARP_DATA_DIR)
-        if not base_directory_path.exists():
-            base_directory_path.mkdir(parents=True)
-        #
-        downloader = Downloader(
-            max_conn=1,
-            progress=True,
-            overwrite=False,
-            max_splits=1,
-        )
-        #
-        paths = []
-        for url in urls:
-            filename = url.split("/")[-1]  # Extract the filename from the URL
-            paths.append(base_directory_path / filename)
-        #
-        for aurl, fname in zip(urls, paths):
-            downloader.enqueue_file(aurl, filename=fname, max_splits=1)
-        #
-        results = downloader.download()
-        #
-        if len(results.errors) != 0:
-            logger.warn(f"results.errors: {results.errors}")
-            # attempt a retry
-            retry_count = 0
-            while len(results.errors) != 0 and retry_count < 3:
-                logger.info("retrying...")
-                downloader.retry(results)
-                retry_count += 1
-            if len(results.errors) != 0:
-                logger.error("Failed after maximum retries.")
-            else:
-                logger.info("Errors resolved after retry.")
-        else:
-            logger.info("No errors reported by parfive")
-
-        self.results = results
-        # 2. Set SHARP Regions into a df
-        bottom_left_list = []
-        top_right_list = []
-
-        bottom_left_list_px = []
-        top_right_list_px = []
-        # !TODO groupby fd HMI image.
-        for sharp_file, fd_file in tqdm(zip(self.merged_df.url_sharp, self.merged_df.url_hmi)):
-            # full-disk map
-            a_fd_map = sunpy.map.Map(
-                Path("/Users/pjwright/Documents/work/ARCCnet/data/02_intermediate/mag/fits/") / Path(fd_file).name
-            )
-            # sharp map
-            a_sharp_map = sunpy.map.Map(base_directory_path / Path(sharp_file).name)
-            a_sharp_map = a_sharp_map.rotate()
-            # Get the bottom-left and top-right coordinates
-            #   2a. Extent of rectangle (arcseconds, pixels)
-            #   2a. Extent of smooth bounding curve (arcseconds, pixels)
-            # !TODO want to store the data in a QTable?
-            bl = (a_sharp_map.bottom_left_coord.Tx.value, a_sharp_map.bottom_left_coord.Ty.value)
-            tr = (a_sharp_map.top_right_coord.Tx.value, a_sharp_map.top_right_coord.Ty.value)
-            # !TODO check if NOAA AR lands inside the image...
-            # !TODO reproject these into the full-disk map
-            bl_transformed = a_sharp_map.bottom_left_coord.transform_to(a_fd_map.coordinate_frame).to_pixel(
-                a_fd_map.wcs
-            )
-
-            tr_transformed = a_sharp_map.top_right_coord.transform_to(a_fd_map.coordinate_frame).to_pixel(a_fd_map.wcs)
-
-            bottom_left_list.append(bl)
-            top_right_list.append(tr)
-            bottom_left_list_px.append((bl_transformed[0].item(), bl_transformed[1].item()))
-            top_right_list_px.append((tr_transformed[0].item(), tr_transformed[1].item()))
-
-        # Add the new "bottom_left" and "top_right" columns to self.meta DataFrame
-        self.merged_df["bottom_left_TxTy_arcsec"] = bottom_left_list
-        self.merged_df["top_right_TxTy_arcsec"] = top_right_list
-        self.merged_df["bottom_left_TxTy_px"] = bottom_left_list_px
-        self.merged_df["top_right_TxTy_px"] = top_right_list_px
-
-        # 4. Save df of ARs (NOAA matched SHARP along with NOAA classification)
-        # !TODO merge with NOAA AR info (on lat/lng)
-        self.merged_df.to_csv(Path(dv.DATA_DIR_PROCESSED) / "hmi_sharp_cutouts.csv")
 
 
 def load_filename():
@@ -577,12 +394,16 @@ def load_filename():
     return loaded_data
 
 
+def make_relative(base_path, path):
+    return Path(path).relative_to(Path(base_path))
+
+
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
 
     mag_process = False
     ar_classification = True
-    ar_detection = True
+    # ar_detection = True
 
     # 1. Process full-disk magnetograms
     if mag_process:
@@ -595,10 +416,30 @@ if __name__ == "__main__":
         arccnet_df = pd.concat([ar_df.loaded_subset_cleaned, qs_df.data], ignore_index=True).sort_values(
             by="datetime_hmi", ignore_index=True
         )
-        arccnet_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/04_final/AR-QS_data.csv")
+        print(arccnet_df)
+        arccnet_df = arccnet_df[
+            [
+                "datetime_srs",
+                "Latitude",
+                "Longitude",
+                "Number",
+                "Area",
+                "Z",
+                "Mag Type",
+                "datetime_hmi",
+                "hmi_cutout",
+                "hmi_cutout_dim",
+            ]
+        ]
+        arccnet_df = arccnet_df[arccnet_df["hmi_cutout_dim"] == (400, 800)]
+        arccnet_df["hmi_cutout"] = arccnet_df["hmi_cutout"].apply(
+            lambda path: make_relative(Path("/Users/pjwright/Documents/work/ARCCnet/"), path)
+        )
+        arccnet_df["Number"] = arccnet_df["Number"].astype("Int32")  # convert to Int with NaN, see SWPC
+
+        print(arccnet_df)
+        arccnet_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/04_final/AR-QS_classification.csv", index=False)
 
     # 3. Extract SHARP regions for AR Classification
     # !TODO ideally we want these SHARP around NOAA AR # along with classification in one df.
-    if ar_detection:
-        ard = ARDetection()
-        ard.merged_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/04_final/SHARP_AR_detection.csv")
+    # https://gist.github.com/PaulJWright/f9e12454db8d23a46d8bee153c8fbd3a
