@@ -125,6 +125,8 @@ class ARExtractor:
         # group by SRS files
         grouped_data = self.loaded_subset.groupby("datetime_srs")
 
+        logger.info(f"there are len(grouped_data) {len(grouped_data)}")
+
         for time_srs, group in grouped_data:
             summary_info = []
 
@@ -132,7 +134,8 @@ class ARExtractor:
             time_hmi = group.datetime_hmi.unique()[0]
 
             # iterate through the groups (by datetime_hmi)
-            for _, row in group.iterrows():
+            for hmi_dt, row in group.iterrows():
+                logger.info(hmi_dt)
                 # extract the lat/long and NOAA AR Number (for saving)
                 lat, lng, numbr = row[["Latitude", "Longitude", "Number"]]
                 logger.info(f" >>> {lat}, {lng}, {numbr}")
@@ -226,7 +229,7 @@ class ARExtractor:
 
 
 class QSExtractor:
-    def __init__(self, num_attempts=50):
+    def __init__(self, num_random_attempts=10):
         filename = Path(dv.MAG_PROCESSED_DIR) / "processed.csv"
 
         if filename.exists():
@@ -262,14 +265,8 @@ class QSExtractor:
                 # all active region centres
                 vals.append(ar_centre)
 
-            # logger.info(
-            #     f"the srs time is {time_srs}, and the hmi time is {time_hmi}. The size of the group is len(group) {len(group)}"
-            # )
-
-            # logger.info(group)
-
             qs_reg = []
-            for i in range(0, num_attempts):
+            for i in range(0, num_random_attempts):
                 # create random location
                 rand_1 = random.uniform(-1000, 1000) * u.arcsec
                 rand_2 = random.uniform(-500, 500) * u.arcsec
@@ -338,13 +335,11 @@ class QSExtractor:
                 bottom_left = [value[0] - (dv.X_EXTENT - 1) / 2, value[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
                 my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
+                rectangle_cr = "red"
                 if my_hmi_submap.data.shape == (dv.Y_EXTENT, dv.X_EXTENT):
-                    rectangle_cr = "red"
                     rectangle_ls = "-"
                 else:
-                    rectangle_cr = "black"
                     rectangle_ls = "-."
-
                 if value in qs_reg:
                     rectangle_cr = "blue"
 
@@ -358,13 +353,12 @@ class QSExtractor:
                 )
 
             plt.savefig(
-                Path("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_summary_plots")
-                / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS.png",
+                Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR) / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS.png",
                 dpi=300,
             )
             plt.close()
 
-            qs_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/qs_fits.csv")
+            qs_df.to_csv(Path(dv.MAG_PROCESSED_DIR) / "qs_fits.csv")
             self.data = qs_df
 
     def is_point_far_from_point(self, x, y, x1, y1, threshold_x, threshold_y):
@@ -401,7 +395,7 @@ def make_relative(base_path, path):
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
 
-    mag_process = False
+    mag_process = True
     ar_classification = True
     # ar_detection = True
 
@@ -416,7 +410,6 @@ if __name__ == "__main__":
         arccnet_df = pd.concat([ar_df.loaded_subset_cleaned, qs_df.data], ignore_index=True).sort_values(
             by="datetime_hmi", ignore_index=True
         )
-        print(arccnet_df)
         arccnet_df = arccnet_df[
             [
                 "datetime_srs",
@@ -431,13 +424,13 @@ if __name__ == "__main__":
                 "hmi_cutout_dim",
             ]
         ]
+        # for now just limit to 400,800
         arccnet_df = arccnet_df[arccnet_df["hmi_cutout_dim"] == (400, 800)]
         arccnet_df["hmi_cutout"] = arccnet_df["hmi_cutout"].apply(
             lambda path: make_relative(Path("/Users/pjwright/Documents/work/ARCCnet/"), path)
         )
         arccnet_df["Number"] = arccnet_df["Number"].astype("Int32")  # convert to Int with NaN, see SWPC
-
-        print(arccnet_df)
+        logger.info(arccnet_df)
         arccnet_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/04_final/AR-QS_classification.csv", index=False)
 
     # 3. Extract SHARP regions for AR Classification
