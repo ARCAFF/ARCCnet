@@ -118,9 +118,7 @@ class BaseMagnetogram(ABC):
         # `self.r_urls["record"].str.extract(r"\[(.*?)\]")`` will only extract the HARP num from:
         #   `hmi.sharp_720s[318][2011.01.01_00:00:00_TAI]`
         # so using r"\[([^\[\]]*?(?=\]))\][^\[\]]*$" to extract last one.
-        self.r_urls["extracted_record_timestamp"] = self.r_urls["record"].str.extract(
-            r"\[([^\[\]]*?(?=\]))\][^\[\]]*$"
-        )  # !TODO test this regex
+        self.r_urls["extracted_record_timestamp"] = self.r_urls["record"].str.extract(r"\[(.*?)\]")
         # merge on keys['T_REC'] so that there we can later get the files.
         # !TODO add testing for this merge
 
