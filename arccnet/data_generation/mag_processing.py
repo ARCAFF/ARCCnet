@@ -1,6 +1,7 @@
 import random
 from pathlib import Path
 
+import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 import sunpy.map
@@ -11,6 +12,8 @@ from astropy.coordinates import SkyCoord
 
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.utils.data_logger import logger
+
+matplotlib.use("Agg")
 
 __all__ = ["MagnetogramProcessor", "ARExtractor", "QSExtractor"]  # , "ARDetection"]
 
@@ -130,20 +133,20 @@ class ARExtractor:
         # group by SRS files
         grouped_data = self.loaded_subset.groupby("datetime_srs")
 
-        logger.info(f"there are len(grouped_data) {len(grouped_data)}")
+        # logger.info(f"there are len(grouped_data) {len(grouped_data)}")
 
-        for time_srs, group in grouped_data:
+        for time_srs, group in tqdm(grouped_data):
             summary_info = []
 
             my_hmi_map = sunpy.map.Map(group.processed_hmi.unique()[0])  # take the first hmi
             time_hmi = group.datetime_hmi.unique()[0]
 
             # iterate through the groups (by datetime_srs)
-            for srs_dt, row in group.iterrows():
-                logger.info(srs_dt)
+            for _, row in group.iterrows():
+                # logger.info(srs_dt)
                 # extract the lat/long and NOAA AR Number (for saving)
                 lat, lng, numbr = row[["Latitude", "Longitude", "Number"]]
-                logger.info(f" >>> {lat}, {lng}, {numbr}")
+                # logger.info(f" >>> {lat}, {lng}, {numbr}")
 
                 _cd = SkyCoord(
                     lng * u.deg,
@@ -161,7 +164,7 @@ class ARExtractor:
                 my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
                 # append to summary info for plotting
-                summary_info.append([top_right, bottom_left, numbr, my_hmi_submap.data.shape, ar_centre])
+                summary_info.append([top_right, bottom_left, numbr, my_hmi_submap.data.shape, ar_centre, time_srs])
                 cutout_list_hmi.append(dv_process_fits_path / f"{time_srs}_{numbr}.fits")
                 cutout_hmi_dim.append(my_hmi_submap.data.shape)
 
@@ -177,7 +180,8 @@ class ARExtractor:
 
             self.plot(my_hmi_map, time_srs, dv_summary_plots_path, summary_info)
 
-        print(len(cutout_list_hmi), len(cutout_hmi_dim), len(bls), len(trs))
+            del summary_info
+
         self.loaded_subset.loc[:, "hmi_cutout"] = cutout_list_hmi
         self.loaded_subset.loc[:, "hmi_cutout_dim"] = cutout_hmi_dim
         self.loaded_subset.loc[:, "bottom_left"] = bls
@@ -209,7 +213,9 @@ class ARExtractor:
         aplotmap.plot_settings["norm"].vmax = 1500
         aplotmap.plot(axes=ax, cmap="hmimag")
 
-        for _, (tr, bl, num, shape, arc) in enumerate(summary_arr):
+        text_objects = []
+
+        for _, (tr, bl, num, shape, arc, _) in enumerate(summary_arr):
             if shape == (dv.Y_EXTENT, dv.X_EXTENT):
                 rectangle_cr = "red"
                 rectangle_ls = "-"
@@ -227,15 +233,20 @@ class ARExtractor:
                 label=str(num),
             )
 
-            ax.text(
+            text = ax.text(
                 arc[0],
                 arc[1] + (dv.Y_EXTENT / 2) + 5,
                 num,
                 **{"size": "x-small", "color": "black", "ha": "center"},
             )
+            text_objects.append(text)
 
         plt.savefig(filepath / f"{time}.png", dpi=300)
-        plt.close()
+        plt.close("all")
+
+        # remove the text objects?
+        for text in text_objects:
+            text.remove()
 
 
 class QSExtractor:
@@ -244,6 +255,10 @@ class QSExtractor:
 
         if filename.exists():
             self.loaded_data = pd.read_csv(filename)
+
+        dir = Path(dv.MAG_PROCESSED_QSFITS_DIR)
+        if not dir.exists():
+            dir.mkdir(parents=True)
 
         self.loaded_data["datetime_srs"] = pd.to_datetime(self.loaded_data["datetime_srs"])
         grouped_data = self.loaded_data.groupby("datetime_srs")
@@ -259,7 +274,7 @@ class QSExtractor:
             for _, row in group.iterrows():
                 # extract the lat/long and NOAA AR Number (for saving)
                 lat, lng, numbr = row[["Latitude", "Longitude", "Number"]]
-                logger.info(f" >>> {lat}, {lng}, {numbr}")
+                # logger.info(f" >>> {lat}, {lng}, {numbr}")
 
                 ar_centre = (
                     SkyCoord(
@@ -331,40 +346,40 @@ class QSExtractor:
                     qs_reg.append(_cd)
 
             all_qs += qs_reg[:]
+            logger.info(f"{qs_reg} QS regions saved at {time_hmi}")
+            # fig = plt.figure(figsize=(5, 5))
+            # ax = fig.add_subplot(projection=my_hmi_map)
+            # my_hmi_map.plot_settings["norm"].vmin = -1500
+            # my_hmi_map.plot_settings["norm"].vmax = 1500
+            # my_hmi_map.plot(axes=ax, cmap="hmimag")
 
-            fig = plt.figure(figsize=(5, 5))
-            ax = fig.add_subplot(projection=my_hmi_map)
-            my_hmi_map.plot_settings["norm"].vmin = -1500
-            my_hmi_map.plot_settings["norm"].vmax = 1500
-            my_hmi_map.plot(axes=ax, cmap="hmimag")
+            # for value in vals:
+            #     top_right = [value[0] + (dv.X_EXTENT - 1) / 2, value[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
+            #     bottom_left = [value[0] - (dv.X_EXTENT - 1) / 2, value[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
+            #     my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
-            for value in vals:
-                top_right = [value[0] + (dv.X_EXTENT - 1) / 2, value[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
-                bottom_left = [value[0] - (dv.X_EXTENT - 1) / 2, value[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
-                my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
+            #     rectangle_cr = "red"
+            #     if my_hmi_submap.data.shape == (dv.Y_EXTENT, dv.X_EXTENT):
+            #         rectangle_ls = "-"
+            #     else:
+            #         rectangle_ls = "-."
+            #     if value in qs_reg:
+            #         rectangle_cr = "blue"
 
-                rectangle_cr = "red"
-                if my_hmi_submap.data.shape == (dv.Y_EXTENT, dv.X_EXTENT):
-                    rectangle_ls = "-"
-                else:
-                    rectangle_ls = "-."
-                if value in qs_reg:
-                    rectangle_cr = "blue"
+            #     my_hmi_map.draw_quadrangle(
+            #         bottom_left,
+            #         axes=ax,
+            #         top_right=top_right,
+            #         edgecolor=rectangle_cr,
+            #         linestyle=rectangle_ls,
+            #         linewidth=1,
+            #     )
 
-                my_hmi_map.draw_quadrangle(
-                    bottom_left,
-                    axes=ax,
-                    top_right=top_right,
-                    edgecolor=rectangle_cr,
-                    linestyle=rectangle_ls,
-                    linewidth=1,
-                )
-
-            plt.savefig(
-                Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR) / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS.png",
-                dpi=300,
-            )
-            plt.close()
+            # plt.savefig(
+            #     Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR) / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS.png",
+            #     dpi=300,
+            # )
+            # plt.close("all")
 
             qs_df.to_csv(Path(dv.MAG_PROCESSED_DIR) / "qs_fits.csv")
             self.data = qs_df
