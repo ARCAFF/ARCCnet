@@ -40,25 +40,31 @@ class MagnetogramProcessor:
         if not base_directory_path.exists():
             base_directory_path.mkdir(parents=True)
 
-        self._process_data(paths)
+        self._process_data(paths, dir=Path(dv.MAG_INTERMEDIATE_DATA_DIR))
 
         return
 
-    def _process_data(self, files) -> None:
+    def _process_data(self, files, dir: Path) -> None:
         # !TODO find a good way to deal with the paths
 
         for file in tqdm(files, desc="Processing data", unit="file"):
-            processed_data = self._process_datum(file)
-            # !TODO probably append the name with something
-            processed_data.save(Path(dv.MAG_INTERMEDIATE_DATA_DIR) / file.name, overwrite=True)
+            if not Path(dir / file.name).exists():
+                processed_data = self._process_datum(file)
+                # !TODO probably append the name with something
+                processed_data.save(dir / file.name, overwrite=False)
 
     def _process_datum(self, file) -> None:
         # 1. Load & Rotate
         map = sunpy.map.Map(file)
+
+        #!TODO remove 'BLANK' keyword
+        # v3925 WARNING: VerifyWarning: Invalid 'BLANK' keyword in header.
+        # The 'BLANK' keyword is only applicable to integer data, and will be ignored in this HDU.
+        # [astropy.io.fits.hdu.image]
         r_map = self._rotate_datum(map)
 
         # 2. set data off-disk to 0 (np.nan would be ideal, but deep learning)
-        r_map.data[~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(r_map))] = 0
+        r_map.data[~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(r_map))] = 0.0
         # !TODO understand why this isn't working with MDI (leaves a white ring around the disk)
 
         # !TODO
@@ -121,7 +127,6 @@ class ARExtractor:
         # drop rows with NaN (so drop none with HMI)
         # !TODO go through HMI and MDI separately
         self.loaded_subset.dropna(inplace=True)
-
         # group by SRS files
         grouped_data = self.loaded_subset.groupby("datetime_srs")
 
@@ -168,43 +173,11 @@ class ARExtractor:
                 trs.append(top_right)
 
                 del my_hmi_submap  # delete the submap
+                del _cd
 
-            # Plotting and saving
-            # !TODO move to a new function
-            fig = plt.figure(figsize=(5, 5))
-            ax = fig.add_subplot(projection=my_hmi_map)
-            my_hmi_map.plot_settings["norm"].vmin = -1500
-            my_hmi_map.plot_settings["norm"].vmax = 1500
-            my_hmi_map.plot(axes=ax, cmap="hmimag")
+            self.plot(my_hmi_map, time_srs, dv_summary_plots_path, summary_info)
 
-            for _, (tr, bl, num, shape, arc) in enumerate(summary_info):
-                if shape == (dv.Y_EXTENT, dv.X_EXTENT):
-                    rectangle_cr = "red"
-                    rectangle_ls = "-"
-                else:
-                    rectangle_cr = "black"
-                    rectangle_ls = "-."
-
-                my_hmi_map.draw_quadrangle(
-                    bl,
-                    axes=ax,
-                    top_right=tr,
-                    edgecolor=rectangle_cr,
-                    linestyle=rectangle_ls,
-                    linewidth=1,
-                    label=str(num),
-                )
-
-                ax.text(
-                    arc[0],
-                    arc[1] + (dv.Y_EXTENT / 2) + 5,
-                    num,
-                    **{"size": "x-small", "color": "black", "ha": "center"},
-                )
-
-            plt.savefig(dv_summary_plots_path / f"{time_srs}.png", dpi=300)
-            plt.close()
-
+        print(len(cutout_list_hmi), len(cutout_hmi_dim), len(bls), len(trs))
         self.loaded_subset.loc[:, "hmi_cutout"] = cutout_list_hmi
         self.loaded_subset.loc[:, "hmi_cutout_dim"] = cutout_hmi_dim
         self.loaded_subset.loc[:, "bottom_left"] = bls
@@ -226,6 +199,43 @@ class ARExtractor:
         self.loaded_subset_cleaned = self.loaded_subset_cleaned.dropna()
         self.loaded_subset_cleaned = self.loaded_subset_cleaned.reset_index()
         self.loaded_subset_cleaned.to_csv(Path(dv.DATA_DIR_FINAL) / "arcutout_clean.csv")  # need to reset index
+
+    def plot(self, aplotmap, time, filepath, summary_arr):
+        # Plotting and saving
+        # !TODO move to a new function
+        fig = plt.figure(figsize=(5, 5))
+        ax = fig.add_subplot(projection=aplotmap)
+        aplotmap.plot_settings["norm"].vmin = -1500
+        aplotmap.plot_settings["norm"].vmax = 1500
+        aplotmap.plot(axes=ax, cmap="hmimag")
+
+        for _, (tr, bl, num, shape, arc) in enumerate(summary_arr):
+            if shape == (dv.Y_EXTENT, dv.X_EXTENT):
+                rectangle_cr = "red"
+                rectangle_ls = "-"
+            else:
+                rectangle_cr = "black"
+                rectangle_ls = "-."
+
+            aplotmap.draw_quadrangle(
+                bl,
+                axes=ax,
+                top_right=tr,
+                edgecolor=rectangle_cr,
+                linestyle=rectangle_ls,
+                linewidth=1,
+                label=str(num),
+            )
+
+            ax.text(
+                arc[0],
+                arc[1] + (dv.Y_EXTENT / 2) + 5,
+                num,
+                **{"size": "x-small", "color": "black", "ha": "center"},
+            )
+
+        plt.savefig(filepath / f"{time}.png", dpi=300)
+        plt.close()
 
 
 class QSExtractor:
