@@ -7,7 +7,6 @@ import pandas as pd
 import sunpy.map
 from tqdm import tqdm
 
-import astropy.io.fits
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 
@@ -18,8 +17,8 @@ matplotlib.use("Agg")
 
 __all__ = ["MagnetogramProcessor", "ARExtractor", "QSExtractor"]  # , "ARDetection"]
 
-
-HDU_COMP = astropy.io.fits.CompImageHDU(tile_shape=(64, 64))
+# HDU_COMP = astropy.io.fits.CompImageHDU(tile_shape=(64, 64))
+HDU_COMP = None  # !TODO Figure out unscaling the image
 # WARNING: Provided tile size not appropriate for the data.  Default tile size will be used. [astropy.io.fits.hdu.compressed]
 # unsure if this is just for the SHARP region
 
@@ -155,8 +154,8 @@ class ARExtractor:
             for _, row in group.iterrows():
                 # logger.info(srs_dt)
                 # extract the lat/long and NOAA AR Number (for saving)
-                numbr = row[["Number"]]
-                logger.info(f" >>> {numbr}")
+                numbr = row["Number"]
+                # logger.info(f" >>> {numbr}")
 
                 my_hmi_submap, top_right, bottom_left, ar_pos_pixels = extract_submaps(
                     my_hmi_map, time_hmi, row[["Latitude", "Longitude"]], xsize=dv.X_EXTENT, ysize=dv.Y_EXTENT
@@ -232,7 +231,7 @@ class ARExtractor:
                 edgecolor=rectangle_cr,
                 linestyle=rectangle_ls,
                 linewidth=1,
-                label=str(num),
+                label=num,
             )
 
             text = ax.text(
@@ -484,7 +483,7 @@ def extract_submaps(map, time, coords, xsize=dv.X_EXTENT, ysize=dv.Y_EXTENT) -> 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
 
-    mag_process = True
+    mag_process = False
     ar_classification = True
     # ar_detection = True
 
