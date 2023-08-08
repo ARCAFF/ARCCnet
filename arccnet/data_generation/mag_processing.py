@@ -20,6 +20,8 @@ __all__ = ["MagnetogramProcessor", "ARExtractor", "QSExtractor"]  # , "ARDetecti
 
 
 HDU_COMP = astropy.io.fits.CompImageHDU(tile_shape=(64, 64))
+# WARNING: Provided tile size not appropriate for the data.  Default tile size will be used. [astropy.io.fits.hdu.compressed]
+# unsure if this is just for the SHARP region
 
 
 class MagnetogramProcessor:
@@ -153,26 +155,12 @@ class ARExtractor:
             for _, row in group.iterrows():
                 # logger.info(srs_dt)
                 # extract the lat/long and NOAA AR Number (for saving)
-                lat, lng, numbr = row[["Latitude", "Longitude", "Number"]]
-                # logger.info(f" >>> {lat}, {lng}, {numbr}")
+                numbr = row[["Number"]]
+                logger.info(f" >>> {numbr}")
 
-                ar_pos_hgs = SkyCoord(
-                    lng * u.deg,
-                    lat * u.deg,
-                    obstime=time_hmi,
-                    frame=sunpy.coordinates.frames.HeliographicStonyhurst,
+                my_hmi_submap, top_right, bottom_left, ar_pos_pixels = extract_submaps(
+                    my_hmi_map, time_hmi, row[["Latitude", "Longitude"]], xsize=dv.X_EXTENT, ysize=dv.Y_EXTENT
                 )
-
-                transformed = ar_pos_hgs.transform_to(my_hmi_map.coordinate_frame)
-                ar_pos_pixels = transformed.to_pixel(my_hmi_map.wcs)
-
-                # Perform in pixel coordinates
-                top_right = [ar_pos_pixels[0] + (dv.X_EXTENT - 1) / 2, ar_pos_pixels[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
-                bottom_left = [
-                    ar_pos_pixels[0] - (dv.X_EXTENT - 1) / 2,
-                    ar_pos_pixels[1] - (dv.Y_EXTENT - 1) / 2,
-                ] * u.pix
-                my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
                 # append to summary info for plotting
                 summary_info.append([top_right, bottom_left, numbr, my_hmi_submap.data.shape, ar_pos_pixels, time_srs])
@@ -191,7 +179,6 @@ class ARExtractor:
                 trs.append(top_right)
 
                 del my_hmi_submap  # delete the submap
-                del ar_pos_hgs
 
             self.plot(my_hmi_map, time_srs, dv_summary_plots_path, summary_info)
 
@@ -269,7 +256,7 @@ class QSExtractor:
         filename = Path(dv.MAG_PROCESSED_DIR) / "processed.csv"
 
         if filename.exists():
-            self.loaded_data = pd.read_csv(filename)
+            loaded_data = pd.read_csv(filename)
 
         dir = Path(dv.MAG_PROCESSED_QSFITS_DIR)
         if not dir.exists():
@@ -279,12 +266,15 @@ class QSExtractor:
         if not dv_summary_plots_path.exists():
             dv_summary_plots_path.mkdir(parents=True)
 
-        self.loaded_data["datetime_srs"] = pd.to_datetime(self.loaded_data["datetime_srs"])
-        grouped_data = self.loaded_data.groupby("datetime_srs")
+        loaded_data["datetime_srs"] = pd.to_datetime(loaded_data["datetime_srs"])
+        grouped_data = loaded_data.groupby("datetime_srs")
 
         qs_df = pd.DataFrame(columns=["datetime_srs", "datetime_hmi", "hmi_cutout", "hmi_cutout_dim"])
 
         all_qs = []
+        import time
+
+        tic = time.perf_counter()
         for time_srs, group in grouped_data:
             my_hmi_map = sunpy.map.Map(group.processed_hmi.unique()[0])  # take the first hmi
             time_hmi = group.datetime_hmi.unique()[0]
@@ -292,7 +282,7 @@ class QSExtractor:
             vals = []
             for _, row in group.iterrows():
                 # extract the lat/long and NOAA AR Number (for saving)
-                lat, lng, numbr = row[["Latitude", "Longitude", "Number"]]
+                lat, lng, _ = row[["Latitude", "Longitude", "Number"]]
                 # logger.info(f" >>> {lat}, {lng}, {numbr}")
 
                 ar_pos_pixels = (
@@ -373,6 +363,9 @@ class QSExtractor:
             qs_df.to_csv(Path(dv.MAG_PROCESSED_DIR) / "qs_fits.csv")
             self.data = qs_df
 
+        toc = time.perf_counter()
+        print(f"time taken {toc-tic}")
+
     def plot(self, hmi_map, vals, qs_reg, time_srs):
         fig = plt.figure(figsize=(5, 5))
         ax = fig.add_subplot(projection=hmi_map)
@@ -437,6 +430,55 @@ def load_filename():
 
 def make_relative(base_path, path):
     return Path(path).relative_to(Path(base_path))
+
+
+def extract_submaps(map, time, coords, xsize=dv.X_EXTENT, ysize=dv.Y_EXTENT) -> sunpy.map.Map:
+    """
+
+    Parameters
+    ----------
+    map : sunpy.map.Map
+
+    time : datetime
+
+    coords : tuple
+        tuple consisting of (latitude, longitude)
+
+    xsize : int
+        x extent of region to extract (in pixels)
+
+    ysize : int
+        y extend of region to extract (in pixels)
+
+
+    Returns
+    -------
+    submap : sunpy.map.Map
+        sunpy map centered on coords, with size (xsize, ysize)
+
+    """
+    lat, lng = coords
+
+    ar_pos_hgs = SkyCoord(
+        lng * u.deg,
+        lat * u.deg,
+        obstime=time,
+        frame=sunpy.coordinates.frames.HeliographicStonyhurst,
+    )
+
+    transformed = ar_pos_hgs.transform_to(map.coordinate_frame)
+    ar_pos_pixels = transformed.to_pixel(map.wcs)
+
+    # Perform in pixel coordinates
+    top_right = [ar_pos_pixels[0] + (xsize - 1) / 2, ar_pos_pixels[1] + (ysize - 1) / 2] * u.pix
+    bottom_left = [
+        ar_pos_pixels[0] - (xsize - 1) / 2,
+        ar_pos_pixels[1] - (ysize - 1) / 2,
+    ] * u.pix
+
+    submap = map.submap(bottom_left, top_right=top_right)
+
+    return submap, top_right, bottom_left, ar_pos_pixels
 
 
 if __name__ == "__main__":
