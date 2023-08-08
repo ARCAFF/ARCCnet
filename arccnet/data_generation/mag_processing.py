@@ -260,6 +260,10 @@ class QSExtractor:
         if not dir.exists():
             dir.mkdir(parents=True)
 
+        dv_summary_plots_path = Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR)
+        if not dv_summary_plots_path.exists():
+            dv_summary_plots_path.mkdir(parents=True)
+
         self.loaded_data["datetime_srs"] = pd.to_datetime(self.loaded_data["datetime_srs"])
         grouped_data = self.loaded_data.groupby("datetime_srs")
 
@@ -346,43 +350,47 @@ class QSExtractor:
                     qs_reg.append(_cd)
 
             all_qs += qs_reg[:]
-            logger.info(f"{qs_reg} QS regions saved at {time_hmi}")
-            # fig = plt.figure(figsize=(5, 5))
-            # ax = fig.add_subplot(projection=my_hmi_map)
-            # my_hmi_map.plot_settings["norm"].vmin = -1500
-            # my_hmi_map.plot_settings["norm"].vmax = 1500
-            # my_hmi_map.plot(axes=ax, cmap="hmimag")
+            logger.info(f"{len(qs_reg)} QS regions saved at {time_hmi}")
 
-            # for value in vals:
-            #     top_right = [value[0] + (dv.X_EXTENT - 1) / 2, value[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
-            #     bottom_left = [value[0] - (dv.X_EXTENT - 1) / 2, value[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
-            #     my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
-
-            #     rectangle_cr = "red"
-            #     if my_hmi_submap.data.shape == (dv.Y_EXTENT, dv.X_EXTENT):
-            #         rectangle_ls = "-"
-            #     else:
-            #         rectangle_ls = "-."
-            #     if value in qs_reg:
-            #         rectangle_cr = "blue"
-
-            #     my_hmi_map.draw_quadrangle(
-            #         bottom_left,
-            #         axes=ax,
-            #         top_right=top_right,
-            #         edgecolor=rectangle_cr,
-            #         linestyle=rectangle_ls,
-            #         linewidth=1,
-            #     )
-
-            # plt.savefig(
-            #     Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR) / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS.png",
-            #     dpi=300,
-            # )
-            # plt.close("all")
+            self.plot(my_hmi_map, vals, qs_reg, time_srs)
 
             qs_df.to_csv(Path(dv.MAG_PROCESSED_DIR) / "qs_fits.csv")
             self.data = qs_df
+
+    def plot(self, hmi_map, vals, qs_reg, time_srs):
+        fig = plt.figure(figsize=(5, 5))
+        ax = fig.add_subplot(projection=hmi_map)
+        hmi_map.plot_settings["norm"].vmin = -1500
+        hmi_map.plot_settings["norm"].vmax = 1500
+        hmi_map.plot(axes=ax, cmap="hmimag")
+
+        for value in vals:
+            top_right = [value[0] + (dv.X_EXTENT - 1) / 2, value[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
+            bottom_left = [value[0] - (dv.X_EXTENT - 1) / 2, value[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
+            my_hmi_submap = hmi_map.submap(bottom_left, top_right=top_right)
+
+            rectangle_cr = "red"
+            if my_hmi_submap.data.shape == (dv.Y_EXTENT, dv.X_EXTENT):
+                rectangle_ls = "-"
+            else:
+                rectangle_ls = "-."
+            if value in qs_reg:
+                rectangle_cr = "blue"
+
+            hmi_map.draw_quadrangle(
+                bottom_left,
+                axes=ax,
+                top_right=top_right,
+                edgecolor=rectangle_cr,
+                linestyle=rectangle_ls,
+                linewidth=1,
+            )
+
+        plt.savefig(
+            Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR) / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS.png",
+            dpi=300,
+        )
+        plt.close("all")
 
     def is_point_far_from_point(self, x, y, x1, y1, threshold_x, threshold_y):
         # test this code
