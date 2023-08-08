@@ -7,6 +7,7 @@ import pandas as pd
 import sunpy.map
 from tqdm import tqdm
 
+import astropy.io.fits
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 
@@ -16,6 +17,9 @@ from arccnet.data_generation.utils.data_logger import logger
 matplotlib.use("Agg")
 
 __all__ = ["MagnetogramProcessor", "ARExtractor", "QSExtractor"]  # , "ARDetection"]
+
+
+HDU_COMP = astropy.io.fits.CompImageHDU(tile_shape=(64, 64))
 
 
 class MagnetogramProcessor:
@@ -54,7 +58,11 @@ class MagnetogramProcessor:
             if not Path(dir / file.name).exists():
                 processed_data = self._process_datum(file)
                 # !TODO probably append the name with something
-                processed_data.save(dir / file.name, overwrite=False)
+                processed_data.save(
+                    dir / file.name,
+                    overwrite=False,
+                    hdu_type=HDU_COMP,
+                )
 
     def _process_datum(self, file) -> None:
         # 1. Load & Rotate
@@ -170,7 +178,11 @@ class ARExtractor:
 
                 # !TODO see
                 # https://gitlab.com/frontierdevelopmentlab/living-with-our-star/super-resolution-maps-of-solar-magnetic-field/-/blob/master/source/prep.py?ref_type=heads
-                my_hmi_submap.save(dv_process_fits_path / f"{time_srs}_{numbr}.fits", overwrite=True)
+                my_hmi_submap.save(
+                    dv_process_fits_path / f"{time_srs}_{numbr}.fits",
+                    overwrite=True,
+                    hdu_type=HDU_COMP,
+                )
 
                 bls.append(bottom_left)
                 trs.append(top_right)
@@ -330,6 +342,7 @@ class QSExtractor:
                     my_hmi_submap.save(
                         fn,
                         overwrite=True,
+                        hdu_type=HDU_COMP,
                     )
 
                     qs_temp = pd.DataFrame(
