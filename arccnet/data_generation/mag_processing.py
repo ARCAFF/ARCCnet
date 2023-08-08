@@ -164,15 +164,18 @@ class ARExtractor:
                 )
 
                 transformed = ar_pos_hgs.transform_to(my_hmi_map.coordinate_frame)
-                ar_centre = transformed.to_pixel(my_hmi_map.wcs)
+                ar_pos_pixels = transformed.to_pixel(my_hmi_map.wcs)
 
                 # Perform in pixel coordinates
-                top_right = [ar_centre[0] + (dv.X_EXTENT - 1) / 2, ar_centre[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
-                bottom_left = [ar_centre[0] - (dv.X_EXTENT - 1) / 2, ar_centre[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
+                top_right = [ar_pos_pixels[0] + (dv.X_EXTENT - 1) / 2, ar_pos_pixels[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
+                bottom_left = [
+                    ar_pos_pixels[0] - (dv.X_EXTENT - 1) / 2,
+                    ar_pos_pixels[1] - (dv.Y_EXTENT - 1) / 2,
+                ] * u.pix
                 my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
                 # append to summary info for plotting
-                summary_info.append([top_right, bottom_left, numbr, my_hmi_submap.data.shape, ar_centre, time_srs])
+                summary_info.append([top_right, bottom_left, numbr, my_hmi_submap.data.shape, ar_pos_pixels, time_srs])
                 cutout_list_hmi.append(dv_process_fits_path / f"{time_srs}_{numbr}.fits")
                 cutout_hmi_dim.append(my_hmi_submap.data.shape)
 
@@ -292,7 +295,7 @@ class QSExtractor:
                 lat, lng, numbr = row[["Latitude", "Longitude", "Number"]]
                 # logger.info(f" >>> {lat}, {lng}, {numbr}")
 
-                ar_centre = (
+                ar_pos_pixels = (
                     SkyCoord(
                         lng * u.deg,
                         lat * u.deg,
@@ -304,7 +307,7 @@ class QSExtractor:
                 )
 
                 # all active region centres
-                vals.append(ar_centre)
+                vals.append(ar_pos_pixels)
 
             qs_reg = []
             for i in range(0, num_random_attempts):
