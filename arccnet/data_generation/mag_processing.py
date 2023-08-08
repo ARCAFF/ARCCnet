@@ -47,11 +47,11 @@ class MagnetogramProcessor:
         if not base_directory_path.exists():
             base_directory_path.mkdir(parents=True)
 
-        self._process_data(paths, dir=Path(dv.MAG_INTERMEDIATE_DATA_DIR))
+        self._process_and_save_data(paths, dir=Path(dv.MAG_INTERMEDIATE_DATA_DIR))
 
         return
 
-    def _process_data(self, files, dir: Path) -> None:
+    def _process_and_save_data(self, files, dir: Path) -> None:
         # !TODO find a good way to deal with the paths
 
         for file in tqdm(files, desc="Processing data", unit="file"):
@@ -101,7 +101,7 @@ class MagnetogramProcessor:
 
 class ARExtractor:
     def __init__(self) -> None:
-        self.loaded_data = load_filename()
+        loaded_data = load_filename()
 
         dv_process_fits_path = Path(dv.MAG_PROCESSED_FITS_DIR)
         if not dv_process_fits_path.exists():
@@ -119,7 +119,7 @@ class ARExtractor:
         bls = []
         trs = []
 
-        self.loaded_subset = self.loaded_data[
+        loaded_subset = loaded_data[
             [
                 "Latitude",
                 "Longitude",
@@ -133,13 +133,13 @@ class ARExtractor:
             ]
         ].copy()
 
-        logger.info(self.loaded_subset)
+        logger.info(loaded_subset)
 
         # drop rows with NaN (so drop none with HMI)
         # !TODO go through HMI and MDI separately
-        self.loaded_subset.dropna(inplace=True)
+        loaded_subset.dropna(inplace=True)
         # group by SRS files
-        grouped_data = self.loaded_subset.groupby("datetime_srs")
+        grouped_data = loaded_subset.groupby("datetime_srs")
 
         # logger.info(f"there are len(grouped_data) {len(grouped_data)}")
 
@@ -197,12 +197,12 @@ class ARExtractor:
 
             del summary_info
 
-        self.loaded_subset.loc[:, "hmi_cutout"] = cutout_list_hmi
-        self.loaded_subset.loc[:, "hmi_cutout_dim"] = cutout_hmi_dim
-        self.loaded_subset.loc[:, "bottom_left"] = bls
-        self.loaded_subset.loc[:, "top_right"] = trs
+        loaded_subset.loc[:, "hmi_cutout"] = cutout_list_hmi
+        loaded_subset.loc[:, "hmi_cutout_dim"] = cutout_hmi_dim
+        loaded_subset.loc[:, "bottom_left"] = bls
+        loaded_subset.loc[:, "top_right"] = trs
 
-        self.loaded_subset.to_csv(Path(dv.MAG_PROCESSED_DIR) / "processed.csv")
+        loaded_subset.to_csv(Path(dv.MAG_PROCESSED_DIR) / "processed.csv")
 
         # clean data
         dv_final_path = Path(dv.DATA_DIR_FINAL)
@@ -211,13 +211,13 @@ class ARExtractor:
 
         # clean data
         # 1. Ensure the data is (400, 800)
-        self.loaded_subset_cleaned = self.loaded_subset[
-            self.loaded_subset["hmi_cutout_dim"] == (dv.Y_EXTENT, dv.X_EXTENT)
-        ]
+        loaded_subset_cleaned = loaded_subset[loaded_subset["hmi_cutout_dim"] == (dv.Y_EXTENT, dv.X_EXTENT)]
         # Drop NaN, Reset Index, Save to `arcutout_clean.csv`
-        self.loaded_subset_cleaned = self.loaded_subset_cleaned.dropna()
-        self.loaded_subset_cleaned = self.loaded_subset_cleaned.reset_index()
-        self.loaded_subset_cleaned.to_csv(Path(dv.DATA_DIR_FINAL) / "arcutout_clean.csv")  # need to reset index
+        loaded_subset_cleaned = loaded_subset_cleaned.dropna()
+        loaded_subset_cleaned = loaded_subset_cleaned.reset_index()
+        loaded_subset_cleaned.to_csv(Path(dv.DATA_DIR_FINAL) / "arcutout_clean.csv")  # need to reset index
+
+        self.data = loaded_subset_cleaned
 
     def plot(self, aplotmap, time, filepath, summary_arr):
         # Plotting and saving
@@ -230,7 +230,7 @@ class ARExtractor:
 
         text_objects = []
 
-        for _, (tr, bl, num, shape, arc, _) in enumerate(summary_arr):
+        for tr, bl, num, shape, arc, _ in summary_arr:
             if shape == (dv.Y_EXTENT, dv.X_EXTENT):
                 rectangle_cr = "red"
                 rectangle_ls = "-"
@@ -454,7 +454,7 @@ if __name__ == "__main__":
     if ar_classification:
         ar_df = ARExtractor()
         qs_df = QSExtractor()
-        arccnet_df = pd.concat([ar_df.loaded_subset_cleaned, qs_df.data], ignore_index=True).sort_values(
+        arccnet_df = pd.concat([ar_df.data, qs_df.data], ignore_index=True).sort_values(
             by="datetime_hmi", ignore_index=True
         )
         arccnet_df = arccnet_df[
