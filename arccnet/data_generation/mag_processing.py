@@ -156,14 +156,14 @@ class ARExtractor:
                 lat, lng, numbr = row[["Latitude", "Longitude", "Number"]]
                 # logger.info(f" >>> {lat}, {lng}, {numbr}")
 
-                _cd = SkyCoord(
+                ar_pos_hgs = SkyCoord(
                     lng * u.deg,
                     lat * u.deg,
                     obstime=time_hmi,
                     frame=sunpy.coordinates.frames.HeliographicStonyhurst,
                 )
 
-                transformed = _cd.transform_to(my_hmi_map.coordinate_frame)
+                transformed = ar_pos_hgs.transform_to(my_hmi_map.coordinate_frame)
                 ar_centre = transformed.to_pixel(my_hmi_map.wcs)
 
                 # Perform in pixel coordinates
@@ -188,7 +188,7 @@ class ARExtractor:
                 trs.append(top_right)
 
                 del my_hmi_submap  # delete the submap
-                del _cd
+                del ar_pos_hgs
 
             self.plot(my_hmi_map, time_srs, dv_summary_plots_path, summary_info)
 
@@ -313,25 +313,25 @@ class QSExtractor:
                 rand_2 = random.uniform(-500, 500) * u.arcsec
 
                 # convert to pixel coordinates
-                _cd = SkyCoord(
+                ar_pos_hgs = SkyCoord(
                     rand_1,
                     rand_2,
                     frame=my_hmi_map.coordinate_frame,
                 ).to_pixel(my_hmi_map.wcs)
 
-                # check _cd is far enough from other vals
+                # check ar_pos_hgs is far enough from other vals
                 tt = list(
                     map(
                         lambda v: self.is_point_far_from_point(
-                            _cd[0], _cd[1], v[0], v[1], dv.X_EXTENT * 1.2, dv.Y_EXTENT * 1.2
+                            ar_pos_hgs[0], ar_pos_hgs[1], v[0], v[1], dv.X_EXTENT * 1.2, dv.Y_EXTENT * 1.2
                         ),
                         vals,
                     )
                 )
 
                 if all(tt):  # len of tt?
-                    top_right = [_cd[0] + (dv.X_EXTENT - 1) / 2, _cd[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
-                    bottom_left = [_cd[0] - (dv.X_EXTENT - 1) / 2, _cd[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
+                    top_right = [ar_pos_hgs[0] + (dv.X_EXTENT - 1) / 2, ar_pos_hgs[1] + (dv.Y_EXTENT - 1) / 2] * u.pix
+                    bottom_left = [ar_pos_hgs[0] - (dv.X_EXTENT - 1) / 2, ar_pos_hgs[1] - (dv.Y_EXTENT - 1) / 2] * u.pix
                     my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
                     fn = (
@@ -359,8 +359,8 @@ class QSExtractor:
 
                     del my_hmi_submap
 
-                    vals.append(_cd)
-                    qs_reg.append(_cd)
+                    vals.append(ar_pos_hgs)
+                    qs_reg.append(ar_pos_hgs)
 
             all_qs += qs_reg[:]
             logger.info(f"{len(qs_reg)} QS regions saved at {time_hmi}")
