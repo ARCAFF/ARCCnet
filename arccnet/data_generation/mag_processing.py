@@ -18,7 +18,6 @@ matplotlib.use("Agg")
 __all__ = ["MagnetogramProcessor", "ARExtractor", "QSExtractor"]  # , "ARDetection"]
 
 # HDU_COMP = astropy.io.fits.CompImageHDU(tile_shape=(64, 64))
-HDU_COMP = None  # !TODO Figure out unscaling the image
 # WARNING: Provided tile size not appropriate for the data.  Default tile size will be used. [astropy.io.fits.hdu.compressed]
 # unsure if this is just for the SHARP region
 
@@ -62,7 +61,7 @@ class MagnetogramProcessor:
                 processed_data.save(
                     dir / file.name,
                     overwrite=False,
-                    hdu_type=HDU_COMP,
+                    # hdu_type=HDU_COMP,
                 )
 
     def _process_datum(self, file) -> None:
@@ -171,7 +170,7 @@ class ARExtractor:
                 my_hmi_submap.save(
                     dv_process_fits_path / f"{time_srs}_{numbr}.fits",
                     overwrite=True,
-                    hdu_type=HDU_COMP,
+                    # hdu_type=HDU_COMP,
                 )
 
                 bls.append(bottom_left)
@@ -334,7 +333,7 @@ class QSExtractor:
                     my_hmi_submap.save(
                         fn,
                         overwrite=True,
-                        hdu_type=HDU_COMP,
+                        # hdu_type=HDU_COMP,
                     )
 
                     qs_temp = pd.DataFrame(
@@ -355,7 +354,7 @@ class QSExtractor:
                     qs_reg.append(ar_pos_hgs)
 
             all_qs += qs_reg[:]
-            logger.info(f"{len(qs_reg)} QS regions saved at {time_hmi}")
+            # logger.info(f"{len(qs_reg)} QS regions saved at {time_hmi}")
 
             self.plot(my_hmi_map, vals, qs_reg, time_srs)
 
@@ -483,7 +482,7 @@ def extract_submaps(map, time, coords, xsize=dv.X_EXTENT, ysize=dv.Y_EXTENT) -> 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
 
-    mag_process = False
+    mag_process = True
     ar_classification = True
     # ar_detection = True
 
