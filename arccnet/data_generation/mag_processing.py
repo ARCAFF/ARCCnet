@@ -255,9 +255,7 @@ class QSExtractor:
         qs_df = pd.DataFrame(columns=["datetime_srs", "datetime_hmi", "hmi_cutout", "hmi_cutout_dim"])
 
         all_qs = []
-        import time
 
-        tic = time.perf_counter()
         for time_srs, group in grouped_data:
             my_hmi_map = sunpy.map.Map(group.processed_hmi.unique()[0])  # take the first hmi
             time_hmi = group.datetime_hmi.unique()[0]
@@ -341,9 +339,6 @@ class QSExtractor:
 
             qs_df.to_csv(Path(dv.MAG_PROCESSED_DIR) / "qs_fits.csv")
             self.data = qs_df
-
-        toc = time.perf_counter()
-        print(f"time taken {toc-tic}")
 
     def plot(self, hmi_map, vals, qs_reg, time_srs):
         fig = plt.figure(figsize=(5, 5))
@@ -464,6 +459,8 @@ def extract_submaps(map, time, coords, xsize=dv.X_EXTENT, ysize=dv.Y_EXTENT) -> 
         sunpy map centered on coords, with size (xsize, ysize)
 
     """
+    print(f">> {map.date}, {time}")
+
     lat, lng = coords
 
     ar_pos_hgs = SkyCoord(
