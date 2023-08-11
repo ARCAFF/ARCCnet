@@ -7,6 +7,7 @@ import pandas as pd
 import sunpy.map
 from tqdm import tqdm
 
+import astropy.io
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 
@@ -16,10 +17,6 @@ from arccnet.data_generation.utils.data_logger import logger
 matplotlib.use("Agg")
 
 __all__ = ["MagnetogramProcessor", "ARExtractor", "QSExtractor"]  # , "ARDetection"]
-
-# HDU_COMP = astropy.io.fits.CompImageHDU(tile_shape=(64, 64))
-# WARNING: Provided tile size not appropriate for the data.  Default tile size will be used. [astropy.io.fits.hdu.compressed]
-# unsure if this is just for the SHARP region
 
 
 class MagnetogramProcessor:
@@ -58,11 +55,8 @@ class MagnetogramProcessor:
             if not Path(dir / file.name).exists():
                 processed_data = self._process_datum(file)
                 # !TODO probably append the name with something
-                processed_data.save(
-                    dir / file.name,
-                    overwrite=False,
-                    # hdu_type=HDU_COMP,
-                )
+
+                save_compressed_map(processed_data, path=dir / file.name, overwrite=True)
 
     def _process_datum(self, file) -> None:
         # 1. Load & Rotate
@@ -167,11 +161,7 @@ class ARExtractor:
 
                 # !TODO see
                 # https://gitlab.com/frontierdevelopmentlab/living-with-our-star/super-resolution-maps-of-solar-magnetic-field/-/blob/master/source/prep.py?ref_type=heads
-                my_hmi_submap.save(
-                    dv_process_fits_path / f"{time_srs}_{numbr}.fits",
-                    overwrite=True,
-                    # hdu_type=HDU_COMP,
-                )
+                save_compressed_map(my_hmi_submap, dv_process_fits_path / f"{time_srs}_{numbr}.fits", overwrite=True)
 
                 bls.append(bottom_left)
                 trs.append(top_right)
@@ -326,15 +316,11 @@ class QSExtractor:
                     my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
                     fn = (
-                        Path(dv.MAG_PROCESSED_QSFITS_DIR)  # need to make this manually
+                        Path(dv.MAG_PROCESSED_QSFITS_DIR)
                         / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS_{i}.fits"
                     )
 
-                    my_hmi_submap.save(
-                        fn,
-                        overwrite=True,
-                        # hdu_type=HDU_COMP,
-                    )
+                    save_compressed_map(my_hmi_submap, path=fn, overwrite=True)
 
                     qs_temp = pd.DataFrame(
                         {
@@ -428,6 +414,34 @@ def load_filename():
 
 def make_relative(base_path, path):
     return Path(path).relative_to(Path(base_path))
+
+
+def save_compressed_map(amap: sunpy.map.Map, path: Path, **kwargs) -> None:
+    """
+    Save a compressed map.
+
+    If "bscale" and "bzero" exist in the metadata, remove before saving.
+    See: https://github.com/sunpy/sunpy/issues/7139
+
+    Parameters
+    ----------
+    amap : sunpy.map.Map
+        the sunpy map object to be saved
+
+    path : Path
+        the path to save the file to
+
+    Returns
+    -------
+    None
+    """
+    if "bscale" in amap.meta:
+        del amap.meta["bscale"]
+
+    if "bzero" in amap.meta:
+        del amap.meta["bzero"]
+
+    amap.save(path, hdu_type=astropy.io.fits.CompImageHDU, **kwargs)
 
 
 def extract_submaps(map, time, coords, xsize=dv.X_EXTENT, ysize=dv.Y_EXTENT) -> sunpy.map.Map:
