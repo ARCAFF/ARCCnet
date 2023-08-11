@@ -85,12 +85,7 @@ class MagnetogramProcessor:
         e.g. before rotation a HMI map may have: `crota2 = 180.082565`
         """
 
-        if "crota2" not in amap.meta:
-            logger.info(f"The MetaDict for {amap.meta['t_rec']} does not have 'crota2' key.")
-
-        rmap = amap.rotate()
-
-        return rmap
+        return amap.rotate()
 
 
 class ARExtractor:
