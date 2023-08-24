@@ -194,6 +194,12 @@ class BaseMagnetogram(ABC):
             how="left",
         )
 
+        # Check for duplicated rows
+        if keys_merged.duplicated(subset=[column_names]).sum() > 0:
+            logger.warn(
+                f"keys_merged.duplicated(subset=[column_names]).sum() is {keys_merged.duplicated(subset=[column_names]).sum()}"
+            )
+
         # .....................................................................
         # keys = self._merge_urls_with_keys(
         #     keys, r_urls, right_cols=["extracted_record_timestamp"]

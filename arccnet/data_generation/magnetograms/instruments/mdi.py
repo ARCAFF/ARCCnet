@@ -6,7 +6,7 @@ import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.magnetograms.base_magnetogram import BaseMagnetogram
 from arccnet.data_generation.magnetograms.utils import datetime_to_jsoc
 
-__all__ = ["MDILOSMagnetogram"]
+__all__ = ["MDILOSMagnetogram", "MDISMARPs"]
 
 
 class MDILOSMagnetogram(BaseMagnetogram):
@@ -111,7 +111,7 @@ class MDISMARPs(MDILOSMagnetogram):
         """
         # for SHARPs this needs to be of the for
         # `hmi.sharp_720s[<HARPNUM>][2010.05.01_00:00:00_TAI]`
-        return f"{self.series_name}[{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
+        return f"{self.series_name}[][{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
 
     def _get_matching_info_from_record(self, records: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
         # Extract both the date and HARPNUM from the specific record format
@@ -157,4 +157,4 @@ class MDISMARPs(MDILOSMagnetogram):
         str
             The HMI directory path for saving metadata.
         """
-        return dv.HMI_SMARPS_RAW_CSV
+        return dv.MDI_SMARPS_RAW_CSV
