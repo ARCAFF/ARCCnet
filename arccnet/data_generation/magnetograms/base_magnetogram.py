@@ -17,12 +17,33 @@ class BaseMagnetogram(ABC):
         self._drms_client = drms.Client(debug=False, verbose=False, email=dv.JSOC_DEFAULT_EMAIL)
 
     @abstractmethod
-    def generate_drms_query(self, start_time, end_time, frequency) -> str:
+    def generate_drms_query(self, start_time: datetime, end_time: datetime, frequency: str) -> str:
         """
+        Generate a JSOC query string for requesting observations within a specified time range.
+
+        Parameters
+        ----------
+        start_time : datetime.datetime
+            A datetime object representing the start time of the requested observations.
+
+        end_time : datetime.datetime
+            A datetime object representing the end time of the requested observations.
+
+        frequency : str, optional
+            A string representing the frequency of observations. Default is "1d" (1 day).
+            Valid frequency strings can be specified, such as "1h" for 1 hour, "15T" for 15 minutes,
+            "1M" for 1 month, "1Y" for 1 year, and more. Refer to the pandas documentation for a complete
+            list of valid frequency strings: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases
+
         Returns
         -------
-        str:
-            JSOC Query string
+        str
+            The JSOC query string for retrieving the specified observations.
+
+        Raises
+        ------
+        NotImplementedError
+            If this property is not implemented in the child class.
         """
         raise NotImplementedError("This is the required method in the child class.")
 
@@ -30,10 +51,17 @@ class BaseMagnetogram(ABC):
     @abstractmethod
     def series_name(self) -> str:
         """
+        Get the JSOC series name.
+
         Returns
         -------
         str:
             JSOC series name
+
+        Raises
+        ------
+        NotImplementedError
+            If this property is not implemented in the child class.
         """
         raise NotImplementedError("This is the required method in the child class.")
 
@@ -41,10 +69,17 @@ class BaseMagnetogram(ABC):
     @abstractmethod
     def date_format(self) -> str:
         """
+        Get the date string format used by the instrument.
+
         Returns
         -------
         str:
             instrument date string format
+
+        Raises
+        ------
+        NotImplementedError
+            If this property is not implemented in the child class.
         """
         raise NotImplementedError("This is the required method in the child class.")
 
@@ -52,10 +87,17 @@ class BaseMagnetogram(ABC):
     @abstractmethod
     def segment_column_name(self) -> str:
         """
+        Get the name of the data segment.
+
         Returns
         -------
         str:
             Name of the data segment
+
+        Raises
+        ------
+        NotImplementedError
+            If this property is not implemented in the child class.
         """
         raise NotImplementedError("This is the required method in the child class.")
 
@@ -63,15 +105,24 @@ class BaseMagnetogram(ABC):
     @abstractmethod
     def metadata_save_location(self) -> str:
         """
+        Get the directory path for saving metadata.
+
         Returns
         -------
         str:
-            instrument directory path
+            The directory path for saving metadata
+
+        Raises
+        ------
+        NotImplementedError
+            If this property is not implemented in the child class.
         """
         raise NotImplementedError("This is the required method in the child class.")
 
     def _type(self):
         """
+        Get the name of the instantiated class.
+
         Returns
         -------
         str:
@@ -97,29 +148,90 @@ class BaseMagnetogram(ABC):
         tuple[pd.DataFrame, list[str]]
             A tuple containing a DataFrame with extracted information and a list of column names for the extracted data.
 
+        Raises
+        ------
+        NotImplementedError
+            If this property is not implemented in the child class.
         """
         raise NotImplementedError("This is the required method in the child class.")
 
     def _query_jsoc(self, query: str) -> tuple[pd.DataFrame, pd.Series]:
+        """
+        Query JSOC to retrieve keys and segments.
+
+        This method sends a query to JSOC using the DRMS client to retrieve keys and segments based on the provided query.
+
+        Parameters
+        ----------
+        query : str
+            The JSOC query string.
+
+        Returns
+        -------
+        tuple[pd.DataFrame, pd.Series]
+            A tuple containing a DataFrame with keys and a Series with segments.
+        """
         keys, segs = self._drms_client.query(
             query,
             key="**ALL**",  # drms.const.all = '**ALL**'
-            seg=self.segment_column_name,  # !TODO remove this from here as it will pull everything...
+            seg=self.segment_column_name,
         )
         return keys, segs
 
     def _add_magnetogram_urls(
         self, keys: pd.DataFrame, segs: pd.Series, url: str = dv.JSOC_BASE_URL, column_name: str = "magnetogram_fits"
     ) -> None:
+        """
+        Add magnetogram URLs to the DataFrame.
+
+        This method generates magnetogram URLs based on the provided segments and adds them to the DataFrame.
+
+        Parameters
+        ----------
+        keys : pd.DataFrame
+            A DataFrame containing keys.
+
+        segs : pd.Series
+            A Series containing segments.
+
+        url : str, optional
+            The base URL for constructing the magnetogram URLs.
+
+        column_name : str, optional
+            The name of the column to store the magnetogram URLs.
+
+        Returns
+        -------
+        None
+        """
         magnetogram_fits = url + segs[self.segment_column_name]
         keys[column_name] = magnetogram_fits
+        # !TODO the below may fix the fragmentation warning (need to check)
+        # keys_with_url_column = keys.assign(**{column_name: magnetogram_fits})
+        # return keys_with_url_column
 
     def _export_files(
         self,
         query: str,
-        # column_name: str = "extracted_record_timestamp",
         **kwargs,
     ) -> None:
+        """
+        Export data files.
+
+        This method exports data files from JSOC based on the provided query and additional keyword arguments.
+
+        Parameters
+        ----------
+        query : str
+            The JSOC query string.
+
+        **kwargs
+            Additional keyword arguments for exporting files.
+
+        Returns
+        -------
+        None
+        """
         # !TODO, shouldn't have to do this; the query should be the query
         if isinstance(self.segment_column_name, list):
             formatted_string = "{" + ", ".join([f"{seg}" for seg in self.segment_column_name]) + "}"
@@ -129,20 +241,26 @@ class BaseMagnetogram(ABC):
 
         export_response = self._drms_client.export(query + formatted_string, method="url", protocol="fits", **kwargs)
         export_response.wait()
-        # extract the `record` and strip the square brackets to return a T_REC-like time (in TAI)
         r_urls = export_response.urls.copy()
-        # `self.r_urls["record"].str.extract(r"\[(.*?)\]")`` will only extract the HARP num from:
-        #   `hmi.sharp_720s[318][2011.01.01_00:00:00_TAI]`
-        # so using r"\[([^\[\]]*?(?=\]))\][^\[\]]*$" to extract last one.
-        # r_urls[column_name] = self.r_urls["record"].str.extract(
-        #     r"\[(.*?)\]"
-        # )  #!TODO this nedes to be put into it's own thing
-        # merge on keys['T_REC'] so that there we can later get the files.
         return r_urls
 
     def _save_metadata_to_csv(self, keys: pd.DataFrame, filepath: str = None) -> None:
         """
-        Save metadata to CSV
+        Save metadata to a CSV file.
+
+        This method saves the metadata DataFrame to a CSV file.
+
+        Parameters
+        ----------
+        keys : pd.DataFrame
+            A DataFrame containing metadata keys.
+
+        filepath : str, optional
+            The file path for saving the CSV file. If not provided, the default location is used (see `metadata_save_location`).
+
+        Returns
+        -------
+        None
         """
         if filepath is None:
             filepath = self.metadata_save_location
@@ -171,14 +289,20 @@ class BaseMagnetogram(ABC):
         ----------
         df : pd.DataFrame
             The DataFrame to which extracted information will be added.
+
         source_col : str, optional
-            The name of the source column containing the data to extract from. D
+            The name of the source column containing the data to extract from.
             Defaults to "record".
 
         Returns
         -------
-            tuple[pd.DataFrame, list[str], list[str]]: A tuple containing the updated DataFrame,
-            a list of merge columns, and a list of the corresponding column names.
+            tuple[pd.DataFrame, list[str], list[str]]
+                A tuple containing the updated DataFrame, a list of merge columns,
+                and a list of the corresponding column names.
+
+        See Also
+        --------
+        _get_matching_info_from_record : Method in the child class that extracts matching information from records.
         """
 
         original_column = df[df_colname]
@@ -194,14 +318,48 @@ class BaseMagnetogram(ABC):
         """
         Fetch metadata from JSOC.
 
+        This method retrieves metadata from the Joint Science Operations Center (JSOC) based on the specified time range.
+        It constructs a query, queries the JSOC database, and fetches metadata and URLs for requested data segments.
+
+        Parameters
+        ----------
+        start_date : datetime.datetime
+            The start datetime for the desired time range of observations.
+
+        end_date : datetime.datetime
+            The end datetime for the desired time range of observations.
+
+        to_csv : bool, optional
+            Whether to save the fetched metadata to a CSV file. Defaults to True.
+
         Returns
         -------
-        keys: pd.DataFrame
-            A `pd.DataFrame` containing all keys (`drms.const.all`) for a JSOC query string and urls corresponding to the request segments (`seg`).
-            The required segment is defined in the child class (for a magnetogram, `seg="magnetogram"` for HMI, and `seg="data"` for MDI).
+        pd.DataFrame
+            A pandas DataFrame containing metadata and URLs for requested data segments.
+            The DataFrame has columns corresponding to metadata keys, URLs, and additional extracted information.
 
-            The `pd.DataFrame` also contains `urls` to the complete `.fits` files (magnetogram + metadata) that are staged by JSOC for download.
+        Raises
+        ------
+        ValueError
+            If no results are returned from the JSOC query.
 
+        Notes
+        -----
+        The required data segment (`seg`) is defined in the child class. For instance, for magnetograms, `seg="magnetogram"`,
+        and for HMI and MDI, `seg="data"`.
+
+        The DataFrame includes the following columns:
+        - Metadata keys corresponding to a JSOC query string.
+        - URLs pointing to the complete `.fits` files (magnetogram + metadata) staged by JSOC for download.
+        - Extracted information such as dates and identifiers.
+
+        Duplicate rows are checked and logged as warnings if found.
+
+        If `to_csv` is True, the fetched metadata is saved to a CSV file using the `_save_metadata_to_csv` method.
+
+        See Also
+        --------
+        generate_drms_query, _query_jsoc, _add_magnetogram_urls, _export_files, _add_extracted_columns_to_df, _save_metadata_to_csv
         """
 
         query = self.generate_drms_query(start_date, end_date)

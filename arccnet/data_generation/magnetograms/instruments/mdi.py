@@ -51,10 +51,10 @@ class MDILOSMagnetogram(BaseMagnetogram):
         we use a regex pattern to extract specific information enclosed within square brackets from each record.
 
         Here's a breakdown of the regex pattern:
-        - \\[ : Matches the opening square bracket character.
-        - (.*?) : This is a capturing group that matches any characters (.*), but the ? makes it non-greedy
+        - `\\[` : Matches the opening square bracket character.
+        - `(.*?)` : This is a capturing group that matches any characters (.*), but the ? makes it non-greedy
                    so that it captures the shortest sequence possible.
-        - \\] : Matches the closing square bracket character.
+        - `\\]` : Matches the closing square bracket character.
 
         If the pattern is found in a record, the matched content is extracted and stored in the results.
         If the pattern is not found (or no matches are found), a default value of None is added to the results.
@@ -177,13 +177,13 @@ class MDISMARPs(MDILOSMagnetogram):
         we use a regex pattern to extract specific information enclosed within two sets of square brackets from each record.
 
         Here's a breakdown of the regex pattern:
-        - \\[ : Matches the opening square bracket character.
-        - (.*?) : This is a capturing group that matches any characters (.*), but the ? makes it non-greedy
+        - `\\[` : Matches the opening square bracket character.
+        - `(.*?)` : This is a capturing group that matches any characters (.*), but the ? makes it non-greedy
                    so that it captures the shortest sequence possible.
-        - \\] : Matches the closing square bracket character.
-        - \\[ : Matches the opening square bracket character of the second set.
-        - (.*?) : This is another capturing group for the second set.
-        - \\] : Matches the closing square bracket character of the second set.
+        - `\\]` : Matches the closing square bracket character.
+        - `\\[` : Matches the opening square bracket character of the second set.
+        - `(.*?)` : This is another capturing group for the second set.
+        - `\\]` : Matches the closing square bracket character of the second set.
 
         If the pattern is found in a record, the matched content is extracted and stored in the results.
         If the pattern is not found (or no matches are found), a default value of None is added to the results.

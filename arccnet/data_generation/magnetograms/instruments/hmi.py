@@ -35,11 +35,16 @@ class HMILOSMagnetogram(BaseMagnetogram):
         -------
         str
             The JSOC query string for retrieving the specified observations.
+
+        Notes
+        -----
+        - According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
+        - Quality flags needs to be addressed and utilised
+            - https://github.com/sunpy/drms/issues/37
+        - https://github.com/sunpy/drms/issues/98;
+            - Fixed in https://github.com/sunpy/drms/pull/102
         """
-        # https://github.com/sunpy/drms/issues/98
-        # https://github.com/sunpy/drms/issues/37
-        # want to deal with quality after obtaining the data
-        # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
+        # https://github.com/sunpy/drms/issues/98; Fixed in https://github.com/sunpy/drms/pull/102
         return f"{self.series_name}[{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
 
     def _get_matching_info_from_record(self, records: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
@@ -66,10 +71,10 @@ class HMILOSMagnetogram(BaseMagnetogram):
         we use a regex pattern to extract specific information enclosed within square brackets from each record.
 
         Here's a breakdown of the regex pattern:
-        - \\[ : Matches the opening square bracket character.
-        - (.*?) : This is a capturing group that matches any characters (.*), but the ? makes it non-greedy
+        - `\\[` : Matches the opening square bracket character.
+        - `(.*?)` : This is a capturing group that matches any characters (.*), but the ? makes it non-greedy
                    so that it captures the shortest sequence possible.
-        - \\] : Matches the closing square bracket character.
+        - `\\]` : Matches the closing square bracket character.
 
         If the pattern is found in a record, the matched content is extracted and stored in the results.
         If the pattern is not found (or no matches are found), a default value of None is added to the results.
@@ -258,13 +263,13 @@ class HMISHARPs(HMILOSMagnetogram):
         we use a regex pattern to extract specific information enclosed within two sets of square brackets from each record.
 
         Here's a breakdown of the regex pattern:
-        - \\[ : Matches the opening square bracket character.
-        - (.*?) : This is a capturing group that matches any characters (.*), but the ? makes it non-greedy
+        - `\\[` : Matches the opening square bracket character.
+        - `(.*?)` : This is a capturing group that matches any characters (.*), but the ? makes it non-greedy
                    so that it captures the shortest sequence possible.
-        - \\] : Matches the closing square bracket character.
-        - \\[ : Matches the opening square bracket character of the second set.
-        - (.*?) : This is another capturing group for the second set.
-        - \\] : Matches the closing square bracket character of the second set.
+        - `\\]` : Matches the closing square bracket character.
+        - `\\[` : Matches the opening square bracket character of the second set.
+        - `(.*?)` : This is another capturing group for the second set.
+        - `\\]` : Matches the closing square bracket character of the second set.
 
         If the pattern is found in a record, the matched content is extracted and stored in the results.
         If the pattern is not found (or no matches are found), a default value of None is added to the results.
