@@ -79,9 +79,8 @@ class BaseMagnetogram(ABC):
         """
         return self.__class__.__name__
 
-    @property
     @abstractmethod
-    def _get_matching_info_from_record(self, record: str) -> tuple[tuple[str, str], list[str]]:
+    def _get_matching_info_from_record(self, records: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
         raise NotImplementedError("This is the required method in the child class.")
 
     def _query_jsoc(self, query: str) -> tuple[pd.DataFrame, pd.Series]:
@@ -115,18 +114,6 @@ class BaseMagnetogram(ABC):
         # merge on keys['T_REC'] so that there we can later get the files.
         return r_urls
 
-    def _merge_urls_with_keys(self, keys: pd.DataFrame, right: pd.DataFrame, left_cols, right_cols) -> pd.DataFrame:
-        """
-        merge dataframes on columns
-        """
-        return pd.merge(
-            left=keys,
-            right=right,
-            left_on=left_cols,  # , "HARPNUM"],
-            right_on=right_cols,  # ["extracted_date"],  # , "extracted_harpnum"],
-            how="left",
-        )
-
     def _save_metadata_to_csv(self, keys: pd.DataFrame) -> None:
         file = Path(self.metadata_save_location)
 
@@ -138,6 +125,24 @@ class BaseMagnetogram(ABC):
             directory_path.mkdir(parents=True)
 
         keys.to_csv(file)
+
+    def _add_extracted_columns_to_r_urls(
+        self, r_urls: pd.DataFrame, r_urls_colname: str = "record"
+    ) -> tuple[pd.DataFrame, list[str], list[str]]:
+        """
+        We need to match the record to the keys.
+        The following code uses the `_get_matching_info_from_record` method in the child class
+        to extract the relevant part of the record string that corresponds to columns in `keys`
+        such that keys and r_urls can be merged.
+        For an instrument like HMI or MDI, this is straight forward and can be done on T_REC.
+        For cutouts, where there are multiple regions for a given T_REC, another property e.g. HARPNUM
+        also needs to be extracted
+        """
+        records = r_urls[r_urls_colname]
+        extracted_data, merge_columns = self._get_matching_info_from_record(records=records)
+        column_names = [f"{r_urls_colname}_{col}" for col in merge_columns]
+        r_urls[column_names] = extracted_data
+        return r_urls, merge_columns, column_names
 
     def fetch_metadata(self, start_date: datetime.datetime, end_date: datetime.datetime, to_csv=False) -> pd.DataFrame:
         """
@@ -164,24 +169,21 @@ class BaseMagnetogram(ABC):
             logger.info(f"\t {len(keys)} entries")
 
         self._add_magnetogram_urls(keys, segs, url=dv.JSOC_BASE_URL, column_name="magnetogram_fits")
-        r_urls = self._export_files(query)  # , column_name="extracted_record_timestamp")
+        r_urls = self._export_files(query)
 
-        # r_urls["extracted_record_timestamp"] = self.r_urls["record"].str.extract(
-        #     r"\[(.*?)\]"
-        # ) # extract_
+        # extract info e.g. date, active region number from the `r_url["record"]`
+        # and insert back into r_urls as additional column names for merging
+        r_urls_plus, merge_columns, column_names = self._add_extracted_columns_to_r_urls(
+            r_urls=r_urls, r_urls_colname="record"
+        )
 
-        # We need to match the record to the keys.
-        # The following code uses the `_get_matching_info_from_record` method in the child class
-        # to extract the relevant part of the record string that corresponds to columns in `keys`
-        # such that keys and r_urls can be merged.
-        # For an instrument like HMI or MDI, this is straight forward and can be done on T_REC.
-        # For cutouts, where there are multiple regions for a given T_REC, another property e.g. HARPNUM
-        # also needs to be extracted.
-        extracted_data, merge_columns = r_urls["record"].apply(self._get_matching_info_from_record)
-        column_names = [f"extracted_{i}" for i in range(merge_columns)]
-        r_urls[column_names] = pd.DataFrame(extracted_data.to_list(), columns=column_names)
-
-        keys = self._merge_urls_with_keys(keys, r_urls, left_cols=merge_columns, right_cols=column_names)
+        keys = pd.merge(
+            left=keys,
+            right=r_urls_plus,
+            left_on=merge_columns,
+            right_on=column_names,
+            how="left",
+        )
 
         # .....................................................................
         # keys = self._merge_urls_with_keys(
@@ -195,7 +197,9 @@ class BaseMagnetogram(ABC):
         # )  # This doesn't work on SHARP data
         # .....................................................................
 
-        keys["datetime"] = pd.to_datetime(keys["DATE-OBS"], format=self.date_format, errors="coerce")
+        keys["datetime"] = pd.to_datetime(
+            keys["DATE-OBS"], format=self.date_format, errors="coerce"
+        )  # !TODO investigate coerce
         # keys["datetime"] = [datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ") for date in keys["DATE-OBS"]]
         # keys["datetime"] = [
         #     pd.to_datetime(date, format=self.date_format, errors="coerce")

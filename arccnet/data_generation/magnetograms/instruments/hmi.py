@@ -1,4 +1,3 @@
-import re
 import datetime
 
 import arccnet.data_generation.utils.default_variables as dv
@@ -41,18 +40,13 @@ class HMILOSMagnetogram(BaseMagnetogram):
         # want to deal with quality after obtaining the data
         return f"{self.series_name}[{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
 
-    @property
-    def _get_matching_info_from_record(self, record: str) -> tuple[tuple[str, str], list[str]]:
+    def _get_matching_info_from_record(self, records):  #: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
         # Extract both the date and HARPNUM from the specific record format
         # For example, you can use regular expressions to extract these values
-        # Here's a hypothetical implementation, adjust it to match your actual data format
-        match = re.match(r"\[(.*?)\]", record)
-        if match:
-            date = match.group(1)
-            merge_columns = ["T_REC"]
-            return (date), merge_columns
-        else:
-            raise ValueError()
+        # Here's a hypothetical implementation, adjust it to match your actual data format]
+        print(records)
+        extracted_info = records.str.extract(r"\[(.*?)\]")
+        return extracted_info, ["T_REC"]
 
     @property
     def series_name(self) -> str:
@@ -196,6 +190,20 @@ class HMISHARPs(HMILOSMagnetogram):
         # for SHARPs this needs to be of the for
         # `hmi.sharp_720s[<HARPNUM>][2010.05.01_00:00:00_TAI]`
         return f"{self.series_name}[][{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
+
+    # def _get_matching_info_from_record(self, record: str) -> tuple[tuple[str, str], list[str]]:
+    #     # Extract both the date and HARPNUM from the specific record format
+    #     # For example, you can use regular expressions to extract these values
+    #     # Here's a hypothetical implementation, adjust it to match your actual data format
+    #     # match = re.match(r"\[(.*?)\]", record)
+    #     # if match:
+    #     #     date = None  # match.group(1)
+    #     #     harp = None  # fix
+    #     #     merge_columns = ["T_REC", "HARPNUM"]
+    #     #     return (date, harp), merge_columns
+    #     # else:
+    #     #     raise ValueError()
+    #     raise NotImplementedError()
 
     @property
     def series_name(self) -> str:
