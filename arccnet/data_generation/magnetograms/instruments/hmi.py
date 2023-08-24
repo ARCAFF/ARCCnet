@@ -14,10 +14,26 @@ class HMILOSMagnetogram(BaseMagnetogram):
 
     def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="1d") -> str:
         """
+        Generate a JSOC query string for requesting observations within a specified time range.
+
+        Parameters
+        ----------
+        start_time : datetime.datetime
+            A datetime object representing the start time of the requested observations.
+
+        end_time : datetime.datetime
+            A datetime object representing the end time of the requested observations.
+
+        frequency : str, optional
+            A string representing the frequency of observations. Default is "1d" (1 day).
+            Valid frequency strings can be specified, such as "1h" for 1 hour, "15T" for 15 minutes,
+            "1M" for 1 month, "1Y" for 1 year, and more. Refer to the pandas documentation for a complete
+            list of valid frequency strings: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases
+
         Returns
         -------
-        str:
-            JSOC Query string
+        str
+            The JSOC query string for retrieving the specified observations.
         """
         # https://github.com/sunpy/drms/issues/98
         # https://github.com/sunpy/drms/issues/37
@@ -27,40 +43,48 @@ class HMILOSMagnetogram(BaseMagnetogram):
     @property
     def series_name(self) -> str:
         """
+        Get the JSOC series name.
+
         Returns
         -------
-        str:
-            JSOC series name
+        str
+            The JSOC series name.
         """
         return "hmi.M_720s"
 
     @property
     def date_format(self) -> str:
         """
+        Get the HMI date string format.
+
         Returns
         -------
-        str:
-            HMI date string format
+        str
+            The HMI date string format.
         """
         return dv.HMI_DATE_FORMAT
 
     @property
     def segment_column_name(self) -> str:
         """
+        Get the name of the HMI data segment.
+
         Returns
         -------
-        str:
-            Name of the HMI data segment
+        str
+            The name of the HMI data segment.
         """
         return dv.HMI_SEG_COL
 
     @property
     def metadata_save_location(self) -> str:
         """
+        Get the HMI directory path for saving metadata.
+
         Returns
         -------
-        str:
-            HMI directory path
+        str
+            The HMI directory path for saving metadata.
         """
         return dv.HMI_MAG_RAW_CSV
 
@@ -72,10 +96,12 @@ class HMIBMagnetogram(HMILOSMagnetogram):
     @property
     def series_name(self) -> str:
         """
+        Get the JSOC series name.
+
         Returns
         -------
-        str:
-            JSOC series name
+        str
+            The JSOC series name.
         """
         return "hmi.B_720s"
 
@@ -87,30 +113,36 @@ class HMIContinuum(HMILOSMagnetogram):
     @property
     def series_name(self) -> str:
         """
+        Get the JSOC series name.
+
         Returns
         -------
-        str:
-            JSOC series name
+        str
+            The JSOC series name.
         """
         return "hmi.Ic_720s"
 
     @property
     def segment_column_name(self) -> str:
         """
+        Get the name of the HMI data segment.
+
         Returns
         -------
-        str:
-            Name of the HMI data segment
+        str
+            The name of the HMI data segment.
         """
         return "continuum"
 
     @property
     def metadata_save_location(self) -> str:
         """
+        Get the HMI directory path for saving metadata.
+
         Returns
         -------
-        str:
-            HMI directory path
+        str
+            The HMI directory path for saving metadata.
         """
         return dv.HMI_IC_RAW_CSV
 
@@ -124,12 +156,28 @@ class HMISHARPs(HMILOSMagnetogram):
         # many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead.
         # To get a de-fragmented frame, use `newframe = frame.copy()` keys["magnetogram_fits"] = magnetogram_fits
 
-    def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="7d") -> str:
+    def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="1d") -> str:
         """
+        Generate a JSOC query string for requesting observations within a specified time range.
+
+        Parameters
+        ----------
+        start_time : datetime.datetime
+            A datetime object representing the start time of the requested observations.
+
+        end_time : datetime.datetime
+            A datetime object representing the end time of the requested observations.
+
+        frequency : str, optional
+            A string representing the frequency of observations. Default is "1d" (1 day).
+            Valid frequency strings can be specified, such as "1h" for 1 hour, "15T" for 15 minutes,
+            "1M" for 1 month, "1Y" for 1 year, and more. Refer to the pandas documentation for a complete
+            list of valid frequency strings: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases
+
         Returns
         -------
-        str:
-            JSOC Query string
+        str
+            The JSOC query string for retrieving the specified observations.
         """
         # for SHARPs this needs to be of the for
         # `hmi.sharp_720s[<HARPNUM>][2010.05.01_00:00:00_TAI]`
@@ -138,30 +186,36 @@ class HMISHARPs(HMILOSMagnetogram):
     @property
     def series_name(self) -> str:
         """
+        Get the JSOC series name.
+
         Returns
         -------
-        str:
-            JSOC series name
+        str
+            The JSOC series name.
         """
         return "hmi.sharp_720s"
 
     @property
     def segment_column_name(self) -> str:
         """
+        Get the name of the HMI data segment.
+
         Returns
         -------
-        str:
-            Name of the HMI data segment
+        str
+            The name of the HMI data segment.
         """
         return "bitmap"
 
     @property
     def metadata_save_location(self) -> str:
         """
+        Get the HMI directory path for saving metadata.
+
         Returns
         -------
-        str:
-            HMI directory path
+        str
+            The HMI directory path for saving metadata.
         """
         return dv.HMI_SHARPS_RAW_CSV
 
