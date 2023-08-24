@@ -152,4 +152,4 @@ class BaseMagnetogram(ABC):
 
     def validate_metadata(self):
         # not sure how to validate
-        pass
+        raise NotImplementedError()
