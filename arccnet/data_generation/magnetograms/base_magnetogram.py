@@ -143,3 +143,7 @@ class BaseMagnetogram(ABC):
         keys.to_csv(file)
 
         return keys
+
+    def validate_metadata(self):
+        # not sure how to validate
+        pass
