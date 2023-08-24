@@ -283,7 +283,7 @@ class HMISHARPs(HMILOSMagnetogram):
         """
         extracted_info = records.str.extract(r"\[(.*?)\]\[(.*?)\]")
         extracted_info.columns = ["HARPNUM", "T_REC"]
-        extracted_info[0] = extracted_info[0].astype("Int64")  # !TODO fix this hack
+        extracted_info["HARPNUM"] = extracted_info["HARPNUM"].astype("Int64")  # !TODO fix this hack
 
         return extracted_info
 

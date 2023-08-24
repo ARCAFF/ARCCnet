@@ -387,11 +387,10 @@ class BaseMagnetogram(ABC):
             how="left",
         )
 
-        # Check for duplicated rows
-        if keys_merged.duplicated(subset=[column_names]).sum() > 0:
-            logger.warn(
-                f"keys_merged.duplicated(subset=[column_names]).sum() is {keys_merged.duplicated(subset=[column_names]).sum()}"
-            )
+        # Check for duplicated rows of merge_columns/column_names pairs
+        if keys_merged.duplicated(subset=column_names + merge_columns).any():
+            duplicate_count = keys_merged.duplicated(subset=column_names).sum()
+            logger.warn(f"There are {duplicate_count} duplicated rows in the DataFrame.")
 
         keys["datetime"] = pd.to_datetime(
             keys["DATE-OBS"], format=self.date_format, errors="coerce"

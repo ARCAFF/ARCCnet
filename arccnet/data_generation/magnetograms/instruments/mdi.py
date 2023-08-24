@@ -197,7 +197,7 @@ class MDISMARPs(MDILOSMagnetogram):
         """
         extracted_info = records.str.extract(r"\[(.*?)\]\[(.*?)\]")
         extracted_info.columns = ["TARPNUM", "T_REC"]
-        extracted_info[0] = extracted_info[0].astype("Int64")  # !TODO fix this hack
+        extracted_info["TARPNUM"] = extracted_info["TARPNUM"].astype("Int64")  # !TODO fix this hack
 
         return extracted_info
 
