@@ -207,11 +207,6 @@ class HMISHARPs(HMILOSMagnetogram):
     def __init__(self):
         super().__init__()
 
-        # self._add_magnetogram_urls(keys, segs, url=dv.JSOC_BASE_URL, column_name="magnetogram_fits")
-        # PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert`
-        # many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead.
-        # To get a de-fragmented frame, use `newframe = frame.copy()` keys["magnetogram_fits"] = magnetogram_fits
-
     def generate_drms_query(self, start_time: datetime.datetime, end_time: datetime.datetime, frequency="1d") -> str:
         """
         Generate a JSOC query string for requesting observations within a specified time range.

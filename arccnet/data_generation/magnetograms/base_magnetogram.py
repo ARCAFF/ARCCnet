@@ -180,7 +180,7 @@ class BaseMagnetogram(ABC):
 
     def _add_magnetogram_urls(
         self, keys: pd.DataFrame, segs: pd.Series, url: str = dv.JSOC_BASE_URL, column_name: str = "magnetogram_fits"
-    ) -> None:
+    ) -> pd.DataFrame:
         """
         Add magnetogram URLs to the DataFrame.
 
@@ -202,13 +202,13 @@ class BaseMagnetogram(ABC):
 
         Returns
         -------
-        None
+        pd.DataFrame
+            The updated DataFrame with the added magnetogram URLs.
         """
         magnetogram_fits = url + segs[self.segment_column_name]
-        keys[column_name] = magnetogram_fits
-        # !TODO the below may fix the fragmentation warning (need to check)
-        # keys_with_url_column = keys.assign(**{column_name: magnetogram_fits})
-        # return keys_with_url_column
+        new_column = pd.DataFrame({column_name: magnetogram_fits})
+        keys_with_url_column = pd.concat([keys, new_column], axis=1)
+        return keys_with_url_column
 
     def _export_files(
         self,
@@ -372,7 +372,7 @@ class BaseMagnetogram(ABC):
         else:
             logger.info(f"\t {len(keys)} entries")
 
-        self._add_magnetogram_urls(keys, segs, url=dv.JSOC_BASE_URL, column_name="magnetogram_fits")
+        keys = self._add_magnetogram_urls(keys, segs, url=dv.JSOC_BASE_URL, column_name="magnetogram_fits")
         r_urls = self._export_files(query)
 
         # extract info e.g. date, active region number from the `r_url["record"]`
