@@ -1,5 +1,7 @@
 import datetime
 
+import pandas as pd
+
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.magnetograms.base_magnetogram import BaseMagnetogram
 from arccnet.data_generation.magnetograms.utils import datetime_to_jsoc
@@ -40,12 +42,13 @@ class HMILOSMagnetogram(BaseMagnetogram):
         # want to deal with quality after obtaining the data
         return f"{self.series_name}[{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
 
-    def _get_matching_info_from_record(self, records):  #: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    def _get_matching_info_from_record(self, records: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
         # Extract both the date and HARPNUM from the specific record format
         # For example, you can use regular expressions to extract these values
         # Here's a hypothetical implementation, adjust it to match your actual data format]
-        print(records)
         extracted_info = records.str.extract(r"\[(.*?)\]")
+
+        # !TODO tidy this up by returning a df
         return extracted_info, ["T_REC"]
 
     @property
@@ -159,7 +162,7 @@ class HMISHARPs(HMILOSMagnetogram):
     def __init__(self):
         super().__init__()
 
-        # /Users/pjwright/Documents/work/ARCCnet/arccnet/data_generation/magnetograms/base_magnetogram.py:103:
+        # self._add_magnetogram_urls(keys, segs, url=dv.JSOC_BASE_URL, column_name="magnetogram_fits")
         # PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert`
         # many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead.
         # To get a de-fragmented frame, use `newframe = frame.copy()` keys["magnetogram_fits"] = magnetogram_fits
@@ -191,19 +194,15 @@ class HMISHARPs(HMILOSMagnetogram):
         # `hmi.sharp_720s[<HARPNUM>][2010.05.01_00:00:00_TAI]`
         return f"{self.series_name}[][{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
 
-    # def _get_matching_info_from_record(self, record: str) -> tuple[tuple[str, str], list[str]]:
-    #     # Extract both the date and HARPNUM from the specific record format
-    #     # For example, you can use regular expressions to extract these values
-    #     # Here's a hypothetical implementation, adjust it to match your actual data format
-    #     # match = re.match(r"\[(.*?)\]", record)
-    #     # if match:
-    #     #     date = None  # match.group(1)
-    #     #     harp = None  # fix
-    #     #     merge_columns = ["T_REC", "HARPNUM"]
-    #     #     return (date, harp), merge_columns
-    #     # else:
-    #     #     raise ValueError()
-    #     raise NotImplementedError()
+    def _get_matching_info_from_record(self, records: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+        # Extract both the date and HARPNUM from the specific record format
+        # For example, you can use regular expressions to extract these values
+        # Here's a hypothetical implementation, adjust it to match your actual data format]
+        extracted_info = records.str.extract(r"\[(.*?)\]\[(.*?)\]")
+        extracted_info[0] = extracted_info[0].astype("Int64")  # !TODO fix this hack
+
+        # !TODO tidy this up by returning a df
+        return extracted_info, ["HARPNUM", "T_REC"]
 
     @property
     def series_name(self) -> str:

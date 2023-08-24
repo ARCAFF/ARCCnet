@@ -85,7 +85,9 @@ class BaseMagnetogram(ABC):
 
     def _query_jsoc(self, query: str) -> tuple[pd.DataFrame, pd.Series]:
         keys, segs = self._drms_client.query(
-            query, key=drms.const.all, seg=self.segment_column_name
+            query,
+            key=drms.const.all,
+            seg=self.segment_column_name,  # !TODO remove this from here as it will pull everything...
         )  # !TODO make the drms key quert optional
         return keys, segs
 
@@ -101,7 +103,14 @@ class BaseMagnetogram(ABC):
         # column_name: str = "extracted_record_timestamp",
         **kwargs,
     ) -> None:
-        export_response = self._drms_client.export(query, method="url", protocol="fits", **kwargs)
+        # !TODO, shouldn't have to do this; the query should be the query
+        if isinstance(self.segment_column_name, list):
+            formatted_string = "{" + ", ".join([f"{seg}" for seg in self.segment_column_name]) + "}"
+        else:
+            formatted_string = f"{{{self.segment_column_name}}}"
+        logger.info(f"exporting the query: {query + formatted_string}")
+
+        export_response = self._drms_client.export(query + formatted_string, method="url", protocol="fits", **kwargs)
         export_response.wait()
         # extract the `record` and strip the square brackets to return a T_REC-like time (in TAI)
         r_urls = export_response.urls.copy()
@@ -164,7 +173,7 @@ class BaseMagnetogram(ABC):
         keys, segs = self._query_jsoc(query)
         if len(keys) == 0:
             # !TODO implement custom error message
-            raise (f"No results return for the query: {query}!")
+            raise ValueError(f"No results return for the query: {query}!")
         else:
             logger.info(f"\t {len(keys)} entries")
 
@@ -177,7 +186,7 @@ class BaseMagnetogram(ABC):
             r_urls=r_urls, r_urls_colname="record"
         )
 
-        keys = pd.merge(
+        keys_merged = pd.merge(
             left=keys,
             right=r_urls_plus,
             left_on=merge_columns,
@@ -207,7 +216,9 @@ class BaseMagnetogram(ABC):
         # ]  # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
 
         if to_csv:
-            self._save_metadata_to_csv(keys)
+            self._save_metadata_to_csv(keys_merged)
+
+        return keys_merged
 
     def validate_metadata(self):
         # not sure how to validate
