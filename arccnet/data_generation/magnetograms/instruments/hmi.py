@@ -1,3 +1,4 @@
+import re
 import datetime
 
 import arccnet.data_generation.utils.default_variables as dv
@@ -39,6 +40,19 @@ class HMILOSMagnetogram(BaseMagnetogram):
         # https://github.com/sunpy/drms/issues/37
         # want to deal with quality after obtaining the data
         return f"{self.series_name}[{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
+
+    @property
+    def _get_matching_info_from_record(self, record: str) -> tuple[tuple[str, str], list[str]]:
+        # Extract both the date and HARPNUM from the specific record format
+        # For example, you can use regular expressions to extract these values
+        # Here's a hypothetical implementation, adjust it to match your actual data format
+        match = re.match(r"\[(.*?)\]", record)
+        if match:
+            date = match.group(1)
+            merge_columns = ["T_REC"]
+            return (date), merge_columns
+        else:
+            raise ValueError()
 
     @property
     def series_name(self) -> str:
