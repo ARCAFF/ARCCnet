@@ -79,7 +79,34 @@ class BaseMagnetogram(ABC):
         """
         return self.__class__.__name__
 
-    def fetch_metadata(self, start_date: datetime.datetime, end_date: datetime.datetime) -> pd.DataFrame:
+    def _query_jsoc(self, query: str) -> tuple[pd.DataFrame, pd.Series]:
+        keys, segs = self._drms_client.query(query, key=drms.const.all, seg=self.segment_column_name)
+        return keys, segs
+
+    def _add_magnetogram_urls(self, keys: pd.DataFrame, segs: pd.Series) -> None:
+        magnetogram_fits = dv.JSOC_BASE_URL + segs[self.segment_column_name]
+        keys["magnetogram_fits"] = magnetogram_fits
+
+    def _export_files(self, query: str) -> None:
+        export_response = self._drms_client.export(query, method="url", protocol="fits")
+        export_response.wait()
+        # extract the `record` and strip the square brackets to return a T_REC-like time (in TAI)
+        r_urls = export_response.urls.copy()
+        # `self.r_urls["record"].str.extract(r"\[(.*?)\]")`` will only extract the HARP num from:
+        #   `hmi.sharp_720s[318][2011.01.01_00:00:00_TAI]`
+        # so using r"\[([^\[\]]*?(?=\]))\][^\[\]]*$" to extract last one.
+        r_urls["extracted_record_timestamp"] = self.r_urls["record"].str.extract(r"\[(.*?)\]")
+        # merge on keys['T_REC'] so that there we can later get the files.
+        return r_urls
+
+    def _save_metadata_to_csv(self, keys: pd.DataFrame) -> None:
+        file = Path(self.metadata_save_location)
+        directory_path = file.parent
+        if not directory_path.exists():
+            directory_path.mkdir(parents=True)
+        keys.to_csv(file)
+
+    def fetch_metadata(self, start_date: datetime.datetime, end_date: datetime.datetime, to_csv=False) -> pd.DataFrame:
         """
         Fetch metadata from JSOC.
 
@@ -93,35 +120,21 @@ class BaseMagnetogram(ABC):
 
         """
 
-        q = self.generate_drms_query(start_date, end_date)
-        logger.info(f">> {self._type()} Query: {q}")
-        keys, segs = self._drms_client.query(q, key=drms.const.all, seg=self.segment_column_name)
-        logger.info(f"\t {len(keys)} entries")
+        query = self.generate_drms_query(start_date, end_date)
+        logger.info(f">> {self._type()} Query: {query}")
 
-        # Obtain the segments and set into the keys
-        magnetogram_fits = dv.JSOC_BASE_URL + segs[self.segment_column_name]
-        keys["magnetogram_fits"] = magnetogram_fits
-
+        keys, segs = self._query_jsoc(query)
         # raise error if there are no keys returned
         if len(keys) == 0:
             # !TODO implement custom error message
-            raise (f"No results return for the query: {q}!")
+            raise (f"No results return for the query: {query}!")
+        else:
+            logger.info(f"\t {len(keys)} entries")
 
-        # Export the  .fits (data + metadata) for the same query
-        export_response = self._drms_client.export(
-            q + "{" + self.segment_column_name + "}", method="url", protocol="fits"
-        )
-        export_response.wait()
+        self._add_magnetogram_urls(keys, segs)
+        r_urls = self._export_files(query)
 
-        # extract the `record` and strip the square brackets to return a T_REC-like time (in TAI)
-        self.r_urls = export_response.urls.copy()
-        # `self.r_urls["record"].str.extract(r"\[(.*?)\]")`` will only extract the HARP num from:
-        #   `hmi.sharp_720s[318][2011.01.01_00:00:00_TAI]`
-        # so using r"\[([^\[\]]*?(?=\]))\][^\[\]]*$" to extract last one.
-        self.r_urls["extracted_record_timestamp"] = self.r_urls["record"].str.extract(r"\[(.*?)\]")
-        # merge on keys['T_REC'] so that there we can later get the files.
-        # !TODO add testing for this merge
-
+        r_urls["extracted_record_timestamp"] = self.r_urls["record"].apply(self._get_date_from_record)
         # This doesn't work on SHARP data
         keys = pd.merge(
             left=keys, right=self.r_urls, left_on="T_REC", right_on="extracted_record_timestamp", how="left"
@@ -134,15 +147,8 @@ class BaseMagnetogram(ABC):
         # ]  # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
         keys["datetime"] = pd.to_datetime(keys["DATE-OBS"], format=self.date_format, errors="coerce")
 
-        file = Path(self.metadata_save_location)
-        directory_path = file.parent
-        print(file, directory_path)
-        if not directory_path.exists():
-            directory_path.mkdir(parents=True)
-
-        keys.to_csv(file)
-
-        return keys
+        if to_csv:
+            self._save_metadata_to_csv(keys)
 
     def validate_metadata(self):
         # not sure how to validate
