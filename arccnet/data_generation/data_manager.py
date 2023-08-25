@@ -38,7 +38,7 @@ class DataManager:
 
         # 1. fetch metadata
         logger.info(">> Fetching NOAA SRS Metadata")
-        self.srs_raw, self.srs_raw_missing, self.mdi, self.hmi = self.fetch_metadata()
+        self.srs_raw, self.srs_raw_missing, self.mdi_keys, self.hmi_keys = self.fetch_metadata()
         logger.info(f"\n{self.srs_raw}")
 
         # 2. clean metadata
@@ -71,19 +71,16 @@ class DataManager:
         srs_raw, srs_raw_missing = self.swpc.create_catalog()
 
         # HMI & MDI
-        # self.hmi_k, self.hmi_urls = self.hmi.fetch_metadata(self.start_date, self.end_date)
-        hmi_k = self.hmi.fetch_metadata(self.start_date, self.end_date)
-        # logger.info(f"HMI Keys: \n{self.hmi_k}")
-        logger.info(
-            f"HMI Keys: \n{self.hmi_k[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
-        )  # the date-obs or date-avg
-        mdi_k = self.mdi.fetch_metadata(self.start_date, self.end_date)
-        # logger.info(f"MDI Keys: \n{self.mdi_k}")
-        logger.info(
-            f"MDI Keys: \n{self.mdi_k[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
-        )  # the date-obs or date-avg
+        hmi_keys = self.hmi.fetch_metadata(self.start_date, self.end_date)
+        mdi_keys = self.mdi.fetch_metadata(self.start_date, self.end_date)
 
-        return srs_raw, srs_raw_missing, mdi_k, hmi_k
+        # logging
+        for name, dataframe in {"HMI Keys": hmi_keys, "MDI Keys": mdi_keys}.items():
+            logger.info(
+                f"{name}: \n{dataframe[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
+            )  # the date-obs or date-avg
+
+        return srs_raw, srs_raw_missing, mdi_keys, hmi_keys
 
     def merge_metadata_sources(
         self,
@@ -99,7 +96,7 @@ class DataManager:
         # !TODO do a check for certain keys (no duplicates...)
         # extract only the relevant HMI keys, and rename
         # (should probably do this earlier on)
-        hmi_keys = self.hmi_k[mag_cols]
+        hmi_keys = self.hmi_keys[mag_cols]
         hmi_keys = hmi_keys.add_suffix("_hmi")
         hmi_keys_dropna = hmi_keys.dropna().reset_index(drop=True)
 
@@ -122,7 +119,7 @@ class DataManager:
             direction="nearest",
         )
 
-        mdi_keys = self.mdi_k[mag_cols]
+        mdi_keys = self.mdi_keys[mag_cols]
         mdi_keys = mdi_keys.add_suffix("_mdi")
         mdi_keys_dropna = mdi_keys.dropna().reset_index(drop=True)
 
@@ -210,4 +207,8 @@ class DataManager:
 
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
-    _ = DataManager(dv.DATA_START_TIME, dv.DATA_END_TIME)
+
+    try:
+        data_manager = DataManager(dv.DATA_START_TIME, dv.DATA_END_TIME)
+    except Exception:
+        logger.exception("An error occurred during execution:", exc_info=True)
