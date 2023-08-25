@@ -38,7 +38,7 @@ class DataManager:
 
         # 1. fetch metadata
         logger.info(">> Fetching NOAA SRS Metadata")
-        self.fetch_metadata()
+        self.srs_raw, self.srs_raw_missing, self.mdi, self.hmi = self.fetch_metadata()
         logger.info(f"\n{self.srs_raw}")
 
         # 2. clean metadata
@@ -55,7 +55,8 @@ class DataManager:
         # !TODO implement this checking if each file that is expected exists.
 
         # # 4b. download image data
-        _ = self.fetch_magnetograms(self.merged_df)
+        results = self.fetch_magnetograms(self.merged_df)
+        logger.info(f"\n{results}")
         # !TODO handle the output... want a csv with the filepaths
 
         logger.info(">> Execution completed successfully")
@@ -66,29 +67,23 @@ class DataManager:
         """
 
         # download the txt files and create an SRS catalog
-        _ = self.swpc.fetch_data(self.start_date, self.end_date)
-        self.srs_raw, self.srs_raw_missing = self.swpc.create_catalog()
+        self.swpc.fetch_data(self.start_date, self.end_date)
+        srs_raw, srs_raw_missing = self.swpc.create_catalog()
 
         # HMI & MDI
         # self.hmi_k, self.hmi_urls = self.hmi.fetch_metadata(self.start_date, self.end_date)
-        self.hmi_k = self.hmi.fetch_metadata(self.start_date, self.end_date)
+        hmi_k = self.hmi.fetch_metadata(self.start_date, self.end_date)
         # logger.info(f"HMI Keys: \n{self.hmi_k}")
         logger.info(
             f"HMI Keys: \n{self.hmi_k[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
         )  # the date-obs or date-avg
-        self.mdi_k = self.mdi.fetch_metadata(self.start_date, self.end_date)
+        mdi_k = self.mdi.fetch_metadata(self.start_date, self.end_date)
         # logger.info(f"MDI Keys: \n{self.mdi_k}")
         logger.info(
             f"MDI Keys: \n{self.mdi_k[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
         )  # the date-obs or date-avg
 
-    # def clean_metadata(self):
-    #     """
-    #     clean metadata from each instrument
-    #     """
-    #
-    #     # clean the raw SRS catalog
-    #     self.srs_clean = self.swpc.clean_catalog()
+        return srs_raw, srs_raw_missing, mdi_k, hmi_k
 
     def merge_metadata_sources(
         self,
