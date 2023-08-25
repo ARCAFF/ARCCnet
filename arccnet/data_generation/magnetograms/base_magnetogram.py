@@ -392,8 +392,8 @@ class BaseMagnetogram(ABC):
             duplicate_count = keys_merged.duplicated(subset=column_names).sum()
             logger.warn(f"There are {duplicate_count} duplicated rows in the DataFrame.")
 
-        keys["datetime"] = pd.to_datetime(
-            keys["DATE-OBS"], format=self.date_format, errors="coerce"
+        keys_merged["datetime"] = pd.to_datetime(
+            keys_merged["DATE-OBS"], format=self.date_format, errors="coerce"
         )  # !TODO investigate coerce
         # keys["datetime"] = [datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ") for date in keys["DATE-OBS"]]
         # keys["datetime"] = [
