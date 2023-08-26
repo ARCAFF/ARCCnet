@@ -315,10 +315,10 @@ class RegionExtractor:
         df_not_in_either.reset_index(drop=True, inplace=True)
 
         # Print the filtered DataFrames
-        print(f"DataFrame {df.shape}")
-        print(f"DataFrame for HMI: {df_hmi.shape}")
-        print(f"DataFrame for MDI: {df_mdi.shape}")
-        print(f"DataFrame not in either: {df_not_in_either.shape}")
+        logger.info(f"DataFrame {df.shape}")
+        logger.info(f"DataFrame for HMI: {df_hmi.shape}")
+        logger.info(f"DataFrame for MDI: {df_mdi.shape}")
+        logger.info(f"DataFrame not in either: {df_not_in_either.shape}")
         if df_not_in_either.shape[0] > 0:
             raise ValueError
 
@@ -364,7 +364,7 @@ class RegionExtractor:
                 data = my_hmi_map.data
                 nans = np.isnan(data).sum()
                 if nans > 0:
-                    print(f"warning ... there are {nans} nans in this {my_hmi_map.instrument} map")
+                    logger.warning(f"warning ... there are {nans} nans in this {my_hmi_map.instrument} map")
                     indices = np.where(np.isnan(data))
                     data[indices] = 0.0
 
@@ -520,7 +520,7 @@ class RegionExtractor:
 
                     text_objects.append(text)
 
-                print(time_srs)
+                logger.info(time_srs)
                 plt.savefig(
                     dv_summary_plots_path / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_{instr}.png",
                     dpi=300,
@@ -608,7 +608,7 @@ def extract_submap_latlon(amap, time, coords, xsize=dv.X_EXTENT, ysize=dv.Y_EXTE
         sunpy map centered on coords, with size (xsize, ysize)
 
     """
-    #     print(f">> {map.date}, {time}")
+    #     logger.info(f">> {map.date}, {time}")
 
     lat, lng = coords
 
@@ -710,7 +710,7 @@ def extract_region_lonlat(amap, time, coords, xsize, ysize) -> sunpy.map.Map:
         sunpy map centered on coords, with size (xsize, ysize)
 
     """
-    #     print(f">> {amap.date}, {time}")
+    #     logger.info(f">> {amap.date}, {time}")
 
     lat, lng = coords
 
