@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -9,8 +10,25 @@ import astropy.io
 
 from arccnet.data_generation.utils.data_logger import logger
 
-__all__ = ["make_relative", "save_compressed_map", "save_df_to_html", "check_column_values", "grouped_stratified_split"]
+__all__ = ["round_to_midnight", "save_df_to_html", "check_column_values", "save_df_to_html", "check_column_values", "grouped_stratified_split"]
 
+
+def round_to_midnight(dt: datetime):
+    # Calculate the next midnight
+    next_midnight = dt.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+
+    # Calculate the previous midnight
+    previous_midnight = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Calculate time differences
+    time_to_next_midnight = next_midnight - dt
+    time_to_previous_midnight = dt - previous_midnight
+
+    # Compare time differences and round to the closest midnight
+    if time_to_next_midnight < time_to_previous_midnight:
+        return next_midnight
+    else:
+        return previous_midnight
 
 def make_relative(base_path, path):
     return Path(path).relative_to(Path(base_path))
@@ -42,7 +60,6 @@ def save_compressed_map(amap: sunpy.map.Map, path: Path, **kwargs) -> None:
         del amap.meta["bzero"]
 
     amap.save(path, hdu_type=astropy.io.fits.CompImageHDU, **kwargs)
-
 
 def save_df_to_html(df: pd.DataFrame, filename: str) -> None:
     """
