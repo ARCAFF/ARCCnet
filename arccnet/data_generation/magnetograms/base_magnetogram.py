@@ -313,10 +313,97 @@ class BaseMagnetogram(ABC):
         return df, merged_columns, column_names
 
     def fetch_metadata(
-        self, start_date: datetime.datetime, end_date: datetime.datetime, to_csv: bool = True
+        self,
+        start_date: datetime.datetime,
+        end_date: datetime.datetime,
+        batch_frequency: str = "1Y",
+        to_csv: bool = True,
+        dynamic_columns=["url"],
     ) -> pd.DataFrame:
         """
-        Fetch metadata from JSOC.
+        Fetch metadata from JSOC in batches.
+
+        This method retrieves metadata from the Joint Science Operations Center (JSOC) based on the specified time range.
+        It fetches metadata in batches, where each batch covers a specified time frequency within the overall range.
+
+        Parameters
+        ----------
+        start_date : datetime.datetime
+            The start datetime for the desired time range of observations.
+
+        end_date : datetime.datetime
+            The end datetime for the desired time range of observations.
+
+        batch_frequency : str, optional
+            The frequency for each batch. Default is "1Y" (1 year).
+            You can also set it to "1d" for 1 day or other valid frequency strings.
+
+        to_csv : bool, optional
+            Whether to save the fetched metadata to a CSV file. Defaults to True.
+
+        Returns
+        -------
+        pd.DataFrame
+            A pandas DataFrame containing metadata and URLs for requested data segments.
+
+        Raises
+        ------
+        ValueError
+            If no results are returned from any of the JSOC queries.
+
+        Notes
+        -----
+        This method breaks down the overall time range into smaller batches based on the specified frequency.
+        For each batch, it calls the fetch_metadata_batch method with the corresponding batch's time range.
+        The fetched metadata for all batches is then concatenated into a single DataFrame.
+
+        Duplicate rows are checked and logged as warnings if found.
+
+        If `to_csv` is True, the fetched metadata is saved to a CSV file using the `_save_metadata_to_csv` method.
+
+        See Also
+        --------
+        fetch_metadata_batch
+        """
+        logger.info(f">> batching requests into {batch_frequency}")
+        batch_start = start_date
+        all_metadata = []
+
+        while batch_start < end_date:
+            batch_end = batch_start + pd.tseries.frequencies.to_offset(batch_frequency)
+            if batch_end > end_date:
+                batch_end = end_date
+
+            logger.info(f">>    {batch_start, batch_end}")
+            metadata_batch = self.fetch_metadata_batch(batch_start, batch_end, to_csv=False)
+            all_metadata.append(metadata_batch)
+
+            batch_start = batch_end
+
+        combined_metadata = pd.concat(all_metadata, ignore_index=True)  # test this
+
+        # Check for duplicated rows in the combined metadata because we might be doing this accidentally
+        # the "url" column is dynamic, and will not match (will the urls persist until we download them?)
+        columns_to_check = [col for col in combined_metadata.columns if col not in dynamic_columns]
+        combined_metadata = combined_metadata.drop_duplicates(subset=columns_to_check)
+        # !TODO we need a better way of dealing with situations like this
+        duplicate_count = combined_metadata.duplicated(subset=columns_to_check).sum()
+        if duplicate_count > 0:
+            raise ValueError(f"There are {duplicate_count} duplicated rows in the DataFrame.")
+
+        if to_csv:
+            self._save_metadata_to_csv(combined_metadata)
+
+        return combined_metadata
+
+    def fetch_metadata_batch(
+        self,
+        start_date: datetime.datetime,
+        end_date: datetime.datetime,
+        to_csv: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Fetch metadata batch from JSOC.
 
         This method retrieves metadata from the Joint Science Operations Center (JSOC) based on the specified time range.
         It constructs a query, queries the JSOC database, and fetches metadata and URLs for requested data segments.
