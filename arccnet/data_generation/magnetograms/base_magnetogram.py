@@ -479,9 +479,22 @@ class BaseMagnetogram(ABC):
             duplicate_count = keys_merged.duplicated(subset=column_names).sum()
             logger.warn(f"There are {duplicate_count} duplicated rows in the DataFrame.")
 
-        keys_merged["datetime"] = pd.to_datetime(
+        # keys_merged["datetime"] = pd.to_datetime(
+        #     keys_merged["DATE-OBS"], format=self.date_format, errors="coerce"
+        # )
+        # /Users/pjwright/Documents/work/ARCCnet/arccnet/data_generation/magnetograms/base_magnetogram.py:482: PerformanceWarning:
+        # DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.
+        # Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+
+        # Replaced with:
+        datetime_column = pd.to_datetime(
             keys_merged["DATE-OBS"], format=self.date_format, errors="coerce"
-        )  # !TODO investigate coerce
+        )  # is DATE-OBS what we want to use?
+        datetime_df = pd.DataFrame({"datetime": datetime_column})
+        # Concatenate the new datetime_df with keys_merged
+        keys_merged = pd.concat([keys_merged, datetime_df], axis=1)
+
+        # !TODO investigate coerce
         # keys["datetime"] = [datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ") for date in keys["DATE-OBS"]]
         # keys["datetime"] = [
         #     pd.to_datetime(date, format=self.date_format, errors="coerce")
