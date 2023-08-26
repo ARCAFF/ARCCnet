@@ -760,7 +760,7 @@ def save_compressed_map(map: sunpy.map.Map, path: Path, **kwargs) -> None:
 if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
 
-    mag_process = True
+    mag_process = False
     ar_classification = False
     # ar_detection = True
 
