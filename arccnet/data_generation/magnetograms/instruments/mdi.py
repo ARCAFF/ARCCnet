@@ -231,7 +231,7 @@ class MDISMARPs(MDILOSMagnetogram):
         - MDI: '%Y-%m-%dT%H:%M:%SZ'
         - HMI: '%Y-%m-%dT%H:%M:%S.%fZ'
         """
-        return dv.HMI_DATE_FORMAT
+        return "%Y-%m-%dT%H:%M:%S.%fZ"
 
     @property
     def segment_column_name(self) -> str:
