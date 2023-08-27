@@ -316,7 +316,7 @@ class BaseMagnetogram(ABC):
         self,
         start_date: datetime.datetime,
         end_date: datetime.datetime,
-        batch_frequency: str = "6m",
+        batch_frequency: int = 6,
         to_csv: bool = True,
         dynamic_columns=["url"],
     ) -> pd.DataFrame:
@@ -334,9 +334,8 @@ class BaseMagnetogram(ABC):
         end_date : datetime.datetime
             The end datetime for the desired time range of observations.
 
-        batch_frequency : str, optional
-            The frequency for each batch. Default is "6m" (6 months).
-            You can also set it to "1Y" for 1 year or other valid frequency strings.
+        batch_frequency : int, optional
+            The frequency for each batch. Default is 6 (6 months).
 
         to_csv : bool, optional
             Whether to save the fetched metadata to a CSV file. Defaults to True.
@@ -365,12 +364,12 @@ class BaseMagnetogram(ABC):
         --------
         fetch_metadata_batch
         """
-        logger.info(f">> batching requests into {batch_frequency}")
+        logger.info(f">> batching requests into {batch_frequency} months")
         batch_start = start_date
         all_metadata = []
 
         while batch_start < end_date:
-            batch_end = batch_start + pd.tseries.frequencies.to_offset(batch_frequency)
+            batch_end = batch_start + pd.offsets.DateOffset(months=batch_frequency)
             if batch_end > end_date:
                 batch_end = end_date
 
