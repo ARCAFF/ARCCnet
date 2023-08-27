@@ -130,8 +130,8 @@ class DataManager:
 
     def save_df(
         self,
-        dataframe_list: list(pd.DataFrame),
-        save_location_list: list(pd.DataFrame),
+        dataframe_list: list[pd.DataFrame],
+        save_location_list: list[Path],
         to_csv: bool = True,
         to_html: bool = False,
     ) -> None:
