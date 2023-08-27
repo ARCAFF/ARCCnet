@@ -316,7 +316,7 @@ class BaseMagnetogram(ABC):
         self,
         start_date: datetime.datetime,
         end_date: datetime.datetime,
-        batch_frequency: str = "1Y",
+        batch_frequency: str = "6m",
         to_csv: bool = True,
         dynamic_columns=["url"],
     ) -> pd.DataFrame:
@@ -335,8 +335,8 @@ class BaseMagnetogram(ABC):
             The end datetime for the desired time range of observations.
 
         batch_frequency : str, optional
-            The frequency for each batch. Default is "1Y" (1 year).
-            You can also set it to "1d" for 1 day or other valid frequency strings.
+            The frequency for each batch. Default is "6m" (6 months).
+            You can also set it to "1Y" for 1 year or other valid frequency strings.
 
         to_csv : bool, optional
             Whether to save the fetched metadata to a CSV file. Defaults to True.
@@ -488,18 +488,11 @@ class BaseMagnetogram(ABC):
 
         # Replaced with:
         datetime_column = pd.to_datetime(
-            keys_merged["DATE-OBS"], format=self.date_format, errors="coerce"
-        )  # is DATE-OBS what we want to use?
+            keys_merged["DATE-OBS"], format=self.date_format, errors="coerce"  # !TODO investigate coerce
+        )  # is DATE-OBS what we want to use? # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
         datetime_df = pd.DataFrame({"datetime": datetime_column})
         # Concatenate the new datetime_df with keys_merged
         keys_merged = pd.concat([keys_merged, datetime_df], axis=1)
-
-        # !TODO investigate coerce
-        # keys["datetime"] = [datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ") for date in keys["DATE-OBS"]]
-        # keys["datetime"] = [
-        #     pd.to_datetime(date, format=self.date_format, errors="coerce")
-        #     for date in keys["DATE-OBS"]  # ensure we want errors="coerce"
-        # ]  # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
 
         if to_csv:
             self._save_metadata_to_csv(keys_merged)
