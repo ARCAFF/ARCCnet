@@ -85,15 +85,29 @@ class DataManager:
         # 3. merge metadata sources
         # logger.info(f">> Merging Metadata with tolerance {merge_tolerance}")
         self.merged_df, self.merged_df_dropped_rows = self.merge_hmimdi_metadata(tolerance=merge_tolerance)
-        self.hmi_sharps = self.merge_activeregionpatchs(self.hmi_keys, self.sharp_keys)
-        self.mdi_smarps = self.merge_activeregionpatchs(self.mdi_keys, self.smarp_keys)
+
+        #  Merge the HMI and MDI components of the `merged_df` with the SHARPs and SMARPs DataFrames
+        # !TODO this is terrible, change this!
+        # HMI-SHARPs
+        merged_df_hs = self.merged_df[["datetime_hmi", "url_hmi"]]
+        merged_df_hs.columns = merged_df_hs.columns.str.rstrip("_hmi")
+        self.hmi_sharps = self.merge_activeregionpatchs(merged_df_hs, self.sharp_keys)
+        # MDI-SMARPs
+        merged_df_ms = self.merged_df[["datetime_mdi", "url_mdi"]]
+        merged_df_ms.columns = merged_df_ms.columns.str.rstrip("_mdi")
+        self.mdi_smarps = self.merge_activeregionpatchs(merged_df_ms, self.smarp_keys)
+        # ------
 
         self.save_df(
-            dataframe_list=[self.merged_df, self.hmi_sharps, self.mdi_smarps],
+            dataframe_list=[
+                self.merged_df,
+                self.hmi_sharps,
+                self.mdi_smarps,
+            ],
             save_location_list=[
-                dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV,
-                dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV,
-                dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV,
+                Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
+                Path(dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV),
+                Path(dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV),
             ],
             to_csv=True,
             to_html=False,
@@ -212,35 +226,52 @@ class DataManager:
         Parameters
         ----------
         full_disk_data : pd.DataFrame
-            Data from full disk observations.
+            Data from full disk observations with columns;
+            ["datetime", "url"]
 
         cutout_data : pd.DataFrame
-            Data from active region cutouts.
+            Data from active region cutouts. The pd.DataFrame must contain a "datetime" column.
 
         Returns
         -------
         pd.DataFrame
             Merged DataFrame of active region patch data.
         """
-        # merge srs_clean and hmi
-        mag_cols = ["magnetogram_fits", "datetime", "url"]
+        # # merge srs_clean and hmi
+        expected_columns = ["datetime", "url"]
 
-        # !TODO do a check for certain keys (no duplicates...)
-        # extract only the relevant HMI keys, and rename
-        # (should probably do this earlier on)
-        full_disk_data = full_disk_data[mag_cols]
-        full_disk_data = full_disk_data.add_suffix("_hmi")
+        if not set(expected_columns).issubset(full_disk_data.columns):
+            logger.warn(
+                "Currently, the columns in full_disk_data need to be ['magnetogram_fits', 'datetime', 'url'] due to poor planning and thought."
+            )
+            raise NotImplementedError()
+
+        if not set(expected_columns).issubset(cutout_data.columns):
+            logger.warn(
+                "Currently, the columns in cutout_data need to be ['magnetogram_fits', 'datetime', 'url'] due to poor planning and thought."
+            )
+            raise NotImplementedError()
+
+        # # !TODO do a check for certain keys (no duplicates...)
+        # # extract only the relevant HMI keys, and rename
+        # # (should probably do this earlier on)
+        # full_disk_data = full_disk_data[mag_cols]
+        # full_disk_data = full_disk_data.add_suffix("_hmi")
         full_disk_data_dropna = full_disk_data.dropna().reset_index(drop=True)
 
-        cutout_data = cutout_data[mag_cols]
-        cutout_data = cutout_data.add_suffix("_sharps")
+        # cutout_data = cutout_data[mag_cols]
+        cutout_data = cutout_data.add_suffix("_arc")
         cutout_data_dropna = cutout_data.dropna().reset_index(drop=True)
+
+        logger.info(f"len of full_disk_data_dropna is {len(full_disk_data_dropna)}")
+        logger.info(f"len of cutout_data_dropna is {len(cutout_data_dropna)}")
 
         # need to figure out if a left merge is what we want...
         merged_df = pd.merge(
-            full_disk_data_dropna, cutout_data_dropna, left_on="datetime_hmi", right_on="datetime_sharps"
+            full_disk_data_dropna, cutout_data_dropna, left_on="datetime", right_on="datetime_arc"
         )  # no tolerance as should be exact
 
+        logger.info(f"len of merged_df is {len(merged_df)}")
         return merged_df
 
     def merge_hmimdi_metadata(
