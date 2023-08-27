@@ -169,7 +169,9 @@ MAG_PROCESSED_QSFITS_DIR = os.path.join(MAG_PROCESSED_DIR, "qs_fits")
 
 MAG_INTERMEDIATE_DATA_DIR = os.path.join(MAG_INTERMEDIATE_DIR, "fits")
 
-MAG_INTERMEDIATE_DATA_CSV = os.path.join(MAG_INTERMEDIATE_DIR, "clean_catalog.csv")
+MAG_INTERMEDIATE_HMIMDI_DATA_CSV = os.path.join(MAG_INTERMEDIATE_DIR, "clean_catalog_hmimdi.csv")
+MAG_INTERMEDIATE_HMISHARPS_DATA_CSV = os.path.join(MAG_INTERMEDIATE_DIR, "clean_catalog_hmisharp.csv")
+MAG_INTERMEDIATE_MDISMARPS_DATA_CSV = os.path.join(MAG_INTERMEDIATE_DIR, "clean_catalog_mdismarp.csv")
 # MAG_INTERMEDIATE_DATA_DIR = os.path.join(MAG_INTERMEDIATE_DIR, "data")
 
 

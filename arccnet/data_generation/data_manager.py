@@ -2,11 +2,17 @@ from pathlib import Path
 from datetime import datetime
 
 import pandas as pd
+from parfive import Results
 from sunpy.util.parfive_helpers import Downloader
 
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.catalogs.active_region_catalogs.swpc import SWPCCatalog
-from arccnet.data_generation.magnetograms.instruments import HMILOSMagnetogram, MDILOSMagnetogram
+from arccnet.data_generation.magnetograms.instruments import (
+    HMILOSMagnetogram,
+    HMISHARPs,
+    MDILOSMagnetogram,
+    MDISMARPs,
+)
 from arccnet.data_generation.utils.data_logger import logger
 
 __all__ = ["DataManager"]
@@ -16,7 +22,7 @@ class DataManager:
     """
     Main data management class.
 
-    This class instantiates and handles data acquisition for the individual instruments
+    This class instantiates and handles data acquisition for the individual instruments and cutouts
     """
 
     def __init__(
@@ -24,7 +30,25 @@ class DataManager:
         start_date: datetime = dv.DATA_START_TIME,
         end_date: datetime = dv.DATA_END_TIME,
         merge_tolerance: pd.Timedelta = pd.Timedelta("30m"),
+        download_fits: bool = True,
     ):
+        """
+        Initialize the DataManager.
+
+        Parameters
+        ----------
+        start_date : datetime, optional
+            Start date of data acquisition period. Default is `arccnet.data_generation.utils.default_variables.DATA_START_TIME`.
+
+        end_date : datetime, optional
+            End date of data acquisition period. Default is `arccnet.data_generation.utils.default_variables.DATA_END_TIME`.
+
+        merge_tolerance : pd.Timedelta, optional
+            Time tolerance for merging operations. Default is pd.Timedelta("30m").
+
+        download_fits : bool, optional
+            Whether to download FITS files. Default is True.
+        """
         self.start_date = start_date
         self.end_date = end_date
 
@@ -33,13 +57,24 @@ class DataManager:
         # instantiate classes
         self.swpc = SWPCCatalog()
         # !TODO change this into an iterable
+        # Full-disk Magnetograms
         self.hmi = HMILOSMagnetogram()
         self.mdi = MDILOSMagnetogram()
+        # Cutouts
+        self.sharps = HMISHARPs()
+        self.smarps = MDISMARPs()
 
         # 1. fetch metadata
-        logger.info(">> Fetching NOAA SRS Metadata")
-        self.srs_raw, self.srs_raw_missing, self.mdi_keys, self.hmi_keys = self.fetch_metadata()
-        logger.info(f"\n{self.srs_raw}")
+        logger.info(">> Fetching metadata")
+        (
+            self.srs,
+            self.mdi_keys,
+            self.hmi_keys,
+            self.sharp_keys,
+            self.smarp_keys,
+        ) = self.fetch_metadata()
+        srs_raw, _ = self.srs
+        logger.info(f"\n{srs_raw}")
 
         # 2. clean metadata
         logger.info(">> Cleaning NOAA SRS Metadata")
@@ -49,47 +84,185 @@ class DataManager:
 
         # 3. merge metadata sources
         # logger.info(f">> Merging Metadata with tolerance {merge_tolerance}")
-        self.merge_metadata_sources(tolerance=merge_tolerance)
+        self.merged_df, self.merged_df_dropped_rows = self.merge_hmimdi_metadata(tolerance=merge_tolerance)
+        self.hmi_sharps = self.merge_activeregionpatchs(self.hmi_keys, self.sharp_keys)
+        self.mdi_smarps = self.merge_activeregionpatchs(self.mdi_keys, self.smarp_keys)
+
+        self.save_df(
+            dataframe_list=[self.merged_df, self.hmi_sharps, self.mdi_smarps],
+            save_location_list=[
+                dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV,
+                dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV,
+                dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV,
+            ],
+            to_csv=True,
+            to_html=False,
+        )
 
         # 4a. check if image data exists
         # !TODO implement this checking if each file that is expected exists.
+        # Compile list of URLs to download
+        merged_url_columns = [col for col in self.merged_df.columns if col.startswith("url_")]
+        hmi_sharps_url_columns = [col for col in self.hmi_sharps.columns if col.startswith("url_")]
+        mdi_smarps_url_columns = [col for col in self.mdi_smarps.columns if col.startswith("url_")]
 
-        # # 4b. download image data
-        results = self.fetch_magnetograms(self.merged_df)
-        logger.info(f"\n{results}")
-        # !TODO handle the output... want a csv with the filepaths
+        self.urls_to_download = pd.Series(
+            pd.concat(
+                [
+                    self.merged_df[merged_url_columns],
+                    self.hmi_sharps[hmi_sharps_url_columns],
+                    self.mdi_smarps[mdi_smarps_url_columns],
+                ]
+            )
+            .stack()
+            .dropna()
+            .unique()
+        )
+        if download_fits:
+            results = self.fetch_magnetograms(self.urls_to_download)
+            logger.info(f"\n{results}")
+            # !TODO handle the output... want a csv with the filepaths
+            logger.info("Download completed successfully")
+        else:
+            logger.info(
+                "To fetch the magnetograms, use the `.fetch_magnetograms()` method with a list(str) of urls, e.g. the `.urls_to_download` attribute`"
+            )
 
-        logger.info(">> Execution completed successfully")
-
-    def fetch_metadata(self):
+    def save_df(
+        self,
+        dataframe_list: list(pd.DataFrame),
+        save_location_list: list(pd.DataFrame),
+        to_csv: bool = True,
+        to_html: bool = False,
+    ) -> None:
         """
-        method to fetch and return data from various sources
-        """
+        Save DataFrames to CSV and/or HTML files.
 
+        Parameters
+        ----------
+        dataframes : list
+            List of DataFrames to be saved.
+
+        save_locations : list
+            List of file locations to save DataFrames.
+
+        to_csv : bool, optional
+            Whether to save as CSV. Default is True.
+
+        to_html : bool, optional
+            Whether to save as HTML. Default is True.
+        """
+        if not to_csv and not to_html:
+            logger.info("No action taken. Both `to_csv` and `to_html` are False.")
+
+        for df, loc in zip(dataframe_list, save_location_list):
+            if loc.is_file():
+                directory_path = loc.parent
+                if not directory_path.exists():
+                    directory_path.mkdir(parents=True)
+            else:
+                raise ValueError(f"{loc} is not a directory")
+
+            if to_csv:
+                df.to_csv(loc)
+            if to_html:
+                df.to_html(loc)
+
+    def fetch_metadata(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        Fetch and return data from various sources.
+
+        Returns
+        -------
+        tuple
+            Tuple containing data from different sources.
+        """
         # download the txt files and create an SRS catalog
         self.swpc.fetch_data(self.start_date, self.end_date)
-        srs_raw, srs_raw_missing = self.swpc.create_catalog()
+        srs = self.swpc.create_catalog()
 
         # HMI & MDI
-        hmi_keys = self.hmi.fetch_metadata(self.start_date, self.end_date)
-        mdi_keys = self.mdi.fetch_metadata(self.start_date, self.end_date)
+        # !TODO itereate over children of `BaseMagnetogram`
+        hmi_keys = self.hmi.fetch_metadata(self.start_date, self.end_date, batch_frequency=12)
+        mdi_keys = self.mdi.fetch_metadata(self.start_date, self.end_date, batch_frequency=12)
+        sharp_keys = self.sharps.fetch_metadata(self.start_date, self.end_date, batch_frequency=4)
+        smarp_keys = self.smarps.fetch_metadata(self.start_date, self.end_date, batch_frequency=4)
 
         # logging
-        for name, dataframe in {"HMI Keys": hmi_keys, "MDI Keys": mdi_keys}.items():
+        for name, dataframe in {
+            "HMI Keys": hmi_keys,
+            "SHARP Keys": sharp_keys,
+            "MDI Keys": mdi_keys,
+            "SMARP Keys": smarp_keys,
+        }.items():
             logger.info(
                 f"{name}: \n{dataframe[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
-            )  # the date-obs or date-avg
+            )
 
-        return srs_raw, srs_raw_missing, mdi_keys, hmi_keys
+        return srs, mdi_keys, hmi_keys, sharp_keys, smarp_keys
 
-    def merge_metadata_sources(
+    def merge_activeregionpatchs(
+        self,
+        full_disk_data,
+        cutout_data,
+    ) -> pd.DataFrame:
+        """
+        Merge active region patch data.
+
+        Parameters
+        ----------
+        full_disk_data : pd.DataFrame
+            Data from full disk observations.
+
+        cutout_data : pd.DataFrame
+            Data from active region cutouts.
+
+        Returns
+        -------
+        pd.DataFrame
+            Merged DataFrame of active region patch data.
+        """
+        # merge srs_clean and hmi
+        mag_cols = ["magnetogram_fits", "datetime", "url"]
+
+        # !TODO do a check for certain keys (no duplicates...)
+        # extract only the relevant HMI keys, and rename
+        # (should probably do this earlier on)
+        full_disk_data = full_disk_data[mag_cols]
+        full_disk_data = full_disk_data.add_suffix("_hmi")
+        full_disk_data_dropna = full_disk_data.dropna().reset_index(drop=True)
+
+        cutout_data = cutout_data[mag_cols]
+        cutout_data = cutout_data.add_suffix("_sharps")
+        cutout_data_dropna = cutout_data.dropna().reset_index(drop=True)
+
+        # need to figure out if a left merge is what we want...
+        merged_df = pd.merge(
+            full_disk_data_dropna, cutout_data_dropna, left_on="datetime_hmi", right_on="datetime_sharps"
+        )  # no tolerance as should be exact
+
+        return merged_df
+
+    def merge_hmimdi_metadata(
         self,
         tolerance: pd.Timedelta = pd.Timedelta("30m"),
-    ):
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
-        method to merge the data sources
-        """
+        Merge HMI and MDI metadata.
 
+        Parameters
+        ----------
+        tolerance : pd.Timedelta, optional
+            Time tolerance for merging operations. Default is pd.Timedelta("30m").
+
+        Returns
+        -------
+        pd.DataFrame
+            Merged DataFrame of HMI and MDI metadata.
+
+        pd.DataFrame
+            DataFrame of dropped rows during merging.
+        """
         # merge srs_clean and hmi
         mag_cols = ["magnetogram_fits", "datetime", "url"]
 
@@ -101,7 +274,7 @@ class DataManager:
         hmi_keys_dropna = hmi_keys.dropna().reset_index(drop=True)
 
         # both `pd.DataFrame` must be sorted based on the key !
-        self.merged_df = pd.merge_asof(
+        merged_df = pd.merge_asof(
             left=self.srs_clean.rename(
                 columns={
                     "datetime": "datetime_srs",
@@ -123,8 +296,8 @@ class DataManager:
         mdi_keys = mdi_keys.add_suffix("_mdi")
         mdi_keys_dropna = mdi_keys.dropna().reset_index(drop=True)
 
-        self.merged_df = pd.merge_asof(
-            left=self.merged_df,
+        merged_df = pd.merge_asof(
+            left=merged_df,
             right=mdi_keys_dropna,
             left_on="datetime_srs",
             right_on="datetime_mdi",
@@ -134,39 +307,47 @@ class DataManager:
         )
 
         # do we want to wait until we merge with MDI before dropping nans?
-        self.dropped_rows = self.merged_df.copy()
+        dropped_rows = merged_df.copy()
         # self.merged_df = self.merged_df.dropna(subset=["datetime_srs", "datetime_hmi", "datetime_mdi"])
-        self.merged_df = self.merged_df.dropna(subset=["datetime_srs"])
-        self.merged_df = self.merged_df.dropna(subset=["datetime_hmi", "datetime_mdi"], how="all")
-        self.dropped_rows = self.dropped_rows[~self.dropped_rows.index.isin(self.merged_df.index)].copy()
+        merged_df = merged_df.dropna(subset=["datetime_srs"])
+        merged_df = merged_df.dropna(subset=["datetime_hmi", "datetime_mdi"], how="all")
+        dropped_rows = dropped_rows[~dropped_rows.index.isin(merged_df.index)].copy()
 
-        logger.info(f"merged_df: \n{self.merged_df[['datetime_srs', 'datetime_hmi', 'datetime_mdi']]}")
-        logger.info(f"dropped_rows: \n{self.dropped_rows[['datetime_srs', 'datetime_hmi', 'datetime_mdi']]}")
-        logger.info(f"dates dropped: \n{self.dropped_rows['datetime_srs'].unique()}")
+        logger.info(f"merged_df: \n{merged_df[['datetime_srs', 'datetime_hmi', 'datetime_mdi']]}")
+        logger.info(f"dropped_rows: \n{dropped_rows[['datetime_srs', 'datetime_hmi', 'datetime_mdi']]}")
+        logger.info(f"dates dropped: \n{dropped_rows['datetime_srs'].unique()}")
 
-        directory_path = Path(dv.MAG_INTERMEDIATE_DIR)
-        if not directory_path.exists():
-            directory_path.mkdir(parents=True)
+        return merged_df, dropped_rows
 
-        self.merged_df.to_csv(dv.MAG_INTERMEDIATE_DATA_CSV)
-
-    def fetch_magnetograms(self, mag_df, max_retries=5):
+    @staticmethod
+    def fetch_magnetograms(
+        urls: list[str] = None, base_directory_path: Path = Path(dv.MAG_RAW_DATA_DIR), max_retries: int = 5
+    ) -> Results:
         """
-        download the magnetograms using parfive (with one connection),
-        and return the list of files
+        Download magnetograms using parfive.
+
+        Parameters
+        ----------
+        urls : list[str]
+            List of URLs to download. Default is None.
+
+        base_directory_path : str or Path, optional
+            Base directory path to save downloaded files. Default is `arccnet.data_generation.utils.default_variables.MAG_RAW_DATA_DIR`
+
+        max_retries : int, optional
+            Maximum number of download retries. Default is 5.
 
         Returns
         -------
-        results : List[str]
-            List of filepaths (strings) for the downloaded files
+        results : parfive.Results or None
+            parfive results object of the download operation, or None if no URLs provided or invalid format.
         """
-        base_directory_path = Path(dv.MAG_RAW_DATA_DIR)
+        if urls is None or not all(isinstance(url, str) for url in (urls or [])):
+            logger.warning("Invalid URLs format. Expected a list of strings.")
+            return None
+
         if not base_directory_path.exists():
             base_directory_path.mkdir(parents=True)
-
-        # HMI/MDI
-        # !TODO change this so that it's not as specific as `url_hmi`, `url_mdi`
-        urls = list(mag_df.url_hmi.dropna().unique()) + list(mag_df.url_mdi.dropna().unique())
 
         # Only 1 parallel connection (`max_conn`, `max_splits`)
         # https://docs.sunpy.org/en/stable/_modules/sunpy/net/jsoc/jsoc.html#JSOCClient
