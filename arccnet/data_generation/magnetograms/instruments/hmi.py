@@ -117,6 +117,11 @@ class HMILOSMagnetogram(BaseMagnetogram):
         -------
         str
             The HMI date string format.
+
+        Notes
+        -----
+        This is used for converting DATE-OBS to a datetime. This perhaps isn't
+        the ideal way to do this.
         """
         return dv.HMI_DATE_FORMAT
 
