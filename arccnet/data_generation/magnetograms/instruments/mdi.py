@@ -93,6 +93,11 @@ class MDILOSMagnetogram(BaseMagnetogram):
         -------
         str:
             MDI date string format
+
+        Notes
+        -----
+        This is used for converting DATE-OBS to a datetime. This perhaps isn't
+        the ideal way to do this.
         """
         return dv.MDI_DATE_FORMAT
 
@@ -207,6 +212,26 @@ class MDISMARPs(MDILOSMagnetogram):
             The JSOC series name.
         """
         return "mdi.smarp_96m"
+
+    @property
+    def date_format(self) -> str:
+        """
+        Get the MDI date string format.
+
+        Returns
+        -------
+        str
+            The MDI date string format.
+
+        Notes
+        -----
+        In SMARPs, the format is the same as HMI, not the same as MDI.
+
+        DATE-OBS format for reference:
+        - MDI: '%Y-%m-%dT%H:%M:%SZ'
+        - HMI: '%Y-%m-%dT%H:%M:%S.%fZ'
+        """
+        return dv.HMI_DATE_FORMAT
 
     @property
     def segment_column_name(self) -> str:
