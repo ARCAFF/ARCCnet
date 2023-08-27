@@ -364,22 +364,26 @@ class BaseMagnetogram(ABC):
         --------
         fetch_metadata_batch
         """
-        logger.info(f">> Fetching metadata for {self._type}; batching requests into {batch_frequency} months")
+        logger.info(f">> Fetching metadata for {self._type()}; batching requests into {batch_frequency} months")
         batch_start = start_date
         all_metadata = []
 
+        counter = 0
         while batch_start < end_date:
             batch_end = batch_start + pd.offsets.DateOffset(months=batch_frequency)
             if batch_end > end_date:
                 batch_end = end_date
 
-            logger.info(f">>    {batch_start, batch_end}")
+            logger.info(
+                f"   {counter}\t {batch_start.year}-{batch_start.month}-{batch_start.day} -> {batch_end.year}-{batch_end.month}-{batch_end.day}"
+            )
             metadata_batch = self.fetch_metadata_batch(batch_start, batch_end, to_csv=False)
 
             if metadata_batch is not None:  # Check if the batch is not empty or None
                 all_metadata.append(metadata_batch)
 
             batch_start = batch_end
+            counter += 1
 
         combined_metadata = pd.concat(all_metadata, ignore_index=True)  # test this
 
@@ -455,7 +459,7 @@ class BaseMagnetogram(ABC):
             logger.warn(f"\t No results return for the query: {query}! Returning `None`")
             return None
         else:
-            logger.info(f"\t {len(keys)} entries")
+            logger.info(f"\t ... {len(keys)} entries")
 
         keys = self._add_magnetogram_urls(keys, segs, url=dv.JSOC_BASE_URL, column_name="magnetogram_fits")
         r_urls = self._export_files(query)
