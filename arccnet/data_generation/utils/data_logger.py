@@ -7,7 +7,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"  # noqa: E501
+    # "%(asctime)s - %(name)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s"  # noqa: E501
+    "%(asctime)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s"
 )  # can use `%(pathname)s` to get the full path
 
 # create console handler and set level to INFO

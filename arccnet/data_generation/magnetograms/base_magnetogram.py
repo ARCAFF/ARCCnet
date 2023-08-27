@@ -237,7 +237,7 @@ class BaseMagnetogram(ABC):
             formatted_string = "{" + ", ".join([f"{seg}" for seg in self.segment_column_name]) + "}"
         else:
             formatted_string = f"{{{self.segment_column_name}}}"
-        logger.info(f"exporting the query: {query + formatted_string}")
+        logger.info(f"\t exporting files for {query + formatted_string}")
 
         export_response = self._drms_client.export(query + formatted_string, method="url", protocol="fits", **kwargs)
         export_response.wait()
@@ -364,7 +364,7 @@ class BaseMagnetogram(ABC):
         --------
         fetch_metadata_batch
         """
-        logger.info(f">> batching requests into {batch_frequency} months")
+        logger.info(f">> Fetching metadata for {self._type}; batching requests into {batch_frequency} months")
         batch_start = start_date
         all_metadata = []
 
@@ -375,7 +375,9 @@ class BaseMagnetogram(ABC):
 
             logger.info(f">>    {batch_start, batch_end}")
             metadata_batch = self.fetch_metadata_batch(batch_start, batch_end, to_csv=False)
-            all_metadata.append(metadata_batch)
+
+            if metadata_batch is not None:  # Check if the batch is not empty or None
+                all_metadata.append(metadata_batch)
 
             batch_start = batch_end
 
@@ -420,14 +422,10 @@ class BaseMagnetogram(ABC):
 
         Returns
         -------
-        pd.DataFrame
+        pd.DataFrame or None
             A pandas DataFrame containing metadata and URLs for requested data segments.
             The DataFrame has columns corresponding to metadata keys, URLs, and additional extracted information.
-
-        Raises
-        ------
-        ValueError
-            If no results are returned from the JSOC query.
+            If no results are returned from the JSOC query, `None` is returned.
 
         Notes
         -----
@@ -449,12 +447,13 @@ class BaseMagnetogram(ABC):
         """
 
         query = self.generate_drms_query(start_date, end_date)
-        logger.info(f">> {self._type()} Query: {query}")
+        logger.info(f"\t {self._type()} Query: {query}")
 
         keys, segs = self._query_jsoc(query)
         if len(keys) == 0:
-            # !TODO implement custom error message
-            raise ValueError(f"No results return for the query: {query}!")
+            # return None if there are no results
+            logger.warn(f"\t No results return for the query: {query}! Returning `None`")
+            return None
         else:
             logger.info(f"\t {len(keys)} entries")
 
