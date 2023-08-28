@@ -31,7 +31,7 @@ class ARDetection:
         cutout_url = "url_arc"
 
         base_directory_path = Path(dv.MAG_RAW_SHARP_DATA_DIR)
-        self.loaded_data = pd.read_csv(filename).loc[0:10]
+        self.loaded_data = pd.read_csv(filename)
 
         self.bboxes = self.get_bboxes(self.loaded_data, group_url, cutout_url, base_directory_path)
         self.updated_df = self.update_loaded_data(self.loaded_data, group_url, cutout_url, self.bboxes)
