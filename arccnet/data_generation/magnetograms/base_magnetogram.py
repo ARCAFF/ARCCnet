@@ -456,7 +456,7 @@ class BaseMagnetogram(ABC):
         keys, segs = self._query_jsoc(query)
         if len(keys) == 0:
             # return None if there are no results
-            logger.warn(f"\t No results return for the query: {query}! Returning `None`")
+            logger.warn(f"\t No results returned for the query: {query}! Returning `None`")
             return None
         else:
             logger.info(f"\t ... {len(keys)} entries")
