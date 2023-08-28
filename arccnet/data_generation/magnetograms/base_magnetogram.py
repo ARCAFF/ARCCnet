@@ -119,6 +119,7 @@ class BaseMagnetogram(ABC):
         """
         raise NotImplementedError("This is the required method in the child class.")
 
+    @property
     def _type(self):
         """
         Get the name of the instantiated class.
@@ -131,7 +132,7 @@ class BaseMagnetogram(ABC):
         return self.__class__.__name__
 
     @abstractmethod
-    def _get_matching_info_from_record(self, records: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    def _get_matching_info_from_record(self, records: pd.Series) -> tuple[pd.DataFrame, list[str]]:
         """
         Extract matching information from records in a DataFrame.
 
@@ -140,7 +141,7 @@ class BaseMagnetogram(ABC):
 
         Parameters
         ----------
-        records : pd.DataFrame
+        records : pd.Series
             A DataFrame column containing records to extract information from.
 
         Returns
@@ -179,46 +180,56 @@ class BaseMagnetogram(ABC):
         return keys, segs
 
     def _add_magnetogram_urls(
-        self, keys: pd.DataFrame, segs: pd.Series, url: str = dv.JSOC_BASE_URL, column_name: str = "magnetogram_fits"
+        self, df: pd.DataFrame, segments: pd.Series, url: str = dv.JSOC_BASE_URL, column_name: str = "magnetogram_fits"
     ) -> pd.DataFrame:
         """
         Add magnetogram URLs to the DataFrame.
 
-        This method generates magnetogram URLs based on the provided segments and adds them to the DataFrame.
+        This method generates magnetogram URLs based on the provided segments and adds them to the DataFrame under the
+        specified column name, if the column doesn't already exist.
 
         Parameters
         ----------
-        keys : pd.DataFrame
-            A DataFrame containing keys.
+        df : pd.DataFrame
+            The DataFrame to which magnetogram URLs should be added.
 
-        segs : pd.Series
-            A Series containing segments.
+        segments : pd.Series
+            A Series containing filenames of JSOC series segments.
 
         url : str, optional
-            The base URL for constructing the magnetogram URLs.
+            The base URL for constructing the magnetogram URLs from the segments.
 
         column_name : str, optional
-            The name of the column to store the magnetogram URLs.
+            The name of the column to store the magnetogram URLs. This must not already exist in the DataFrame.
 
         Returns
         -------
         pd.DataFrame
-            The updated DataFrame with the added magnetogram URLs.
-        """
-        magnetogram_fits = url + segs[self.segment_column_name]
-        new_column = pd.DataFrame({column_name: magnetogram_fits})
-        keys_with_url_column = pd.concat([keys, new_column], axis=1)
-        return keys_with_url_column
+            The updated DataFrame with the added magnetogram URLs, if the column was added successfully.
 
-    def _export_files(
+        Raises
+        ------
+        ValueError
+            If the specified column already exists in the DataFrame.
+        """
+        magnetogram_fits = url + segments[self.segment_column_name]
+
+        if column_name not in df.columns:
+            new_column = pd.DataFrame({column_name: magnetogram_fits})
+            df_with_url_column = pd.concat([df, new_column], axis=1)
+            return df_with_url_column
+        else:
+            raise ValueError(f"Column '{column_name}' already exists in the DataFrame.")
+
+    def _data_export_request(
         self,
         query: str,
         **kwargs,
-    ) -> None:
+    ) -> None:  #!TODO fix type hinting
         """
-        Export data files.
+        Submi a data export request and return the urls.
 
-        This method exports data files from JSOC based on the provided query and additional keyword arguments.
+        This method submoits a data export request to JSOC based on the provided query and additional keyword arguments.
 
         Parameters
         ----------
@@ -226,18 +237,19 @@ class BaseMagnetogram(ABC):
             The JSOC query string.
 
         **kwargs
-            Additional keyword arguments for exporting files.
+            Additional keyword arguments for exporting files urls.
 
         Returns
         -------
-        None
+        r_urls : ??? #!TODO fix type hinting
+            urls extracted from the export response
         """
         # !TODO, shouldn't have to do this; the query should be the query
         if isinstance(self.segment_column_name, list):
             formatted_string = "{" + ", ".join([f"{seg}" for seg in self.segment_column_name]) + "}"
         else:
             formatted_string = f"{{{self.segment_column_name}}}"
-        logger.info(f"\t exporting files for {query + formatted_string}")
+        logger.info(f"\t ... requesting {self.segment_column_name} urls from JSOC")
 
         export_response = self._drms_client.export(query + formatted_string, method="url", protocol="fits", **kwargs)
         export_response.wait()
@@ -266,7 +278,7 @@ class BaseMagnetogram(ABC):
             filepath = self.metadata_save_location
 
         file = Path(filepath)
-        logger.info(f"The metadata save filepath is {file}")
+        logger.info(f"The metadata for {self._type} has been saved to {file}")
 
         # !TODO make a utility function here
         directory_path = file.parent
@@ -279,7 +291,7 @@ class BaseMagnetogram(ABC):
         self, df: pd.DataFrame, df_colname: str = "record"
     ) -> tuple[pd.DataFrame, list[str], list[str]]:
         """
-        Add extracted information to a pandas DataFrame
+        Add extracted information to a pandas DataFrame.
 
         This method extracts relevant information from the specified source column in the DataFrame,
         processes the data using the `_get_matching_info_from_record` method in the child class,
@@ -290,33 +302,46 @@ class BaseMagnetogram(ABC):
         df : pd.DataFrame
             The DataFrame to which extracted information will be added.
 
-        source_col : str, optional
+        df_colname : str, optional
             The name of the source column containing the data to extract from.
             Defaults to "record".
 
         Returns
         -------
-            tuple[pd.DataFrame, list[str], list[str]]
-                A tuple containing the updated DataFrame, a list of merge columns,
-                and a list of the corresponding column names.
+        tuple[pd.DataFrame, list[str], list[str]]
+            A tuple containing the updated DataFrame, a list of merge columns,
+            and a list of the corresponding column names.
 
         See Also
         --------
         _get_matching_info_from_record : Method in the child class that extracts matching information from records.
         """
-
+        # !TODO this can be tidied up considerably
         original_column = df[df_colname]
         extracted_data = self._get_matching_info_from_record(records=original_column)
         merged_columns = extracted_data.columns.tolist()
         column_names = [f"{df_colname}_{col}" for col in merged_columns]
-        df[column_names] = extracted_data
+
+        # Check if the columns already exist in the DataFrame
+        existing_columns = [col for col in column_names if col in df.columns]
+
+        if existing_columns:
+            raise ValueError(f"Columns {', '.join(existing_columns)} already exist in the DataFrame.")
+
+        # Prefix the column names of the extracted data with df_colname
+        extracted_data = extracted_data.add_prefix(f"{df_colname}_")
+
+        # Concatenate extracted columns to the DataFrame
+        # !TODO what happens if these are different sizes?
+        df = pd.concat([df, extracted_data], axis=1)
+
         return df, merged_columns, column_names
 
     def fetch_metadata(
         self,
         start_date: datetime.datetime,
         end_date: datetime.datetime,
-        batch_frequency: int = 6,
+        batch_frequency: int = 3,
         to_csv: bool = True,
         dynamic_columns=["url"],
     ) -> pd.DataFrame:
@@ -335,15 +360,17 @@ class BaseMagnetogram(ABC):
             The end datetime for the desired time range of observations.
 
         batch_frequency : int, optional
-            The frequency for each batch. Default is 6 (6 months).
+            The frequency for each batch.
+            Default is 3 (3 months), empirically determined based on the density of files seen in SHARPs queries.
 
         to_csv : bool, optional
             Whether to save the fetched metadata to a CSV file. Defaults to True.
 
         Returns
         -------
-        pd.DataFrame
+        pd.DataFrame or None
             A pandas DataFrame containing metadata and URLs for requested data segments.
+            Returns None if there is no metadata.
 
         Raises
         ------
@@ -364,7 +391,9 @@ class BaseMagnetogram(ABC):
         --------
         fetch_metadata_batch
         """
-        logger.info(f">> Fetching metadata for {self._type()}; batching requests into {batch_frequency} months")
+        logger.info(
+            f">> Fetching metadata for {self._type}. The requests are batched into batches of {batch_frequency} months"
+        )
         batch_start = start_date
         all_metadata = []
 
@@ -374,9 +403,6 @@ class BaseMagnetogram(ABC):
             if batch_end > end_date:
                 batch_end = end_date
 
-            logger.info(
-                f"   {counter}\t {batch_start.year}-{batch_start.month}-{batch_start.day} -> {batch_end.year}-{batch_end.month}-{batch_end.day}"
-            )
             metadata_batch = self.fetch_metadata_batch(batch_start, batch_end, to_csv=False)
 
             if metadata_batch is not None:  # Check if the batch is not empty or None
@@ -385,7 +411,11 @@ class BaseMagnetogram(ABC):
             batch_start = batch_end
             counter += 1
 
-        combined_metadata = pd.concat(all_metadata, ignore_index=True)  # test this
+        if len(all_metadata) > 0:
+            combined_metadata = pd.concat(all_metadata, ignore_index=True)  # test this
+        else:
+            logger.warn("No metadata from this query")
+            return None
 
         # Check for duplicated rows in the combined metadata because we might be doing this accidentally
         # the "url" column is dynamic, and will not match (will the urls persist until we download them?)
@@ -447,32 +477,36 @@ class BaseMagnetogram(ABC):
 
         See Also
         --------
-        generate_drms_query, _query_jsoc, _add_magnetogram_urls, _export_files, _add_extracted_columns_to_df, _save_metadata_to_csv
+        generate_drms_query, _query_jsoc, _add_magnetogram_urls, _data_export_request, _add_extracted_columns_to_df, _save_metadata_to_csv
         """
 
         query = self.generate_drms_query(start_date, end_date)
-        logger.info(f"\t {self._type()} Query: {query}")
+        query_string = f"\t {self._type} Query: {query} "
 
         keys, segs = self._query_jsoc(query)
         if len(keys) == 0:
             # return None if there are no results
-            logger.warn(f"\t No results returned for the query: {query}! Returning `None`")
+            logger.warn(query_string + f"returned {len(keys)} results")
             return None
         else:
-            logger.info(f"\t ... {len(keys)} entries")
+            logger.info(query_string + f"returned {len(keys)} results")
 
+        # NB: There are two files presented here that are essentially of the same thing.
+        #   1. segs is a list of data files. The full .fits can be made with keys & segs.
+        #   2. r_urls provides the urls of the full .fits files
         keys = self._add_magnetogram_urls(keys, segs, url=dv.JSOC_BASE_URL, column_name="magnetogram_fits")
-        r_urls = self._export_files(query)
-
-        # extract info e.g. date, active region number from the `r_url["record"]`
-        # and insert back into r_urls as additional column names for merging
+        r_urls = self._data_export_request(query)
+        # extract info e.g. date, active region number from the `r_url["record"]` using `_get_matching_info_from_record`
+        # and insert back into r_urls as additional column names.
+        # for now, return `merge_columns` which are the columns in the original keys that correspond to `column_names`
         r_urls_plus, merge_columns, column_names = self._add_extracted_columns_to_df(df=r_urls, df_colname="record")
+        # --
 
         keys_merged = pd.merge(
             left=keys,
             right=r_urls_plus,
-            left_on=merge_columns,
-            right_on=column_names,
+            left_on=merge_columns,  # columns to merge on, e.g. "T_REC"
+            right_on=column_names,  # column names in data, e.g. "record_T_REC"
             how="left",
         )
 
@@ -481,20 +515,17 @@ class BaseMagnetogram(ABC):
             duplicate_count = keys_merged.duplicated(subset=column_names).sum()
             logger.warn(f"There are {duplicate_count} duplicated rows in the DataFrame.")
 
-        # keys_merged["datetime"] = pd.to_datetime(
-        #     keys_merged["DATE-OBS"], format=self.date_format, errors="coerce"
-        # )
-        # /Users/pjwright/Documents/work/ARCCnet/arccnet/data_generation/magnetograms/base_magnetogram.py:482: PerformanceWarning:
-        # DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.
-        # Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
-
-        # Replaced with:
-        datetime_column = pd.to_datetime(
-            keys_merged["DATE-OBS"], format=self.date_format, errors="coerce"  # !TODO investigate coerce
+        datetime_column = pd.to_datetime(  # if 'coerce', then invalid parsing will be set as NaT.
+            keys_merged["DATE-OBS"], format=self.date_format, errors="coerce"
         )  # is DATE-OBS what we want to use? # According to JSOC: [DATE-OBS] DATE_OBS = T_OBS - EXPTIME/2.0
-        datetime_df = pd.DataFrame({"datetime": datetime_column})
-        # Concatenate the new datetime_df with keys_merged
-        keys_merged = pd.concat([keys_merged, datetime_df], axis=1)
+
+        if "datetime" not in keys_merged.columns:
+            # being overly cautious about adding new columns
+            datetime_df = pd.DataFrame({"datetime": datetime_column})
+            # Concatenate the new datetime_df with keys_merged
+            keys_merged = pd.concat([keys_merged, datetime_df], axis=1)
+        else:
+            raise ValueError("Column 'datetime' already exists in the DataFrame.")
 
         if to_csv:
             self._save_metadata_to_csv(keys_merged)
