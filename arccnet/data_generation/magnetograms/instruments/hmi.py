@@ -47,7 +47,7 @@ class HMILOSMagnetogram(BaseMagnetogram):
         # https://github.com/sunpy/drms/issues/98; Fixed in https://github.com/sunpy/drms/pull/102
         return f"{self.series_name}[{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
 
-    def _get_matching_info_from_record(self, records: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    def _get_matching_info_from_record(self, records: pd.Series) -> tuple[pd.DataFrame, list[str]]:
         """
         Extract matching information from records in a DataFrame.
 
@@ -57,7 +57,7 @@ class HMILOSMagnetogram(BaseMagnetogram):
 
         Parameters
         ----------
-        records : pd.DataFrame
+        records : pd.Series
             A DataFrame column containing records to extract information from.
 
         Returns
@@ -67,7 +67,7 @@ class HMILOSMagnetogram(BaseMagnetogram):
 
         Notes
         -----
-        Regular expressions (regex) are powerful tools for working with patterns in strings. In this method,
+        Regular expressions (regex) are powerful tools for pattern matching in strings. In this method,
         we use a regex pattern to extract specific information enclosed within square brackets from each record.
 
         Here's a breakdown of the regex pattern:
@@ -239,17 +239,17 @@ class HMISHARPs(HMILOSMagnetogram):
         # `hmi.sharp_720s[<HARPNUM>][2010.05.01_00:00:00_TAI]`
         return f"{self.series_name}[][{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
 
-    def _get_matching_info_from_record(self, records: pd.DataFrame) -> pd.DataFrame:
+    def _get_matching_info_from_record(self, records: pd.Series) -> pd.DataFrame:
         """
         Extract matching information from records in a DataFrame.
 
         This method processes a DataFrame containing records and extracts relevant information,
-        such as dates and identifiers, using regular expressions. The information extraction
+        such as dates and other identifiers, using regular expressions. The information extraction
         process involves searching for specific patterns within each record.
 
         Parameters
         ----------
-        records : pd.DataFrame
+        records : pd.Series
             A DataFrame column containing records to extract information from.
 
         Returns
@@ -283,7 +283,8 @@ class HMISHARPs(HMILOSMagnetogram):
         """
         extracted_info = records.str.extract(r"\[(.*?)\]\[(.*?)\]")
         extracted_info.columns = ["HARPNUM", "T_REC"]
-        extracted_info["HARPNUM"] = extracted_info["HARPNUM"].astype("Int64")  # !TODO fix this hack
+        # cast to Int64 as NaN isn't represented in an int column
+        extracted_info["HARPNUM"] = extracted_info["HARPNUM"].astype("Int64")
 
         return extracted_info
 
