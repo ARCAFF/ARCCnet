@@ -89,13 +89,17 @@ class DataManager:
         #  Merge the HMI and MDI components of the `merged_df` with the SHARPs and SMARPs DataFrames
         # !TODO this is terrible, change this!
         # HMI-SHARPs
-        merged_df_hs = self.merged_df[["datetime_hmi", "url_hmi"]]
-        merged_df_hs.columns = merged_df_hs.columns.str.rstrip("_hmi")
-        self.hmi_sharps = self.merge_activeregionpatchs(merged_df_hs, self.sharp_keys)
+        merged_df_hs = self.merged_df.copy(deep=True).drop(
+            columns=["magnetogram_fits_mdi", "datetime_mdi", "url_mdi"]
+        )  # drop mdi columns
+        merged_df_hs.columns = [col.rstrip("_hmi") if col.endswith("_hmi") else col for col in merged_df_hs.columns]
+        self.hmi_sharps = self.merge_activeregionpatchs(merged_df_hs, self.sharp_keys[["datetime", "url", "record"]])
         # MDI-SMARPs
-        merged_df_ms = self.merged_df[["datetime_mdi", "url_mdi"]]
-        merged_df_ms.columns = merged_df_ms.columns.str.rstrip("_mdi")
-        self.mdi_smarps = self.merge_activeregionpatchs(merged_df_ms, self.smarp_keys)
+        merged_df_ms = self.merged_df.copy(deep=True).drop(
+            columns=["magnetogram_fits_hmi", "datetime_hmi", "url_hmi"]
+        )  # drop hmi columns
+        merged_df_ms.columns = [col.rstrip("_mdi") if col.endswith("_mdi") else col for col in merged_df_ms.columns]
+        self.mdi_smarps = self.merge_activeregionpatchs(merged_df_ms, self.smarp_keys[["datetime", "url", "record"]])
         # ------
 
         self.save_df(
@@ -104,7 +108,7 @@ class DataManager:
                 self.hmi_sharps,
                 self.mdi_smarps,
             ],
-            save_location_list=[
+            filepaths=[
                 Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
                 Path(dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV),
                 Path(dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV),
@@ -145,7 +149,7 @@ class DataManager:
     def save_df(
         self,
         dataframe_list: list[pd.DataFrame],
-        save_location_list: list[Path],
+        filepaths: list[Path],
         to_csv: bool = True,
         to_html: bool = False,
     ) -> None:
@@ -157,8 +161,8 @@ class DataManager:
         dataframes : list
             List of DataFrames to be saved.
 
-        save_locations : list
-            List of file locations to save DataFrames.
+        filepaths : list
+            List of filepaths to save DataFrames.
 
         to_csv : bool, optional
             Whether to save as CSV. Default is True.
@@ -169,13 +173,10 @@ class DataManager:
         if not to_csv and not to_html:
             logger.info("No action taken. Both `to_csv` and `to_html` are False.")
 
-        for df, loc in zip(dataframe_list, save_location_list):
-            if loc.is_file():
-                directory_path = loc.parent
-                if not directory_path.exists():
-                    directory_path.mkdir(parents=True)
-            else:
-                raise ValueError(f"{loc} is not a directory")
+        for df, loc in zip(dataframe_list, filepaths):
+            directory_path = loc.parent
+            if not directory_path.exists():
+                directory_path.mkdir(parents=True)
 
             if to_csv:
                 df.to_csv(loc)
