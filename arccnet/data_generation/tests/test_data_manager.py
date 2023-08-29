@@ -201,7 +201,7 @@ def sample_merged_data():
             ],
             "datetime": [
                 datetime(2023, 1, 1, 0, 29),
-                datetime(2023, 1, 1, 0, 31),
+                datetime(2023, 1, 2, 0, 31),
                 datetime(2023, 1, 3, 0, 30),
             ],
             "url": [
@@ -229,7 +229,7 @@ def sample_merged_data():
                 ],
                 "datetime_mdi": [
                     np.nan,  # datetime(2023, 1, 1, 0, 29),  # 29m > 20m
-                    # np.nan,  # datetime(2023, 1, 1, 0, 31),  # 31m > 20m
+                    # np.nan,  # datetime(2023, 1, 2, 0, 31),  # 31m > 20m
                     np.nan,  # datetime(2023, 1, 3, 0, 30),  # 30m > 20m
                 ],
             }
@@ -247,8 +247,8 @@ def sample_merged_data():
                     datetime(2023, 1, 2, 23, 45),  # 15m <= 30m
                 ],
                 "datetime_mdi": [
-                    datetime(2023, 1, 1, 0, 29),  # 30m <= 30m
-                    np.nan,  # datetime(2023, 1, 1, 0, 31), # 31m > 30m
+                    datetime(2023, 1, 1, 0, 29),  # 29m <= 30m
+                    np.nan,  # datetime(2023, 1, 2, 0, 31), # 31m > 30m
                     datetime(2023, 1, 3, 0, 30),  # 30m <= 30m
                 ],
             }
@@ -266,9 +266,9 @@ def sample_merged_data():
                     datetime(2023, 1, 2, 23, 45),  # 15m <= 31m
                 ],
                 "datetime_mdi": [
-                    datetime(2023, 1, 1, 0, 29),  # 31m <= 31m
-                    datetime(2023, 1, 1, 0, 31),  # 31m <= 31m
-                    datetime(2023, 1, 3, 0, 30),  # 31m <= 31m
+                    datetime(2023, 1, 1, 0, 29),  # 29m <= 31m
+                    datetime(2023, 1, 2, 0, 31),  # 31m <= 31m
+                    datetime(2023, 1, 3, 0, 30),  # 30m <= 31m
                 ],
             }
         ),
@@ -291,6 +291,13 @@ def test_merge_hmimdi_metadata(sample_merged_data, data_manager_default):
             tolerance=tolerance,
         )
 
+        # Iterate through all columns and convert to datetime objects
+        # This is necessary as a column with just np.nan will be NaN,
+        # but need NaT to match.
+        # For columns with datetime objects, this is automatic
+        for column in ["datetime_srs", "datetime_hmi", "datetime_mdi"]:
+            expected_df[column] = pd.to_datetime(expected_df[column], errors="coerce")
+
         # Example assertion related to datetime columns
         assert "datetime_srs" in merged_df.columns
         assert "datetime_hmi" in merged_df.columns
@@ -303,6 +310,6 @@ def test_merge_hmimdi_metadata(sample_merged_data, data_manager_default):
             merged_df[["datetime_hmi", "datetime_mdi"]].notna().any(axis=1).all()
         )  # At least one non-NaN datetime in HMI or MDI
 
-        merged_df_subset = merged_df[["datetime_srs, datetime_hmi, datetime_mdi"]]
+        merged_df_subset = merged_df[["datetime_srs", "datetime_hmi", "datetime_mdi"]]
         # Comparing the merged_df with the expected DataFrame for the current tolerance
         pd.testing.assert_frame_equal(merged_df_subset, expected_df)
