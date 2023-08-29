@@ -138,6 +138,26 @@ class DataManager:
             )
 
     def extract_urls(self, column_prefix="url_"):
+        """
+        Extract unique URLs from multiple dataframes using a common column prefix.
+
+        Parameters
+        ----------
+        column_prefix : str, optional
+            Prefix of columns containing URLs in the dataframes, by default "url_".
+
+        Returns
+        -------
+        list
+            A list of unique URLs extracted from the specified dataframes.
+
+        Notes
+        -----
+        This function extracts URLs from columns with names starting with the specified
+        `column_prefix` in three dataframes: `self.merged_df`, `self.hmi_sharps`, and
+        `self.mdi_smarps`. The extracted URLs are returned as a list of unique values.
+        """
+
         def get_url_columns(dataframe):
             return [col for col in dataframe.columns if col.startswith(column_prefix)]
 
