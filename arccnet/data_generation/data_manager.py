@@ -53,11 +53,12 @@ class DataManager:
         """
         self.start_date = start_date
         self.end_date = end_date
-
         self.save_to_csv = save_to_csv
         self.save_to_html = save_to_html
-
-        logger.info(f"Instantiated `DataManager` for {self.start_date} -> {self.end_date}")
+        logger.info(
+            f"Instantiated `DataManager` for {self.start_date} -> {self.end_date}, "
+            + f"with save_to_csv={self.save_to_csv}, save_to_html={self.save_to_html} "
+        )
 
         # instantiate classes
         # SWPC Catalog
@@ -222,9 +223,7 @@ class DataManager:
             "MDI Keys": mdi_keys,
             "SMARP Keys": smarp_keys,
         }.items():
-            logger.info(
-                f"{name}: \n{dataframe[['T_REC','T_OBS','DATE-OBS','DATE__OBS','datetime','magnetogram_fits', 'url']]}"
-            )
+            logger.info(f"{name}: \n{dataframe[['T_REC','T_OBS','DATE-OBS','datetime','magnetogram_fits', 'url']]}")
 
         return srs, mdi_keys, hmi_keys, sharp_keys, smarp_keys
 
