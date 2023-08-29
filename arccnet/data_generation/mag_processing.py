@@ -12,8 +12,8 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord
 
 import arccnet.data_generation.utils.default_variables as dv
-from arccnet.data_generation.utils import make_relative, save_compressed_map
 from arccnet.data_generation.utils.data_logger import logger
+from arccnet.data_generation.utils.utils import make_relative, save_compressed_map
 
 matplotlib.use("Agg")
 
@@ -37,7 +37,7 @@ class MagnetogramProcessor:
         """
         Reads data paths, processes and saves the data.
         """
-        logger.info("raw_data_dir `MagnetogramProcessor`")
+        logger.info("Instantiated `MagnetogramProcessor`")
         self.processed_data_dir = processed_data_dir
         self.raw_data_dir = raw_data_dir
         self.paths = self._read_datapaths(columns=columns, csv_file=csv_file)
