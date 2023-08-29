@@ -29,7 +29,6 @@ def test_generate_drms_query(magnetogram_class, expected_query, frequency):
         datetime.datetime(2023, 1, 5),
         frequency=frequency,
     )
-    print(query, expected_query)
     assert query == expected_query
 
 
@@ -55,7 +54,7 @@ def test_fulldisk_get_matching_info_from_record(magnetogram_class):
                     "2023.01.02_00:00:00_TAI",
                     "2023.01.03_00:00:00_TAI",
                     "2023.01.04_00:00:00_TAI",
-                    pd.NA,
+                    np.nan,
                 ]
             }
         )
@@ -85,7 +84,6 @@ def test_cutout_get_matching_info_from_record(magnetogram_class, expected_column
     extracted_info = magnetogram._get_matching_info_from_record(records)
     extracted_values = extracted_info[expected_columns]
 
-    print(extracted_values)
     # Define the generic column names and mapping for each class
     column_mapping = {
         HMISHARPs: {"XARPNUM": "HARPNUM"},
@@ -116,6 +114,37 @@ def test_cutout_get_matching_info_from_record(magnetogram_class, expected_column
     assert extracted_values.equals(expected_values)
 
 
+@pytest.mark.parametrize(
+    ("magnetogram_class", "batch_frequency", "start_date", "end_date"),
+    [
+        (MDILOSMagnetogram, 4, datetime.datetime(1997, 1, 1), datetime.datetime(1997, 4, 1)),
+        (MDILOSMagnetogram, 2, datetime.datetime(1999, 1, 1), datetime.datetime(1999, 4, 1)),
+        (HMILOSMagnetogram, 1, datetime.datetime(2020, 1, 1), datetime.datetime(2020, 4, 1)),
+        (HMILOSMagnetogram, 3, datetime.datetime(2021, 1, 1), datetime.datetime(2021, 4, 1)),
+    ],
+)
+def test_fetch_metadata_v_batch(magnetogram_class, batch_frequency, start_date, end_date):
+    # Test that the fetch_metadata and fetch_metadata_batch methods of
+    # HMILOSMagnetogram and MDILOSMagnetogram provide the same output
+    magnetogram = magnetogram_class()
+    single_query = magnetogram.fetch_metadata(
+        start_date=start_date,
+        end_date=end_date,
+        batch_frequency=batch_frequency,
+        to_csv="False",
+    ).drop(
+        columns="url"
+    )  # drop 'url' as it's dynamic
+    batched_query = magnetogram.fetch_metadata_batch(
+        start_date=start_date,
+        end_date=end_date,
+        to_csv="False",
+    ).drop(
+        columns="url"
+    )  # drop 'url' as it's dynamic
+    assert single_query.equals(batched_query)
+
+
 # Probably not really needed...
 # HMI
 class TestHMILOSProperties:
@@ -135,23 +164,29 @@ class TestHMILOSProperties:
     def test_metadata_save_location(self, hmi_instance):
         assert hmi_instance.metadata_save_location == dv.HMI_MAG_RAW_CSV
 
+    def test_type(self, hmi_instance):
+        assert hmi_instance._type == hmi_instance.__class__.__name__
+
 
 class TestHMISHARPsProperties:
     @pytest.fixture
-    def hmi_instance(self):
+    def sharp_instance(self):
         return HMISHARPs()  # Create an instance of your class for testing
 
-    def test_series_name(self, hmi_instance):
-        assert hmi_instance.series_name == "hmi.sharp_720s"
+    def test_series_name(self, sharp_instance):
+        assert sharp_instance.series_name == "hmi.sharp_720s"
 
-    def test_date_format(self, hmi_instance):
-        assert hmi_instance.date_format == "%Y-%m-%dT%H:%M:%S.%fZ"
+    def test_date_format(self, sharp_instance):
+        assert sharp_instance.date_format == "%Y-%m-%dT%H:%M:%S.%fZ"
 
-    def test_segment_column_name(self, hmi_instance):
-        assert hmi_instance.segment_column_name == "bitmap"
+    def test_segment_column_name(self, sharp_instance):
+        assert sharp_instance.segment_column_name == "bitmap"
 
-    def test_metadata_save_location(self, hmi_instance):
-        assert hmi_instance.metadata_save_location == dv.HMI_SHARPS_RAW_CSV
+    def test_metadata_save_location(self, sharp_instance):
+        assert sharp_instance.metadata_save_location == dv.HMI_SHARPS_RAW_CSV
+
+    def test_type(self, sharp_instance):
+        assert sharp_instance._type == sharp_instance.__class__.__name__
 
 
 # MDI
@@ -172,6 +207,9 @@ class TestMDILOSProperties:
     def test_metadata_save_location(self, mdi_instance):
         assert mdi_instance.metadata_save_location == dv.MDI_MAG_RAW_CSV
 
+    def test_type(self, mdi_instance):
+        assert mdi_instance._type == mdi_instance.__class__.__name__
+
 
 class TestMDISMARPsProperties:
     @pytest.fixture
@@ -189,3 +227,6 @@ class TestMDISMARPsProperties:
 
     def test_metadata_save_location(self, smarp_instance):
         assert smarp_instance.metadata_save_location == dv.MDI_SMARPS_RAW_CSV
+
+    def test_type(self, smarp_instance):
+        assert smarp_instance._type == smarp_instance.__class__.__name__
