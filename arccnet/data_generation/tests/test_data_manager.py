@@ -26,7 +26,7 @@ def test_fetch_urls(data_manager_default):
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create temporary files inside the temporary directory
         temp_dir_path = Path(temp_dir)
-        first_url = data_manager_default.urls_to_download.tolist()[0:1]
+        first_url = data_manager_default.urls_to_download[0:1]
 
         # Test the fetch_urls function with the temporary file paths
         results = data_manager_default.fetch_urls(first_url, base_directory_path=temp_dir_path)
@@ -45,9 +45,8 @@ def test_fetch_urls(data_manager_default):
 
 
 # Test the merge_activeregionpatchs method
-# !TODO make more concrete examples of this
-def test_merge_activeregionpatchs(data_manager_default):
-    # Mock data for testing
+def test_merge_activeregionpatchs_basic(data_manager_default):
+    # Test Case: Basic merge
     full_disk_data = pd.DataFrame(
         {
             "datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 2, 0, 0), datetime(2023, 1, 3, 0, 0)],
@@ -55,16 +54,76 @@ def test_merge_activeregionpatchs(data_manager_default):
         }
     )
     cutout_data = pd.DataFrame(
-        {"datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 3, 0, 0)], "url": ["cutout_url1", "cutout_url2"]}
+        {
+            "datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 3, 0, 0)],
+            "url": ["cutout_url1", "cutout_url3"],
+        }
     )
     merged_df = data_manager_default.merge_activeregionpatchs(full_disk_data, cutout_data)
-
     expected_merged_data = pd.DataFrame(
         {
             "datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 3, 0, 0)],
             "url": ["url1", "url3"],
             "datetime_arc": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 3, 0, 0)],
-            "url_arc": ["cutout_url1", "cutout_url2"],
+            "url_arc": ["cutout_url1", "cutout_url3"],
+        }
+    )
+    assert merged_df.equals(expected_merged_data)
+
+
+def test_merge_activeregionpatchs_no_matching(data_manager_default):
+    # Test Case: No matching cutout data
+    full_disk_data = pd.DataFrame(
+        {
+            "datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 2, 0, 0)],
+            "url": ["url1", "url2"],
+        }
+    )
+    cutout_data = pd.DataFrame(
+        {
+            "datetime": [datetime(2023, 1, 3, 0, 0)],
+            "url": ["cutout_url3"],
+        }
+    )
+    merged_df = data_manager_default.merge_activeregionpatchs(full_disk_data, cutout_data)
+    expected_merged_data = pd.DataFrame(
+        {
+            "datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 2, 0, 0)],
+            "url": ["url1", "url2"],
+            "datetime_arc": [None, None],
+            "url_arc": [None, None],
+        }
+    ).dropna()
+    # the mergeactiveregion patches drops any NaN as there are no matches to the fulldisk data
+
+    # Check if both data frames are empty
+    if merged_df.empty and expected_merged_data.empty:
+        assert True  # Empty data frames are considered equivalent
+    else:
+        assert merged_df.equals(expected_merged_data)
+
+
+def test_merge_activeregionpatchs_multiple_cutouts(data_manager_default):
+    # Test Case: Multiple cutout data for the same full_disk_data
+    full_disk_data = pd.DataFrame(
+        {
+            "datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 2, 0, 0), datetime(2023, 1, 3, 0, 0)],
+            "url": ["url1", "url2", "url3"],
+        }
+    )
+    cutout_data = pd.DataFrame(
+        {
+            "datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 3, 0, 0), datetime(2023, 1, 3, 0, 0)],
+            "url": ["cutout_url1", "cutout_url2", "cutout_url3"],
+        }
+    )
+    merged_df = data_manager_default.merge_activeregionpatchs(full_disk_data, cutout_data)
+    expected_merged_data = pd.DataFrame(
+        {
+            "datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 3, 0, 0), datetime(2023, 1, 3, 0, 0)],
+            "url": ["url1", "url3", "url3"],
+            "datetime_arc": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 3, 0, 0), datetime(2023, 1, 3, 0, 0)],
+            "url_arc": ["cutout_url1", "cutout_url2", "cutout_url3"],
         }
     )
     assert merged_df.equals(expected_merged_data)
