@@ -1,4 +1,5 @@
 import random
+import multiprocessing
 from pathlib import Path
 
 import matplotlib
@@ -37,7 +38,9 @@ class MagnetogramProcessor:
         self._process_data(paths, save_path=Path(dv.MAG_INTERMEDIATE_DATA_DIR))
         logger.info(">> processed data")
 
-    def _read_datapaths(self, url_columns: list[str] = ["url_hmi", "url_mdi"]):
+    def _read_datapaths(
+        self, columns: list[str] = ["url_hmi", "url_mdi"], csv_file=Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV)
+    ):
         """
         Read and prepare data paths from CSV file.
 
@@ -46,23 +49,26 @@ class MagnetogramProcessor:
         url_columns: list[str]
             list of column names (str).
 
+        csv_file: Path
+            location of the csv file to read.
+
         Returns
         -------
         paths: list[Path]
             List of data file paths.
         """
-        intermediate_data_csv = Path(dv.MAG_INTERMEDIATE_DATA_CSV)
 
-        if intermediate_data_csv.exists():
-            loaded_data = pd.read_csv(intermediate_data_csv)
-            file_list = [url for col in url_columns for url in loaded_data[col].dropna().unique()]
+        if csv_file.exists():
+            loaded_data = pd.read_csv(csv_file)
+            # ! TODO fix this with a clear head
+            file_list = [column for col in columns for column in loaded_data[col].dropna().unique()]
             paths = [Path(dv.MAG_RAW_DATA_DIR) / Path(url).name for url in file_list]
         else:
-            raise FileNotFoundError(f"{intermediate_data_csv} does not exist.")
+            raise FileNotFoundError(f"{csv_file} does not exist.")
 
         return paths
 
-    def _process_data(self, paths: list[Path], save_path: Path = None, multiprocessing: bool = True):
+    def _process_data(self, paths: list[Path], save_path: Path = None, use_multiprocessing: bool = True):
         """
         Process data using multiprocessing.
 
@@ -74,7 +80,7 @@ class MagnetogramProcessor:
         save_path : Path, optional
             Directory to save processed data. Defaults to None.
 
-        multiprocessing : bool, optional
+        use_multiprocessing : bool, optional
             Flag to enable multiprocessing. Defaults to True.
 
         Returns
@@ -89,7 +95,7 @@ class MagnetogramProcessor:
         if not base_directory_path.exists():
             base_directory_path.mkdir(parents=True)
 
-        if multiprocessing:
+        if use_multiprocessing:
             # self._process_and_save_data(paths, dir=base_directory_path)
             logger.info(f"executing multiprocessing of {len(paths)} paths")
             # Use tqdm to create a progress bar for multiprocessing
@@ -497,7 +503,7 @@ class QSExtractor:
 
 
 def load_filename():
-    filename = Path(dv.MAG_INTERMEDIATE_DATA_CSV)
+    filename = Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV)
 
     if filename.exists():
         loaded_data = pd.read_csv(filename)
