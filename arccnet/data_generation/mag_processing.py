@@ -299,21 +299,6 @@ class QSBox:
         self.latitude, self.longitude = sunpy_map.center.transform_to(sunpy.coordinates.frames.HeliographicStonyhurst)
 
 
-# !TODO set latlon as a tuple
-
-#     _latlon: tuple(float)
-
-#     @property
-#     def latlon(self):
-#         return self._latlon
-
-#     @latlon.setter
-#     def latlon(self, value):
-#         self._ar_pos_pixels = value
-
-# qs_submap.center.transform_to(sunpy.coordinates.frames.HeliographicStonyhurst)
-
-
 class RegionExtractor:
     def __init__(self, dataframe=Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV)) -> None:
         # Load minimal data
