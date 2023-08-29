@@ -31,6 +31,8 @@ class DataManager:
         end_date: datetime = dv.DATA_END_TIME,
         merge_tolerance: pd.Timedelta = pd.Timedelta("30m"),
         download_fits: bool = True,
+        save_to_csv: bool = True,
+        save_to_html: bool = False,
     ):
         """
         Initialize the DataManager.
@@ -52,9 +54,13 @@ class DataManager:
         self.start_date = start_date
         self.end_date = end_date
 
+        self.save_to_csv = save_to_csv
+        self.save_to_html = save_to_html
+
         logger.info(f"Instantiated `DataManager` for {self.start_date} -> {self.end_date}")
 
         # instantiate classes
+        # SWPC Catalog
         self.swpc = SWPCCatalog()
         # !TODO change this into an iterable
         # Full-disk Magnetograms
@@ -77,15 +83,16 @@ class DataManager:
         logger.info(f"\n{srs_raw}")
 
         # 2. clean metadata
-        logger.info(">> Cleaning NOAA SRS Metadata")
-        # self.clean_metadata()
         self.srs_clean = self.swpc.clean_catalog()
         logger.info(f"\n{self.srs_clean}")
 
         # 3. merge metadata sources
-        # logger.info(f">> Merging Metadata with tolerance {merge_tolerance}")
-        self.merged_df, self.merged_df_dropped_rows = self.merge_hmimdi_metadata(tolerance=merge_tolerance)
+        logger.info(f">> Merging full-disk metadata with tolerance {merge_tolerance}")
+        self.merged_df, self.merged_df_dropped_rows = self.merge_hmimdi_metadata(
+            self.srs_clean, self.hmi_keys, self.mdi_keys, tolerance=merge_tolerance
+        )
 
+        logger.info(">> Merging full-disk metadata with cutouts")
         #  Merge the HMI and MDI components of the `merged_df` with the SHARPs and SMARPs DataFrames
         # !TODO this is terrible, change this!
         # HMI-SHARPs
@@ -102,6 +109,7 @@ class DataManager:
         self.mdi_smarps = self.merge_activeregionpatchs(merged_df_ms, self.smarp_keys[["datetime", "url", "record"]])
         # ------
 
+        # 4. save merged dataframes
         self.save_df(
             dataframe_list=[
                 self.merged_df,
@@ -113,8 +121,8 @@ class DataManager:
                 Path(dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV),
                 Path(dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV),
             ],
-            to_csv=True,
-            to_html=False,
+            to_csv=self.save_to_csv,
+            to_html=self.save_to_html,
         )
 
         # 4a. check if image data exists
@@ -137,13 +145,13 @@ class DataManager:
             .unique()
         )
         if download_fits:
-            results = self.fetch_magnetograms(self.urls_to_download)
+            results = self.fetch_urls(self.urls_to_download.to_list())
             logger.info(f"\n{results}")
             # !TODO handle the output... want a csv with the filepaths
             logger.info("Download completed successfully")
         else:
             logger.info(
-                "To fetch the magnetograms, use the `.fetch_magnetograms()` method with a list(str) of urls, e.g. the `.urls_to_download` attribute`"
+                "To fetch the magnetograms, use the `.fetch_urls()` method with a list(str) of urls, e.g. the `.urls_to_download` attribute`"
             )
 
     def save_df(
@@ -198,10 +206,14 @@ class DataManager:
 
         # HMI & MDI
         # !TODO itereate over children of `BaseMagnetogram`
-        hmi_keys = self.hmi.fetch_metadata(self.start_date, self.end_date, batch_frequency=12)
-        mdi_keys = self.mdi.fetch_metadata(self.start_date, self.end_date, batch_frequency=12)
-        sharp_keys = self.sharps.fetch_metadata(self.start_date, self.end_date, batch_frequency=4)
-        smarp_keys = self.smarps.fetch_metadata(self.start_date, self.end_date, batch_frequency=4)
+        hmi_keys = self.hmi.fetch_metadata(self.start_date, self.end_date, batch_frequency=12, to_csv=self.save_to_csv)
+        mdi_keys = self.mdi.fetch_metadata(self.start_date, self.end_date, batch_frequency=12, to_csv=self.save_to_csv)
+        sharp_keys = self.sharps.fetch_metadata(
+            self.start_date, self.end_date, batch_frequency=3, to_csv=self.save_to_csv
+        )
+        smarp_keys = self.smarps.fetch_metadata(
+            self.start_date, self.end_date, batch_frequency=3, to_csv=self.save_to_csv
+        )
 
         # logging
         for name, dataframe in {
@@ -277,23 +289,38 @@ class DataManager:
 
     def merge_hmimdi_metadata(
         self,
+        srs_keys: pd.DataFrame,
+        hmi_keys: pd.DataFrame,
+        mdi_keys: pd.DataFrame,
         tolerance: pd.Timedelta = pd.Timedelta("30m"),
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
-        Merge HMI and MDI metadata.
+        Merge SRS, HMI, and MDI metadata.
+
+        This function merges NOAA SRS, Helioseismic and Magnetic Imager (HMI),
+        and Michelson Doppler Imager (MDI) metadata based on datetime keys with a specified tolerance.
 
         Parameters
         ----------
+        srs_keys : pd.DataFrame
+            DataFrame containing SRS metadata.
+
+        hmi_keys : pd.DataFrame
+            DataFrame containing HMI metadata.
+
+        mdi_keys : pd.DataFrame
+            DataFrame containing MDI metadata.
+
         tolerance : pd.Timedelta, optional
             Time tolerance for merging operations. Default is pd.Timedelta("30m").
 
         Returns
         -------
         pd.DataFrame
-            Merged DataFrame of HMI and MDI metadata.
+            Merged DataFrame of SRS, HMI, and MDI metadata.
 
         pd.DataFrame
-            DataFrame of dropped rows during merging.
+            DataFrame of dropped rows after merging.
         """
         # merge srs_clean and hmi
         mag_cols = ["magnetogram_fits", "datetime", "url"]
@@ -301,21 +328,33 @@ class DataManager:
         # !TODO do a check for certain keys (no duplicates...)
         # extract only the relevant HMI keys, and rename
         # (should probably do this earlier on)
-        hmi_keys = self.hmi_keys[mag_cols]
+        hmi_keys = hmi_keys[mag_cols]
         hmi_keys = hmi_keys.add_suffix("_hmi")
         hmi_keys_dropna = hmi_keys.dropna().reset_index(drop=True)
 
+        mdi_keys = mdi_keys[mag_cols]
+        mdi_keys = mdi_keys.add_suffix("_mdi")
+        mdi_keys_dropna = mdi_keys.dropna().reset_index(drop=True)
+
+        # Rename columns in srs_clean with suffix "_srs" except for exclude_columns
+        exclude_columns = [
+            "ID",
+            "Number",
+            "Carrington Longitude",
+            "Area",
+            "Z",
+            "Longitudinal Extent",
+            "Number of Sunspots",
+            "Mag Type",
+            "Latitude",
+            "Longitude",
+        ]
+        srs_keys.columns = [f"{col}_srs" if col not in exclude_columns else col for col in srs_keys.columns]
+        #
+
         # both `pd.DataFrame` must be sorted based on the key !
         merged_df = pd.merge_asof(
-            left=self.srs_clean.rename(
-                columns={
-                    "datetime": "datetime_srs",
-                    "filepath": "filepath_srs",
-                    "filename": "filename_srs",
-                    "loaded_successfully": "loaded_successfully_srs",
-                    "catalog_created_on": "catalog_created_on_srs",
-                }
-            ),
+            left=srs_keys,
             right=hmi_keys_dropna,
             left_on="datetime_srs",
             right_on="datetime_hmi",
@@ -324,10 +363,7 @@ class DataManager:
             direction="nearest",
         )
 
-        mdi_keys = self.mdi_keys[mag_cols]
-        mdi_keys = mdi_keys.add_suffix("_mdi")
-        mdi_keys_dropna = mdi_keys.dropna().reset_index(drop=True)
-
+        # Merge the SRS-HMI df with MDI
         merged_df = pd.merge_asof(
             left=merged_df,
             right=mdi_keys_dropna,
@@ -338,10 +374,10 @@ class DataManager:
             direction="nearest",
         )
 
-        # do we want to wait until we merge with MDI before dropping nans?
+        # with a SRS-HMI-MDI df, remove NaNs
+        # Drop rows where there is no HMI or MDI match to SRS data
         dropped_rows = merged_df.copy()
-        # self.merged_df = self.merged_df.dropna(subset=["datetime_srs", "datetime_hmi", "datetime_mdi"])
-        merged_df = merged_df.dropna(subset=["datetime_srs"])
+        merged_df = merged_df.dropna(subset=["datetime_srs"])  # Don't think this is necessary
         merged_df = merged_df.dropna(subset=["datetime_hmi", "datetime_mdi"], how="all")
         dropped_rows = dropped_rows[~dropped_rows.index.isin(merged_df.index)].copy()
 
@@ -352,11 +388,11 @@ class DataManager:
         return merged_df, dropped_rows
 
     @staticmethod
-    def fetch_magnetograms(
+    def fetch_urls(
         urls: list[str] = None, base_directory_path: Path = Path(dv.MAG_RAW_DATA_DIR), max_retries: int = 5
     ) -> Results:
         """
-        Download magnetograms using parfive.
+        Download data from urls using parfive.
 
         Parameters
         ----------
@@ -422,6 +458,6 @@ if __name__ == "__main__":
     logger.info(f"Executing {__file__} as main program")
 
     try:
-        data_manager = DataManager(dv.DATA_START_TIME, dv.DATA_END_TIME)
+        data_manager = DataManager(dv.DATA_START_TIME, dv.DATA_END_TIME, save_to_csv=True)
     except Exception:
         logger.exception("An error occurred during execution:", exc_info=True)
