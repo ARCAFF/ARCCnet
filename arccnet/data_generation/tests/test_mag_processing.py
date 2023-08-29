@@ -35,7 +35,7 @@ def test_read_datapaths(pd_dataframe):
         # save csv to temporary directory
         pd_dataframe.to_csv(csv_path)
         # load and save the sunpy file to the temp dir
-        sunpy.map.Map(sunpy.data.sample.HMI_LOS_IMAGE).save(temp_dir_path / sunpy.data.sample.HMI_LOS_IMAGE.name)
+        shutil.copy(sunpy.data.sample.HMI_LOS_IMAGE, temp_dir_path)
 
         mp = MagnetogramProcessor(
             csv_file=csv_path,
