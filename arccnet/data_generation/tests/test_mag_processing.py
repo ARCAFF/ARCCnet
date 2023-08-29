@@ -1,7 +1,9 @@
+import uuid
 import shutil
 import tempfile
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 import sunpy
@@ -12,101 +14,122 @@ from arccnet.data_generation.mag_processing import MagnetogramProcessor
 from arccnet.data_generation.utils.utils import save_compressed_map
 
 
+@pytest.fixture(scope="session")
+def temp_path_fixture(request):
+    temp_dir = tempfile.mkdtemp()  # Create temporary directory
+
+    # Create raw and processed folders
+    raw_data_dir = Path(temp_dir) / Path("raw")
+    raw_data_dir.mkdir()
+    processed_data_dir = Path(temp_dir) / Path("processed")
+    processed_data_dir.mkdir()
+
+    def cleanup():
+        shutil.rmtree(temp_dir)  # Clean up the temporary directory
+
+    request.addfinalizer(cleanup)  # noqa PT021
+    # return the temp_dir, temp_dir/raw, temp_dir/processed
+    return (Path(temp_dir), Path(raw_data_dir), Path(processed_data_dir))
+
+
 @pytest.fixture
-def pd_dataframe():
+def sunpy_hmi_copies(temp_path_fixture):
+    n = 10
+    hmi_copies = []
+
+    for _ in range(n):
+        hmi_data = sunpy.map.Map(sunpy.data.sample.HMI_LOS_IMAGE)
+        filename = f"{uuid.uuid4()}.fits"
+        # save the files to the /raw/ folder in var
+        file_path = temp_path_fixture[1] / filename
+        hmi_data.save(file_path)
+        hmi_copies.append(file_path)
+
+    return hmi_copies
+
+
+@pytest.fixture
+def pd_dataframe(sunpy_hmi_copies):
+    n = len(sunpy_hmi_copies)
+    half_n = n // 2
+
     data = {
-        "url_hmi": [
-            sunpy.data.sample.HMI_LOS_IMAGE,
-        ],  # Repeating the same value for demonstration
-        "url_mdi": [
-            sunpy.data.sample.HMI_LOS_IMAGE,
-        ],
-        "other": ["column"],
+        "url_hmi": sunpy_hmi_copies[:half_n],
+        "url_mdi": sunpy_hmi_copies[half_n:],
+        "other": ["column"] * half_n,
     }
 
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    return df
 
 
-def test_read_datapaths(pd_dataframe):
+def test_read_datapaths(pd_dataframe, temp_path_fixture):
     # test the reading of datapaths
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_dir_path = Path(temp_dir)
-        csv_path = temp_dir_path / Path("data.csv")
-        # save csv to temporary directory
-        pd_dataframe.to_csv(csv_path)
-        # load and save the sunpy file to the temp dir
-        shutil.copy(sunpy.data.sample.HMI_LOS_IMAGE, temp_dir_path)
+    temp_dir_path, raw_data_path, process_data_path = temp_path_fixture
+    # save to the base of the tempdir
+    # data is in raw/
+    csv_path = temp_dir_path / Path("data.csv")
+    pd_dataframe.to_csv(csv_path, index=False)
 
-        mp = MagnetogramProcessor(
-            csv_file=csv_path,
-            columns=["url_hmi", "url_mdi"],
-            processed_data_dir=temp_dir_path,
-            raw_data_dir=temp_dir_path,
-        )
-        assert all(isinstance(item, Path) for item in mp.paths)
+    mp = MagnetogramProcessor(
+        csv_file=csv_path,
+        columns=["url_hmi", "url_mdi"],
+        processed_data_dir=process_data_path,
+        raw_data_dir=raw_data_path,
+    )
+
+    assert all(isinstance(item, Path) for item in mp.paths)
 
 
-def test_process_data_without_multiprocessing(pd_dataframe):
+@pytest.mark.parametrize("use_multiprocessing", [True, False])
+def test_process_data(pd_dataframe, temp_path_fixture, use_multiprocessing):
     """
     Test Processing without multiprocessing
     """
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
+    # Save the dataframe to a temporary CSV file
+    temp_dir_path, raw_data_path, process_data_path = temp_path_fixture
+    csv_path = temp_dir_path / Path("data.csv")
+    pd_dataframe.to_csv(csv_path, index=False)
 
-        # Save the dataframe to a temporary CSV file
-        csv_path = temp_path / "data.csv"
-        pd_dataframe.to_csv(csv_path)
+    # Initialize the MagnetogramProcessor
+    mp = MagnetogramProcessor(
+        csv_file=csv_path,
+        columns=["url_hmi", "url_mdi"],
+        processed_data_dir=process_data_path,
+        raw_data_dir=raw_data_path,
+    )
 
-        # Create the processed and raw data directories
-        processed_temp_dir_path = temp_path / Path("processed")
-        processed_temp_dir_path.mkdir()
-        raw_temp_dir_path = temp_path / Path("raw")
-        raw_temp_dir_path.mkdir()
+    # check that the processed dir is empty
+    assert not list(process_data_path.glob("*.fits"))
 
-        # Copy the HMI_LOS_IMAGE to the raw temporary directory
-        hmi_los_image_path = raw_temp_dir_path / sunpy.data.sample.HMI_LOS_IMAGE.name
-        shutil.copy(sunpy.data.sample.HMI_LOS_IMAGE, hmi_los_image_path)
+    # Process the data with/without multiprocessing
+    # opens the raw/ data, saves to processed/
+    mp.process_data(use_multiprocessing=use_multiprocessing)
 
-        # Initialize the MagnetogramProcessor
-        mp = MagnetogramProcessor(
-            csv_file=csv_path,
-            columns=["url_hmi", "url_mdi"],
-            processed_data_dir=processed_temp_dir_path,
-            raw_data_dir=raw_temp_dir_path,
-        )
+    # Construct paths for comparison
+    processed_paths = [process_data_path / path.name for path in mp.paths]
 
-        # Process the data without multiprocessing
-        mp.process_data(use_multiprocessing=False)
+    # Repeat the processing steps manually and save/load due to compression artifacts
+    raw_paths = [raw_data_path / path.name for path in mp.paths]
 
-        # Construct paths for comparison
-        processed_path = [processed_temp_dir_path / path.name for path in mp.paths][0]
-        processed_data = sunpy.map.Map(processed_path)
+    # sanity check to just ensure the raw and processed paths aren't the same
+    assert (np.array(raw_paths) != np.array(processed_paths)).any()
 
-        # Repeat the processing steps manually and save/load due to compression artifacts
-        raw_path = [raw_temp_dir_path / path.name for path in mp.paths][0]
-        processed_raw_data = sunpy.map.Map(raw_path)
-        processed_raw_data = processed_raw_data.rotate()
-        processed_raw_data.data[
-            ~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(processed_raw_data))
+    # sunpy maps
+    for rpath, ppath in zip(raw_paths, processed_paths):
+        # load raw, process
+        raw_map = sunpy.map.Map(rpath)
+        processed_raw_map = raw_map.rotate()
+        processed_raw_map.data[
+            ~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(processed_raw_map))
         ] = 0.0
-        processed_raw_path = processed_temp_dir_path / Path("raw_processed.fits")
-        save_compressed_map(processed_raw_data, path=processed_raw_path)
+        # ... save, read, delete
+        processed_raw_path = process_data_path / Path("raw_processed.fits")
+        save_compressed_map(processed_raw_map, path=processed_raw_path)
         loaded_prd = sunpy.map.Map(processed_raw_path)
+        processed_raw_path.unlink()
+        # load processed, delete
+        processed_map = sunpy.map.Map(ppath)
+        ppath.unlink()
 
-        # Assert processed data equality
-        assert (loaded_prd.data == processed_data.data).all()
-
-
-def test_process_data_with_multiprocessing(pd_dataframe):
-    """
-    Test Processing withmultiprocessing
-    """
-    pass
-
-
-def test_process_and_save_data():
-    pass
-
-
-def test_rotate_datum():
-    pass
+        assert (loaded_prd.data == processed_map.data).all()
