@@ -27,6 +27,12 @@ If you are developing with `zsh` instead of `bash`, the last line should be:
 
      pip install -e '.[dev]'
 
+and to test your changes
+
+   .. code-block:: zsh
+
+      coverage run -m pytest --cov=arccnet --cov-report=html
+
 For more detailed instructions, see our `contributing guide <https://github.com/ARCAFF/ARCCnet/blob/main/CONTRIBUTING.rst>`__.
 
 Usage
