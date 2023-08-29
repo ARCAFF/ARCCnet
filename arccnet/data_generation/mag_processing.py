@@ -1,7 +1,6 @@
 import random
 import multiprocessing
 from pathlib import Path
-from dataclasses import dataclass
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -241,44 +240,66 @@ class MagnetogramProcessor:
         return amap.rotate()
 
 
-def file_stuff():
-    dv_process_fits_path = Path(dv.MAG_PROCESSED_FITS_DIR)
+def file_stuff(
+    dv_process_fits_path=Path(dv.MAG_PROCESSED_FITS_DIR),
+    dv_summary_plots_path=Path(dv.MAG_PROCESSED_SUMMARYPLOTS_DIR),
+    qsdir=Path(dv.MAG_PROCESSED_QSFITS_DIR),
+    dv_qs_summary_plots_path=Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR),
+):
+    """
+    has to be a better way to do this
+    """
     if not dv_process_fits_path.exists():
         dv_process_fits_path.mkdir(parents=True)
-
-    dv_summary_plots_path = Path(dv.MAG_PROCESSED_SUMMARYPLOTS_DIR)
     if not dv_summary_plots_path.exists():
         dv_summary_plots_path.mkdir(parents=True)
-
-    dir = Path(dv.MAG_PROCESSED_QSFITS_DIR)
-    if not dir.exists():
-        dir.mkdir(parents=True)
-
-    dv_qs_summary_plots_path = Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR)
-    if not dv_summary_plots_path.exists():
-        dv_summary_plots_path.mkdir(parents=True)
+    if not qsdir.exists():
+        qsdir.mkdir(parents=True)
+    if not dv_qs_summary_plots_path.exists():
+        dv_qs_summary_plots_path.mkdir(parents=True)
 
     return dv_process_fits_path, dv_summary_plots_path, dv_qs_summary_plots_path
 
 
-@dataclass
 class SRSBox:
-    top_right: tuple[float, float]
-    bottom_left: tuple[float, float]
-    identifier: int
-    shape: tuple[int, int]
-    ar_pos_pixels: tuple[int, int]
-    time: str
+    def __init__(
+        self,
+        top_right: tuple[float, float],
+        bottom_left: tuple[float, float],
+        shape: tuple[int, int],
+        ar_pos_pixels=tuple[int, int],
+        time: str = None,
+        identifier=None,
+    ):
+        self.top_right = top_right
+        self.bottom_left = bottom_left
+        self.identifier = identifier
+        self.shape = shape
+        self.ar_pos_pixels = ar_pos_pixels
+        self.time = time
 
 
-@dataclass
 class QSBox:
-    top_right: tuple[float, float]
-    bottom_left: tuple[float, float]
-    identifier: None
-    shape: tuple[int, int]
-    ar_pos_pixels: tuple[int, int]
+    def __init__(
+        self,
+        sunpy_map: sunpy.map.Map,
+        top_right: tuple[float, float],
+        bottom_left: tuple[float, float],
+        shape: tuple[int, int],
+        ar_pos_pixels: tuple[int, int],
+        center: SkyCoord,
+        identifier=None,
+    ):
+        self.top_right = top_right
+        self.bottom_left = bottom_left
+        self.identifier = identifier
+        self.shape = shape
+        self.ar_pos_pixels = ar_pos_pixels
+        self.center = center
+        self.latitude, self.longitude = sunpy_map.center.transform_to(sunpy.coordinates.frames.HeliographicStonyhurst)
 
+
+# !TODO set latlon as a tuple
 
 #     _latlon: tuple(float)
 
@@ -294,11 +315,11 @@ class QSBox:
 
 
 class RegionExtractor:
-    def __init__(self) -> None:
+    def __init__(self, dataframe=Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV)) -> None:
         # Load minimal data
         num_random_attempts = 10
 
-        df = load_minimal_srs_mag_df(Path(dv.MAG_INTERMEDIATE_DATA_CSV))
+        df = load_minimal_srs_mag_df(dataframe)
 
         # Create DataFrame for datetime_hmi and processed_hmi not null
         df_hmi = df[(df["datetime_hmi"].notnull() & df["processed_hmi"].notnull())]
@@ -320,13 +341,13 @@ class RegionExtractor:
         logger.info(f"DataFrame for MDI: {df_mdi.shape}")
         logger.info(f"DataFrame not in either: {df_not_in_either.shape}")
         if df_not_in_either.shape[0] > 0:
-            raise ValueError
+            raise ValueError("df_not_in_either is not None")
 
         dv_process_fits_path, dv_summary_plots_path, _ = file_stuff()
 
         sizes = {
-            "HMI SIDE1": (800, 400),  # ~0.5 arcsec per pixel
-            "MDI": (200, 100),  # ~ 2 arcsec per pixel
+            "HMI SIDE1": (int(dv.X_EXTENT), int(dv.X_EXTENT)),  # ~0.5 arcsec per pixel
+            "MDI": (int(dv.X_EXTENT / 2), int(dv.X_EXTENT / 2)),  # ~ 2 arcsec per pixel so approximately divide by 2
         }
 
         instruments = {
@@ -354,8 +375,8 @@ class RegionExtractor:
             for time_srs, group in grouped_data:
                 summary_info = []
 
-                if len(group.processed_hmi.unique()) > 1:
-                    raise ValueError()
+                if len(group.processed_hmi.unique()) != 1:
+                    raise ValueError("group.processed_hmi.unique() is not 1")
 
                 my_hmi_map = sunpy.map.Map(group[data_column].unique()[0])  # take the first hmi
                 time_hmi = group[datetime_column].unique()[0]  # I think shane asked about just querying the map
@@ -432,6 +453,7 @@ class RegionExtractor:
                         # create QS BBox object
                         # make more elegant
                         qs_region = QSBox(
+                            sunpy_map=qs_submap,
                             top_right=top_right,
                             bottom_left=bottom_left,
                             identifier=None,
@@ -449,33 +471,25 @@ class RegionExtractor:
 
                         # create dummy dict
                         # why does this destroy the fucking dtype of cols
-
                         # Fix this to be in the class
-                        if sunpy.map.coordinate_is_on_solar_disk(qs_submap.center):
-                            qs_coords = qs_submap.center.transform_to(sunpy.coordinates.frames.HeliographicStonyhurst)
-                            qs_temp = pd.DataFrame(
-                                {
-                                    "datetime_hmi": time_hmi,
-                                    "datetime_srs": time_srs,
-                                    newc0: str(output_filename),
-                                    newc1: [qs_region.shape],
-                                    "Longitude": qs_coords.lon.value,
-                                    "Latitude": qs_coords.lat.value,
-                                },
-                                index=[0],
-                            )
+                        if sunpy.map.coordinate_is_on_solar_disk(qs_region.center):
+                            qs_lon = qs_region.longitude.value
+                            qs_lat = qs_region.latitude.value
                         else:
-                            qs_temp = pd.DataFrame(
-                                {
-                                    "datetime_hmi": time_hmi,
-                                    "datetime_srs": time_srs,
-                                    newc0: str(output_filename),
-                                    newc1: [qs_region.shape],
-                                    "Longitude": pd.NA,
-                                    "Latitude": pd.NA,
-                                },
-                                index=[0],
-                            )
+                            qs_lon = pd.NA
+                            qs_lat = pd.NA
+
+                        qs_temp = pd.DataFrame(
+                            {
+                                "datetime_hmi": time_hmi,
+                                "datetime_srs": time_srs,
+                                newc0: str(output_filename),
+                                newc1: [qs_region.shape],
+                                "Longitude": qs_lon,
+                                "Latitude": qs_lat,
+                            },
+                            index=[0],
+                        )
 
                         # honestly, we should maybe just export the full qs_df without concat, and do that later
                         qs_df = pd.concat([qs_df, qs_temp], ignore_index=True)
@@ -486,53 +500,56 @@ class RegionExtractor:
                 # !TODO add lat/lon for QS, add hmi_cutout_dim to SRS
                 qs_df = qs_df.sort_values("datetime_srs").reset_index(drop=True)
 
-                fig = plt.figure(figsize=(5, 5))
-                ax = fig.add_subplot(projection=my_hmi_map)
-                my_hmi_map.plot_settings["norm"].vmin = -1500
-                my_hmi_map.plot_settings["norm"].vmax = 1500
-                my_hmi_map.plot(axes=ax, cmap="hmimag")
-
-                text_objects = []
-
-                for box_info in summary_info:
-                    if isinstance(box_info, SRSBox):
-                        rectangle_cr = "red"
-                    elif isinstance(box_info, QSBox):
-                        rectangle_cr = "blue"
-                    else:
-                        raise ValueError("Unsupported box type")
-
-                    # deal with boxes off the edge
-                    my_hmi_map.draw_quadrangle(
-                        box_info.bottom_left,
-                        axes=ax,
-                        top_right=box_info.top_right,
-                        edgecolor=rectangle_cr,
-                        linewidth=1,
-                    )
-
-                    text = ax.text(
-                        box_info.ar_pos_pixels[0],
-                        box_info.ar_pos_pixels[1] + ysize / 2 + ysize / 10,
-                        box_info.identifier,
-                        **{"size": "x-small", "color": "black", "ha": "center"},
-                    )
-
-                    text_objects.append(text)
-
-                logger.info(time_srs)
-                plt.savefig(
-                    dv_summary_plots_path / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_{instr}.png",
-                    dpi=300,
-                )
-                plt.close("all")
-
-                for text in text_objects:
-                    text.remove()
+                self.plotting(dv_summary_plots_path, instr, time_srs, summary_info, my_hmi_map, ysize)
 
                 del summary_info
 
             df_arr.append(qs_df)
+
+    def plotting(self, dv_summary_plots_path, instr, time_srs, summary_info, my_hmi_map, ysize) -> None:
+        fig = plt.figure(figsize=(5, 5))
+        ax = fig.add_subplot(projection=my_hmi_map)
+        my_hmi_map.plot_settings["norm"].vmin = -1500
+        my_hmi_map.plot_settings["norm"].vmax = 1500
+        my_hmi_map.plot(axes=ax, cmap="hmimag")
+
+        text_objects = []
+
+        for box_info in summary_info:
+            if isinstance(box_info, SRSBox):
+                rectangle_cr = "red"
+            elif isinstance(box_info, QSBox):
+                rectangle_cr = "blue"
+            else:
+                raise ValueError("Unsupported box type")
+
+            # deal with boxes off the edge
+            my_hmi_map.draw_quadrangle(
+                box_info.bottom_left,
+                axes=ax,
+                top_right=box_info.top_right,
+                edgecolor=rectangle_cr,
+                linewidth=1,
+            )
+
+            text = ax.text(
+                box_info.ar_pos_pixels[0],
+                box_info.ar_pos_pixels[1] + ysize / 2 + ysize / 10,
+                box_info.identifier,
+                **{"size": "x-small", "color": "black", "ha": "center"},
+            )
+
+            text_objects.append(text)
+
+        logger.info(time_srs)
+        plt.savefig(
+            dv_summary_plots_path / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_{instr}.png",
+            dpi=300,
+        )
+        plt.close("all")
+
+        for text in text_objects:
+            text.remove()
 
 
 def load_minimal_srs_mag_df(filename: Path = Path(dv.MAG_INTERMEDIATE_DATA_CSV)):
