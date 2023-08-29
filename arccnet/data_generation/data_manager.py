@@ -127,11 +127,25 @@ class DataManager:
         # 4a. check if image data exists
         # !TODO implement this checking if each file that is expected exists.
         # Compile list of URLs to download
-        merged_url_columns = [col for col in self.merged_df.columns if col.startswith("url_")]
-        hmi_sharps_url_columns = [col for col in self.hmi_sharps.columns if col.startswith("url_")]
-        mdi_smarps_url_columns = [col for col in self.mdi_smarps.columns if col.startswith("url_")]
+        self.urls_to_download = self.extract_urls()
 
-        self.urls_to_download = pd.Series(
+        if download_fits:
+            self.fetch_urls(self.urls_to_download)
+            logger.info("Download completed successfully")
+        else:
+            logger.info(
+                "To fetch the magnetograms, use the `.fetch_urls()` method with a list(str) of urls, e.g. `.urls_to_download`"
+            )
+
+    def extract_urls(self, column_prefix="url_"):
+        def get_url_columns(dataframe):
+            return [col for col in dataframe.columns if col.startswith(column_prefix)]
+
+        merged_url_columns = get_url_columns(self.merged_df)
+        hmi_sharps_url_columns = get_url_columns(self.hmi_sharps)
+        mdi_smarps_url_columns = get_url_columns(self.mdi_smarps)
+
+        all_urls = (
             pd.concat(
                 [
                     self.merged_df[merged_url_columns],
@@ -142,14 +156,9 @@ class DataManager:
             .stack()
             .dropna()
             .unique()
-        ).to_list()
-        if download_fits:
-            self.fetch_urls(self.urls_to_download)
-            logger.info("Download completed successfully")
-        else:
-            logger.info(
-                "To fetch the magnetograms, use the `.fetch_urls()` method with a list(str) of urls, e.g. `.urls_to_download`"
-            )
+        )
+
+        return list(all_urls)
 
     def save_dfs(
         self,
