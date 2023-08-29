@@ -1,10 +1,47 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
+import sunpy.map
 from sklearn.model_selection import StratifiedGroupKFold
+
+import astropy.io
 
 from arccnet.data_generation.utils.data_logger import logger
 
-__all__ = ["save_df_to_html", "check_column_values", "grouped_stratified_split"]
+__all__ = ["make_relative", "save_compressed_map", "save_df_to_html", "check_column_values", "grouped_stratified_split"]
+
+
+def make_relative(base_path, path):
+    return Path(path).relative_to(Path(base_path))
+
+
+def save_compressed_map(amap: sunpy.map.Map, path: Path, **kwargs) -> None:
+    """
+    Save a compressed map.
+
+    If "bscale" and "bzero" exist in the metadata, remove before saving.
+    See: https://github.com/sunpy/sunpy/issues/7139
+
+    Parameters
+    ----------
+    amap : sunpy.map.Map
+        the sunpy map object to be saved
+
+    path : Path
+        the path to save the file to
+
+    Returns
+    -------
+    None
+    """
+    if "bscale" in amap.meta:
+        del amap.meta["bscale"]
+
+    if "bzero" in amap.meta:
+        del amap.meta["bzero"]
+
+    amap.save(path, hdu_type=astropy.io.fits.CompImageHDU, **kwargs)
 
 
 def save_df_to_html(df: pd.DataFrame, filename: str) -> None:
