@@ -29,10 +29,10 @@ class MagnetogramProcessor:
 
     def __init__(
         self,
-        csv_file=Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
-        columns=["url_hmi", "url_mdi"],
+        csv_file: Path = Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
+        columns: list[str] = ["url_hmi", "url_mdi"],
         processed_data_dir: Path = Path(dv.MAG_INTERMEDIATE_DATA_DIR),
-        raw_data_dir=Path(dv.MAG_RAW_DATA_DIR),
+        raw_data_dir: Path = Path(dv.MAG_RAW_DATA_DIR),
     ) -> None:
         """
         Reads data paths, processes and saves the data.

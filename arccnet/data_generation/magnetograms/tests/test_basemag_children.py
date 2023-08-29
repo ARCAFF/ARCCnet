@@ -99,7 +99,7 @@ def test_cutout_get_matching_info_from_record(magnetogram_class, expected_column
                 "2023.01.03_00:00:00_TAI",
                 "2023.01.04_00:00:00_TAI",
                 np.nan,
-                np.nan,  # !TODO do we actually want to return pd.NA?
+                np.nan,
             ],
         }
     )
@@ -111,7 +111,8 @@ def test_cutout_get_matching_info_from_record(magnetogram_class, expected_column
 
     # Rename the XARPNUM column based on the class
     expected_values = expected_values.rename(columns={"XARPNUM": column_mapping[magnetogram_class]["XARPNUM"]})
-    assert extracted_values.equals(expected_values)
+    # assert extracted_values.equals(expected_values)
+    pd.testing.assert_frame_equal(extracted_values, expected_values)
 
 
 @pytest.mark.parametrize(
@@ -142,7 +143,8 @@ def test_fetch_metadata_v_batch(magnetogram_class, batch_frequency, start_date, 
     ).drop(
         columns="url"
     )  # drop 'url' as it's dynamic
-    assert single_query.equals(batched_query)
+    # assert single_query.equals(batched_query)
+    pd.testing.assert_frame_equal(single_query, batched_query)
 
 
 # Probably not really needed...

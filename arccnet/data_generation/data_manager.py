@@ -14,6 +14,7 @@ from arccnet.data_generation.magnetograms.instruments import (
     MDISMARPs,
 )
 from arccnet.data_generation.utils.data_logger import logger
+from arccnet.data_generation.utils.utils import save_df_to_html
 
 __all__ = ["DataManager"]
 
@@ -185,7 +186,7 @@ class DataManager:
             if to_csv:
                 df.to_csv(loc)
             if to_html:
-                df.to_html(loc)
+                save_df_to_html(df, str(loc))
 
     def fetch_metadata(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
@@ -316,17 +317,18 @@ class DataManager:
         pd.DataFrame
             DataFrame of dropped rows after merging.
         """
+        srs_keys = srs_keys.copy(deep=True)
         # merge srs_clean and hmi
         mag_cols = ["magnetogram_fits", "datetime", "url"]
 
         # !TODO do a check for certain keys (no duplicates...)
         # extract only the relevant HMI keys, and rename
         # (should probably do this earlier on)
-        hmi_keys = hmi_keys[mag_cols]
+        hmi_keys = hmi_keys[mag_cols].copy(deep=True)
         hmi_keys = hmi_keys.add_suffix("_hmi")
         hmi_keys_dropna = hmi_keys.dropna().reset_index(drop=True)
 
-        mdi_keys = mdi_keys[mag_cols]
+        mdi_keys = mdi_keys[mag_cols].copy(deep=True)
         mdi_keys = mdi_keys.add_suffix("_mdi")
         mdi_keys_dropna = mdi_keys.dropna().reset_index(drop=True)
 
@@ -379,7 +381,8 @@ class DataManager:
         logger.info(f"dropped_rows: \n{dropped_rows[['datetime_srs', 'datetime_hmi', 'datetime_mdi']]}")
         logger.info(f"dates dropped: \n{dropped_rows['datetime_srs'].unique()}")
 
-        return merged_df, dropped_rows
+        # return the merged dataframes with dropped indices
+        return merged_df.reset_index(drop=True), dropped_rows.reset_index(drop=True)
 
     @staticmethod
     def fetch_urls(
@@ -446,12 +449,3 @@ class DataManager:
             logger.info("No errors reported by parfive")
 
         return results
-
-
-if __name__ == "__main__":
-    logger.info(f"Executing {__file__} as main program")
-
-    try:
-        data_manager = DataManager(dv.DATA_START_TIME, dv.DATA_END_TIME, save_to_csv=True)
-    except Exception:
-        logger.exception("An error occurred during execution:", exc_info=True)
