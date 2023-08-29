@@ -41,7 +41,7 @@ def test_fetch_urls(data_manager_default):
         try:
             _ = sunpy.map.Map(results[0])
         except Exception as e:
-            print("An unexpected error occurred:", e)
+            pytest.fail(f"An unexpected error occurred: {e}")
 
 
 # Test the merge_activeregionpatchs method
@@ -67,7 +67,33 @@ def test_merge_activeregionpatchs_basic(data_manager_default):
             "datetime_arc": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 3, 0, 0)],
             "url_arc": ["cutout_url1", "cutout_url3"],
         }
+    ).dropna()
+    assert merged_df.equals(expected_merged_data)
+
+
+def test_merge_activeregionpatchs_datetime_no_matching(data_manager_default):
+    # Test Case: One cutout datetime doesn't match exactly to cutout data
+    full_disk_data = pd.DataFrame(
+        {
+            "datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 2, 0, 0), datetime(2023, 1, 3, 0, 1)],
+            "url": ["url1", "url2", "url3"],
+        }
     )
+    cutout_data = pd.DataFrame(
+        {
+            "datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 3, 0, 0)],
+            "url": ["cutout_url1", "cutout_url3"],
+        }
+    )
+    merged_df = data_manager_default.merge_activeregionpatchs(full_disk_data, cutout_data)
+    expected_merged_data = pd.DataFrame(
+        {
+            "datetime": [datetime(2023, 1, 1, 0, 0)],
+            "url": ["url1"],
+            "datetime_arc": [datetime(2023, 1, 1, 0, 0)],
+            "url_arc": ["cutout_url1"],
+        }
+    ).dropna()
     assert merged_df.equals(expected_merged_data)
 
 
@@ -125,5 +151,5 @@ def test_merge_activeregionpatchs_multiple_cutouts(data_manager_default):
             "datetime_arc": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 3, 0, 0), datetime(2023, 1, 3, 0, 0)],
             "url_arc": ["cutout_url1", "cutout_url2", "cutout_url3"],
         }
-    )
+    ).dropna()
     assert merged_df.equals(expected_merged_data)

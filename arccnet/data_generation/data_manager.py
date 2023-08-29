@@ -110,13 +110,10 @@ class DataManager:
         self.mdi_smarps = self.merge_activeregionpatchs(merged_df_ms, self.smarp_keys[["datetime", "url", "record"]])
         # ------
 
+        # !TODO replace the 'url' column with a file or at least append...
         # 4. save merged dataframes
-        self.save_df(
-            dataframe_list=[
-                self.merged_df,
-                self.hmi_sharps,
-                self.mdi_smarps,
-            ],
+        self.save_dfs(
+            dataframe_list=[self.merged_df, self.hmi_sharps, self.mdi_smarps],
             filepaths=[
                 Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
                 Path(dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV),
@@ -144,18 +141,16 @@ class DataManager:
             .stack()
             .dropna()
             .unique()
-        )
+        ).to_list()
         if download_fits:
-            results = self.fetch_urls(self.urls_to_download.to_list())
-            logger.info(f"\n{results}")
-            # !TODO handle the output... want a csv with the filepaths
+            self.fetch_urls(self.urls_to_download)
             logger.info("Download completed successfully")
         else:
             logger.info(
-                "To fetch the magnetograms, use the `.fetch_urls()` method with a list(str) of urls, e.g. the `.urls_to_download` attribute`"
+                "To fetch the magnetograms, use the `.fetch_urls()` method with a list(str) of urls, e.g. `.urls_to_download`"
             )
 
-    def save_df(
+    def save_dfs(
         self,
         dataframe_list: list[pd.DataFrame],
         filepaths: list[Path],
