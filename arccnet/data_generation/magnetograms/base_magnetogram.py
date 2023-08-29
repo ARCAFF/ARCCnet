@@ -39,13 +39,8 @@ class BaseMagnetogram(ABC):
         -------
         str
             The JSOC query string for retrieving the specified observations.
-
-        Raises
-        ------
-        NotImplementedError
-            If this property is not implemented in the child class.
         """
-        raise NotImplementedError("This is the required method in the child class.")
+        pass
 
     @property
     @abstractmethod
@@ -57,13 +52,8 @@ class BaseMagnetogram(ABC):
         -------
         str:
             JSOC series name
-
-        Raises
-        ------
-        NotImplementedError
-            If this property is not implemented in the child class.
         """
-        raise NotImplementedError("This is the required method in the child class.")
+        pass
 
     @property
     @abstractmethod
@@ -75,13 +65,8 @@ class BaseMagnetogram(ABC):
         -------
         str:
             instrument date string format
-
-        Raises
-        ------
-        NotImplementedError
-            If this property is not implemented in the child class.
         """
-        raise NotImplementedError("This is the required method in the child class.")
+        pass
 
     @property
     @abstractmethod
@@ -93,13 +78,8 @@ class BaseMagnetogram(ABC):
         -------
         str:
             Name of the data segment
-
-        Raises
-        ------
-        NotImplementedError
-            If this property is not implemented in the child class.
         """
-        raise NotImplementedError("This is the required method in the child class.")
+        pass
 
     @property
     @abstractmethod
@@ -111,13 +91,8 @@ class BaseMagnetogram(ABC):
         -------
         str:
             The directory path for saving metadata
-
-        Raises
-        ------
-        NotImplementedError
-            If this property is not implemented in the child class.
         """
-        raise NotImplementedError("This is the required method in the child class.")
+        pass
 
     @property
     def _type(self):
@@ -148,13 +123,8 @@ class BaseMagnetogram(ABC):
         -------
         tuple[pd.DataFrame, list[str]]
             A tuple containing a DataFrame with extracted information and a list of column names for the extracted data.
-
-        Raises
-        ------
-        NotImplementedError
-            If this property is not implemented in the child class.
         """
-        raise NotImplementedError("This is the required method in the child class.")
+        pass
 
     def _query_jsoc(self, query: str) -> tuple[pd.DataFrame, pd.Series]:
         """
@@ -419,16 +389,14 @@ class BaseMagnetogram(ABC):
 
         # Check for duplicated rows in the combined metadata because we might be doing this accidentally
         # the "url" column is dynamic, and will not match (will the urls persist until we download them?)
-        columns_to_check = [col for col in combined_metadata.columns if col not in dynamic_columns]
-        combined_metadata = combined_metadata.drop_duplicates(subset=columns_to_check)
         # !TODO we need a better way of dealing with situations like this
-        duplicate_count = combined_metadata.duplicated(subset=columns_to_check).sum()
-        if duplicate_count > 0:
-            raise ValueError(f"There are {duplicate_count} duplicated rows in the DataFrame.")
+        columns_to_check = [col for col in combined_metadata.columns if col not in dynamic_columns]
+        combined_metadata = combined_metadata.drop_duplicates(subset=columns_to_check).reset_index(drop=True)
 
         if to_csv:
             self._save_metadata_to_csv(combined_metadata)
 
+        logger.info(combined_metadata.shape)
         return combined_metadata
 
     def fetch_metadata_batch(
