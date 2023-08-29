@@ -8,11 +8,11 @@ import pandas as pd
 import sunpy.map
 from tqdm import tqdm
 
-import astropy.io
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 
 import arccnet.data_generation.utils.default_variables as dv
+from arccnet.data_generation.utils import make_relative, save_compressed_map
 from arccnet.data_generation.utils.data_logger import logger
 
 matplotlib.use("Agg")
@@ -27,16 +27,20 @@ class MagnetogramProcessor:
     This class provides methods to process magnetogram data using multiprocessing.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        csv_file=Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
+        columns=["url_hmi", "url_mdi"],
+        processed_data_dir: Path = Path(dv.MAG_INTERMEDIATE_DATA_DIR),
+        raw_data_dir=Path(dv.MAG_RAW_DATA_DIR),
+    ) -> None:
         """
         Reads data paths, processes and saves the data.
         """
-        logger.info("Instantiated `MagnetogramProcessor`")
-        paths = self._read_datapaths()
-
-        logger.info(f">> read data paths {len(paths)}")
-        self._process_data(paths, save_path=Path(dv.MAG_INTERMEDIATE_DATA_DIR))
-        logger.info(">> processed data")
+        logger.info("raw_data_dir `MagnetogramProcessor`")
+        self.processed_data_dir = processed_data_dir
+        self.raw_data_dir = raw_data_dir
+        self.paths = self._read_datapaths(columns=columns, csv_file=csv_file)
 
     def _read_datapaths(
         self, columns: list[str] = ["url_hmi", "url_mdi"], csv_file=Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV)
@@ -62,33 +66,26 @@ class MagnetogramProcessor:
             loaded_data = pd.read_csv(csv_file)
             # ! TODO fix this with a clear head
             file_list = [column for col in columns for column in loaded_data[col].dropna().unique()]
-            paths = [Path(dv.MAG_RAW_DATA_DIR) / Path(url).name for url in file_list]
+            paths = [self.raw_data_dir / Path(file).name for file in file_list]
+
+            existing_paths = [path for path in paths if path.exists()]
+            if len(existing_paths) < len(paths):
+                missing_paths = [str(path) for path in paths if path not in existing_paths]
+                raise FileNotFoundError(f"The following paths do not exist: {', '.join(missing_paths)}")
         else:
             raise FileNotFoundError(f"{csv_file} does not exist.")
 
         return paths
 
-    def _process_data(self, paths: list[Path], save_path: Path = None, use_multiprocessing: bool = True):
+    def process_data(self, use_multiprocessing: bool = True, paths=None, save_path=None):
         """
         Process data using multiprocessing.
-
-        Parameters
-        ----------
-        paths : List[Path]
-            List of data file paths.
-
-        save_path : Path, optional
-            Directory to save processed data. Defaults to None.
-
-        use_multiprocessing : bool, optional
-            Flag to enable multiprocessing. Defaults to True.
-
-        Returns
-        -------
-        None
         """
+        if paths is None:
+            paths = self.paths
+
         if save_path is None:
-            base_directory_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
+            base_directory_path = self.processed_data_dir
         else:
             base_directory_path = save_path
 
@@ -110,7 +107,7 @@ class MagnetogramProcessor:
                     pass
         else:
             logger.info("Processing data without multiprocessing")
-            for path in tqdm(paths, desc="Processing"):
+            for path in tqdm(self.paths, desc="Processing"):
                 self._process_and_save_data(path, base_directory_path)
 
     def _multiprocess_and_save_data_wrapper(self, args):
@@ -121,7 +118,8 @@ class MagnetogramProcessor:
         and then calls the `_process_and_save_data` method with the provided arguments.
 
         Parameters
-        args :tuple
+        ----------
+        args : tuple
             A tuple containing the file path and output directory.
 
         Returns
@@ -524,38 +522,6 @@ def load_filename():
     return loaded_data
 
 
-def make_relative(base_path, path):
-    return Path(path).relative_to(Path(base_path))
-
-
-def save_compressed_map(amap: sunpy.map.Map, path: Path, **kwargs) -> None:
-    """
-    Save a compressed map.
-
-    If "bscale" and "bzero" exist in the metadata, remove before saving.
-    See: https://github.com/sunpy/sunpy/issues/7139
-
-    Parameters
-    ----------
-    amap : sunpy.map.Map
-        the sunpy map object to be saved
-
-    path : Path
-        the path to save the file to
-
-    Returns
-    -------
-    None
-    """
-    if "bscale" in amap.meta:
-        del amap.meta["bscale"]
-
-    if "bzero" in amap.meta:
-        del amap.meta["bzero"]
-
-    amap.save(path, hdu_type=astropy.io.fits.CompImageHDU, **kwargs)
-
-
 def extract_submaps(map, time, coords, xsize=dv.X_EXTENT, ysize=dv.Y_EXTENT) -> sunpy.map.Map:
     """
 
@@ -616,7 +582,9 @@ if __name__ == "__main__":
 
     # 1. Process full-disk magnetograms
     if mag_process:
-        MagnetogramProcessor()
+        mp = MagnetogramProcessor()
+        mp.process_data(use_multiprocessing=True)
+        logger.info(">> processed data")
 
     # 2. Extract NOAA ARs and QS regions
     if ar_classification:
