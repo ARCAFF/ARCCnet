@@ -93,22 +93,27 @@ class DataManager:
         self.merged_df, self.merged_df_dropped_rows = self.merge_hmimdi_metadata(
             self.srs_clean, self.hmi_keys, self.mdi_keys, tolerance=merge_tolerance
         )
-        #
+
+        # !TODO remove this, temporary removal of stupid column. Need to just never put this in in the first place.
+        # self.merged_df = self.merged_df.drop(columns=["magnetogram_fits_hmi", "magnetogram_fits_mdi"])
+
         logger.info(">> Merging full-disk metadata with cutouts")
         #  Merge the HMI and MDI components of the `merged_df` with the SHARPs and SMARPs DataFrames
         # !TODO this is terrible, change this!
         # 3b. HMI-SHARPs
         merged_df_hs = self.merged_df.copy(deep=True).drop(
-            columns=["magnetogram_fits_mdi", "datetime_mdi", "url_mdi"]
-        )  # drop mdi columns
+            columns=["datetime_mdi", "url_mdi"]
+            # columns=["magnetogram_fits_mdi", "datetime_mdi", "url_mdi"] + ["magnetogram_fits_mdi"]
+        )  # drop mdi columns and magnetogram_fits_hmi (this is the empty fits file)
         merged_df_hs.columns = [col.rstrip("_hmi") if col.endswith("_hmi") else col for col in merged_df_hs.columns]
-        self.hmi_sharps = self.merge_activeregionpatchs(merged_df_hs, self.sharp_keys[["datetime", "url", "record"]])
+        self.hmi_sharps = self.merge_activeregionpatches(merged_df_hs, self.sharp_keys[["datetime", "url", "record"]])
         # 3c. MDI-SMARPs
         merged_df_ms = self.merged_df.copy(deep=True).drop(
-            columns=["magnetogram_fits_hmi", "datetime_hmi", "url_hmi"]
-        )  # drop hmi columns
+            columns=["datetime_hmi", "url_hmi"]
+            # columns=["magnetogram_fits_hmi", "datetime_hmi", "url_hmi"] + ["magnetogram_fits_hmi"]
+        )  # drop hmi columns and magnetogram_fits_mdi (this is the empty fits file)
         merged_df_ms.columns = [col.rstrip("_mdi") if col.endswith("_mdi") else col for col in merged_df_ms.columns]
-        self.mdi_smarps = self.merge_activeregionpatchs(merged_df_ms, self.smarp_keys[["datetime", "url", "record"]])
+        self.mdi_smarps = self.merge_activeregionpatches(merged_df_ms, self.smarp_keys[["datetime", "url", "record"]])
         # ------
 
         # 4a. check if image data exists
@@ -130,13 +135,18 @@ class DataManager:
             logger.info("the data has not been downloaded")
 
         if self.save_to_csv:
+            base_directory_path = Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV).parent
+            if not base_directory_path.exists():
+                base_directory_path.mkdir(parents=True)
+
             self.merged_df.to_csv(Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV), index=False)
             self.hmi_sharps.to_csv(Path(dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV), index=False)
             self.mdi_sharps.to_csv(Path(dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV), index=False)
             logger.info(
-                "saving... `merged_df` to {dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV}\n"
-                + "          `hmi_sharp` to {dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV}\n"
-                + "          `mdi_sharps` to {dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV}\n"
+                "saving... \n"
+                + "\t `merged_df` to {dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV}\n"
+                + "\t `hmi_sharp` to {dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV}\n"
+                + "\t `mdi_sharps` to {dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV}\n"
             )
         else:
             logger.warn("not saving merged csv files")
@@ -172,11 +182,13 @@ class DataManager:
             "MDI Keys": mdi_keys,
             "SMARP Keys": smarp_keys,
         }.items():
-            logger.info(f"{name}: \n{dataframe[['T_REC','T_OBS','DATE-OBS','datetime','magnetogram_fits', 'url']]}")
+            logger.info(
+                f"{name}: \n{dataframe[['T_REC','T_OBS','DATE-OBS','datetime', 'url']]}"
+            )  # magnetogram_fits', 'url']]}")
 
         return srs, mdi_keys, hmi_keys, sharp_keys, smarp_keys
 
-    def merge_activeregionpatchs(
+    def merge_activeregionpatches(
         self,
         full_disk_data,
         cutout_data,
@@ -203,13 +215,13 @@ class DataManager:
 
         if not set(expected_columns).issubset(full_disk_data.columns):
             logger.warn(
-                "Currently, the columns in full_disk_data need to be ['magnetogram_fits', 'datetime', 'url'] due to poor planning and thought."
+                "Currently, the columns in full_disk_data need to be ['datetime', 'url'] due to poor planning and thought."
             )
             raise NotImplementedError()
 
         if not set(expected_columns).issubset(cutout_data.columns):
             logger.warn(
-                "Currently, the columns in cutout_data need to be ['magnetogram_fits', 'datetime', 'url'] due to poor planning and thought."
+                "Currently, the columns in cutout_data need to be ['datetime', 'url'] due to poor planning and thought."
             )
             raise NotImplementedError()
 
@@ -272,7 +284,7 @@ class DataManager:
         """
         srs_keys = srs_keys.copy(deep=True)
         # merge srs_clean and hmi
-        mag_cols = ["magnetogram_fits", "datetime", "url"]
+        mag_cols = ["datetime", "url"]
 
         # !TODO do a check for certain keys (no duplicates...)
         # extract only the relevant HMI keys, and rename
@@ -340,8 +352,8 @@ class DataManager:
     def fetch_fits(
         self,
         urls_df: pd.DataFrame = None,
-        column_name="url",  # take in dataframe, column, create new column
-        suffix="",  # maybe use this?
+        column_name="url",
+        suffix="",
         base_directory_path: Path = Path(dv.MAG_RAW_DATA_DIR),
         max_retries: int = 5,
         overwrite: bool = False,
@@ -428,7 +440,6 @@ class DataManager:
             url not in parfive_download_errors if isinstance(url, str) else url for url in urls_df[column_name]
         ]
 
-        logger.info(urls_df)
         return urls_df
 
 
