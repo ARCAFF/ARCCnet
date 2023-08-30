@@ -403,7 +403,7 @@ class BaseMagnetogram(ABC):
         self,
         start_date: datetime.datetime,
         end_date: datetime.datetime,
-        to_csv: bool = True,
+        to_csv: bool = False,
     ) -> pd.DataFrame:
         """
         Fetch metadata batch from JSOC.
@@ -460,9 +460,9 @@ class BaseMagnetogram(ABC):
             logger.info(query_string + f"returned {len(keys)} results")
 
         # NB: There are two files presented here that are essentially of the same thing.
-        #   1. segs is a list of data files. The full .fits can be made with keys & segs.
+        #   1. segs is a list of data files. The full .fits can be made with keys & segs. (commented out)
         #   2. r_urls provides the urls of the full .fits files
-        keys = self._add_magnetogram_urls(keys, segs, url=dv.JSOC_BASE_URL, column_name="magnetogram_fits")
+        # self._add_magnetogram_urls(keys, segs, url=dv.JSOC_BASE_URL, column_name="magnetogram_fits")
         r_urls = self._data_export_request(query)
         # extract info e.g. date, active region number from the `r_url["record"]` using `_get_matching_info_from_record`
         # and insert back into r_urls as additional column names.
