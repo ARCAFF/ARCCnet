@@ -1,3 +1,4 @@
+import shutil
 import tempfile
 from pathlib import Path
 from datetime import datetime
@@ -5,7 +6,6 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import pytest
-import sunpy.map
 
 from arccnet.data_generation.data_manager import DataManager
 
@@ -15,34 +15,110 @@ from arccnet.data_generation.data_manager import DataManager
 def data_manager_default():
     return DataManager(
         datetime(2010, 6, 1),
-        datetime(2010, 7, 1),
+        datetime(2010, 6, 7),
         merge_tolerance=pd.Timedelta("30m"),
         download_fits=False,
+        overwrite_fits=False,
         save_to_csv=False,
-        save_to_html=False,
     )
 
 
-def test_fetch_urls(data_manager_default):
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Create temporary files inside the temporary directory
-        temp_dir_path = Path(temp_dir)
-        first_url = data_manager_default.urls_to_download[0:1]
+@pytest.fixture(scope="session")
+def temp_path_fixture(request):
+    temp_dir = tempfile.mkdtemp()  # Create temporary directory
 
-        # Test the fetch_urls function with the temporary file paths
-        results = data_manager_default.fetch_urls(first_url, base_directory_path=temp_dir_path)
+    def cleanup():
+        shutil.rmtree(temp_dir)  # Clean up the temporary directory
 
-        # Check if results are not None
-        assert results is not None
+    request.addfinalizer(cleanup)  # noqa PT021
+    # return the temp_dir, temp_dir/raw, temp_dir/processed
+    return Path(temp_dir)
 
-        # Check if the number of completed results matches the number of temporary files
-        assert len(results.errors) == 0
 
-        # Check that the file can be loaded
-        try:
-            _ = sunpy.map.Map(results[0])
-        except Exception as e:
-            pytest.fail(f"An unexpected error occurred: {e}")
+@pytest.fixture(params=[False, True, False])
+def overwrite_fixture(request):
+    # testing:
+    # 1. overwrite = False # data doesn't exist
+    # 1. overwrite = True # overwrite existing data
+    # 1. overwrite = False # don't overwrite existing data
+    return request.param
+
+
+# test_fetch_fits_valid with different overwrite settings
+def test_fetch_fits_overwrite(overwrite_fixture, data_manager_default, temp_path_fixture):
+    # Create an instance of YourClass
+    instance = data_manager_default
+
+    # Test data that isn't valid
+    test_urls = instance.merged_df[["url_hmi"]][0:3]
+
+    # Call the method being tested with the overwrite parameter from the fixture
+    result = instance.fetch_fits(
+        urls_df=test_urls,
+        column_name="url_hmi",
+        base_directory_path=temp_path_fixture,
+        suffix="_hmi",
+        overwrite=overwrite_fixture,
+    )
+
+    # Check if the downloaded_successfully column
+    assert all(result["downloaded_successfully_hmi"])
+
+
+# test_fetch_fits_valid
+def test_fetch_fits_valid_one_invalid(overwrite_fixture, data_manager_default, temp_path_fixture):
+    # Create an instance of YourClass
+    instance = data_manager_default
+
+    # Test data that isn't valid
+    test_urls = instance.merged_df[["url_hmi"]][0:3]
+    test_urls["url_hmi"][1] = "http://url"  # will fail download
+
+    # Call the method being tested
+    result = instance.fetch_fits(
+        urls_df=test_urls,
+        column_name="url_hmi",
+        base_directory_path=temp_path_fixture,
+        suffix="_hmi",
+        overwrite=overwrite_fixture,
+    )
+
+    expected_values = [True, False, True]
+
+    # Check if the downloaded_successfully column is True False True
+    assert all(result["downloaded_successfully_hmi"] == expected_values)
+
+
+def test_fetch_fits_valid_no_data(data_manager_default, temp_path_fixture):
+    # Create an instance of YourClass
+    instance = data_manager_default
+
+    # Test data that isn't valid
+    urls = ["http://url1", "http://url2", "http://url3"]
+    test_urls = pd.DataFrame({"url": urls})
+
+    # Call the method being tested
+    result = instance.fetch_fits(
+        urls_df=test_urls,
+        column_name="url",
+        base_directory_path=temp_path_fixture,
+        suffix="",
+        overwrite=False,
+    )
+
+    # Check if the downloaded_successfully column is populated with False values
+    assert not all(result["downloaded_successfully"])
+
+
+def test_fetch_fits_invalid_df(data_manager_default, temp_path_fixture):
+    # Create an instance of YourClass
+    instance = data_manager_default
+
+    # Call the method being tested with an invalid DataFrame
+    result = instance.fetch_fits(urls_df=None, column_name="url", base_directory_path=temp_path_fixture)
+
+    # Check if the result is None as expected
+    assert result is None
 
 
 # Test the merge_activeregionpatchs method
@@ -69,7 +145,7 @@ def test_merge_activeregionpatchs_basic(data_manager_default):
             "url_arc": ["cutout_url1", "cutout_url3"],
         }
     ).dropna()
-    assert merged_df.equals(expected_merged_data)
+    pd.testing.assert_frame_equal(merged_df, expected_merged_data)
 
 
 def test_merge_activeregionpatchs_datetime_no_matching(data_manager_default):
@@ -95,7 +171,7 @@ def test_merge_activeregionpatchs_datetime_no_matching(data_manager_default):
             "url_arc": ["cutout_url1"],
         }
     ).dropna()
-    assert merged_df.equals(expected_merged_data)
+    pd.testing.assert_frame_equal(merged_df, expected_merged_data)
 
 
 def test_merge_activeregionpatchs_no_matching(data_manager_default):
@@ -127,7 +203,7 @@ def test_merge_activeregionpatchs_no_matching(data_manager_default):
     if merged_df.empty and expected_merged_data.empty:
         assert True  # Empty data frames are considered equivalent
     else:
-        assert merged_df.equals(expected_merged_data)
+        pd.testing.assert_frame_equal(merged_df, expected_merged_data)
 
 
 def test_merge_activeregionpatchs_multiple_cutouts(data_manager_default):
@@ -153,7 +229,7 @@ def test_merge_activeregionpatchs_multiple_cutouts(data_manager_default):
             "url_arc": ["cutout_url1", "cutout_url2", "cutout_url3"],
         }
     ).dropna()
-    assert merged_df.equals(expected_merged_data)
+    pd.testing.assert_frame_equal(merged_df, expected_merged_data)
 
 
 @pytest.fixture

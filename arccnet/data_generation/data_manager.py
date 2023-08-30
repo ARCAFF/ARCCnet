@@ -1,8 +1,8 @@
 from pathlib import Path
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
-from parfive import Results
 from sunpy.util.parfive_helpers import Downloader
 
 import arccnet.data_generation.utils.default_variables as dv
@@ -14,7 +14,6 @@ from arccnet.data_generation.magnetograms.instruments import (
     MDISMARPs,
 )
 from arccnet.data_generation.utils.data_logger import logger
-from arccnet.data_generation.utils.utils import save_df_to_html
 
 __all__ = ["DataManager"]
 
@@ -32,8 +31,8 @@ class DataManager:
         end_date: datetime = dv.DATA_END_TIME,
         merge_tolerance: pd.Timedelta = pd.Timedelta("30m"),
         download_fits: bool = True,
+        overwrite_fits: bool = False,
         save_to_csv: bool = True,
-        save_to_html: bool = False,
     ):
         """
         Initialize the DataManager.
@@ -55,10 +54,10 @@ class DataManager:
         self.start_date = start_date
         self.end_date = end_date
         self.save_to_csv = save_to_csv
-        self.save_to_html = save_to_html
+
         logger.info(
             f"Instantiated `DataManager` for {self.start_date} -> {self.end_date}, "
-            + f"with save_to_csv={self.save_to_csv}, save_to_html={self.save_to_html} "
+            + f"with save_to_csv={self.save_to_csv} "
         )
 
         # instantiate classes
@@ -90,20 +89,21 @@ class DataManager:
 
         # 3. merge metadata sources
         logger.info(f">> Merging full-disk metadata with tolerance {merge_tolerance}")
+        # 3a. SRS-HMI-MDI
         self.merged_df, self.merged_df_dropped_rows = self.merge_hmimdi_metadata(
             self.srs_clean, self.hmi_keys, self.mdi_keys, tolerance=merge_tolerance
         )
-
+        #
         logger.info(">> Merging full-disk metadata with cutouts")
         #  Merge the HMI and MDI components of the `merged_df` with the SHARPs and SMARPs DataFrames
         # !TODO this is terrible, change this!
-        # HMI-SHARPs
+        # 3b. HMI-SHARPs
         merged_df_hs = self.merged_df.copy(deep=True).drop(
             columns=["magnetogram_fits_mdi", "datetime_mdi", "url_mdi"]
         )  # drop mdi columns
         merged_df_hs.columns = [col.rstrip("_hmi") if col.endswith("_hmi") else col for col in merged_df_hs.columns]
         self.hmi_sharps = self.merge_activeregionpatchs(merged_df_hs, self.sharp_keys[["datetime", "url", "record"]])
-        # MDI-SMARPs
+        # 3c. MDI-SMARPs
         merged_df_ms = self.merged_df.copy(deep=True).drop(
             columns=["magnetogram_fits_hmi", "datetime_hmi", "url_hmi"]
         )  # drop hmi columns
@@ -111,111 +111,35 @@ class DataManager:
         self.mdi_smarps = self.merge_activeregionpatchs(merged_df_ms, self.smarp_keys[["datetime", "url", "record"]])
         # ------
 
-        # !TODO replace the 'url' column with a file or at least append...
-        # 4. save merged dataframes
-        self.save_dfs(
-            dataframe_list=[self.merged_df, self.hmi_sharps, self.mdi_smarps],
-            filepaths=[
-                Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
-                Path(dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV),
-                Path(dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV),
-            ],
-            to_csv=self.save_to_csv,
-            to_html=self.save_to_html,
-        )
-
         # 4a. check if image data exists
-        # !TODO implement this checking if each file that is expected exists.
-        # Compile list of URLs to download
-        self.urls_to_download = self.extract_urls()
-
+        ofits = overwrite_fits  # hack to stop black formatting the lines
         if download_fits:
-            self.fetch_urls(self.urls_to_download)
+            # this is not great, but will do for now
+            # adds "downloaded_successfully"+suffix and "download_path"+suffix
+            # to each dataframe.
+            self.merged_df = self.fetch_fits(self.merged_df, column_name="url_hmi", suffix="_hmi", overwrite=ofits)
+            self.merged_df = self.fetch_fits(self.merged_df, column_name="url_mdi", suffix="_mdi", overwrite=ofits)
+
+            self.hmi_sharps = self.fetch_fits(self.hmi_sharps, column_name="url", suffix="", overwrite=ofits)
+            self.hmi_sharps = self.fetch_fits(self.hmi_sharps, column_name="url_arc", suffix="_arc", overwrite=ofits)
+
+            self.mdi_sharps = self.fetch_fits(self.mdi_smarps, column_name="url", suffix="", overwrite=ofits)
+            self.mdi_sharps = self.fetch_fits(self.mdi_smarps, column_name="url_arc", suffix="_arc", overwrite=ofits)
             logger.info("Download completed successfully")
         else:
+            logger.info("the data has not been downloaded")
+
+        if self.save_to_csv:
+            self.merged_df.to_csv(Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV), index=False)
+            self.hmi_sharps.to_csv(Path(dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV), index=False)
+            self.mdi_sharps.to_csv(Path(dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV), index=False)
             logger.info(
-                "To fetch the magnetograms, use the `.fetch_urls()` method with a list(str) of urls, e.g. `.urls_to_download`"
+                "saving... `merged_df` to {dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV}\n"
+                + "          `hmi_sharp` to {dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV}\n"
+                + "          `mdi_sharps` to {dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV}\n"
             )
-
-    def extract_urls(self, column_prefix="url_"):
-        """
-        Extract unique URLs from multiple dataframes using a common column prefix.
-
-        Parameters
-        ----------
-        column_prefix : str, optional
-            Prefix of columns containing URLs in the dataframes, by default "url_".
-
-        Returns
-        -------
-        list
-            A list of unique URLs extracted from the specified dataframes.
-
-        Notes
-        -----
-        This function extracts URLs from columns with names starting with the specified
-        `column_prefix` in three dataframes: `self.merged_df`, `self.hmi_sharps`, and
-        `self.mdi_smarps`. The extracted URLs are returned as a list of unique values.
-        """
-
-        def get_url_columns(dataframe):
-            return [col for col in dataframe.columns if col.startswith(column_prefix)]
-
-        merged_url_columns = get_url_columns(self.merged_df)
-        hmi_sharps_url_columns = get_url_columns(self.hmi_sharps)
-        mdi_smarps_url_columns = get_url_columns(self.mdi_smarps)
-
-        all_urls = (
-            pd.concat(
-                [
-                    self.merged_df[merged_url_columns],
-                    self.hmi_sharps[hmi_sharps_url_columns],
-                    self.mdi_smarps[mdi_smarps_url_columns],
-                ]
-            )
-            .stack()
-            .dropna()
-            .unique()
-        )
-
-        return list(all_urls)
-
-    def save_dfs(
-        self,
-        dataframe_list: list[pd.DataFrame],
-        filepaths: list[Path],
-        to_csv: bool = True,
-        to_html: bool = False,
-    ) -> None:
-        """
-        Save DataFrames to CSV and/or HTML files.
-
-        Parameters
-        ----------
-        dataframes : list
-            List of DataFrames to be saved.
-
-        filepaths : list
-            List of filepaths to save DataFrames.
-
-        to_csv : bool, optional
-            Whether to save as CSV. Default is True.
-
-        to_html : bool, optional
-            Whether to save as HTML. Default is True.
-        """
-        if not to_csv and not to_html:
-            logger.info("No action taken. Both `to_csv` and `to_html` are False.")
-
-        for df, loc in zip(dataframe_list, filepaths):
-            directory_path = loc.parent
-            if not directory_path.exists():
-                directory_path.mkdir(parents=True)
-
-            if to_csv:
-                df.to_csv(loc)
-            if to_html:
-                save_df_to_html(df, str(loc))
+        else:
+            logger.warn("not saving merged csv files")
 
     def fetch_metadata(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
@@ -413,38 +337,38 @@ class DataManager:
         # return the merged dataframes with dropped indices
         return merged_df.reset_index(drop=True), dropped_rows.reset_index(drop=True)
 
-    @staticmethod
-    def fetch_urls(
-        urls: list[str] = None, base_directory_path: Path = Path(dv.MAG_RAW_DATA_DIR), max_retries: int = 5
-    ) -> Results:
+    def fetch_fits(
+        self,
+        urls_df: pd.DataFrame = None,
+        column_name="url",  # take in dataframe, column, create new column
+        suffix="",  # maybe use this?
+        base_directory_path: Path = Path(dv.MAG_RAW_DATA_DIR),
+        max_retries: int = 5,
+        overwrite: bool = False,
+    ) -> pd.DataFrame:
         """
-        Download data from urls using parfive.
+        Download data from URLs in a DataFrame using parfive.
 
         Parameters
         ----------
-        urls : list[str]
-            List of URLs to download. Default is None.
+        urls_df : pd.DataFrame
+            DataFrame containing a "url" column with URLs to download.
 
-        base_directory_path : str or Path, optional
-            Base directory path to save downloaded files. Default is `arccnet.data_generation.utils.default_variables.MAG_RAW_DATA_DIR`
+        base_directory_path : Path, optional
+            Base directory path to save downloaded files. Default is `arccnet.data_generation.utils.default_variables.MAG_RAW_DATA_DIR`.
 
         max_retries : int, optional
             Maximum number of download retries. Default is 5.
 
         Returns
         -------
-        results : parfive.Results or None
-            parfive results object of the download operation, or None if no URLs provided or invalid format.
+        urls_df
+             DataFrame containing "download_path" and "downloaded_successfully" columns
         """
-        if urls is None or not all(isinstance(url, str) for url in (urls or [])):
-            logger.warning("Invalid URLs format. Expected a list of strings.")
+        if urls_df is None or not isinstance(urls_df, pd.DataFrame) or column_name not in urls_df.columns:
+            logger.warning(f"Invalid DataFrame format. Expected a DataFrame with a '{column_name}' column.")
             return None
 
-        if not base_directory_path.exists():
-            base_directory_path.mkdir(parents=True)
-
-        # Only 1 parallel connection (`max_conn`, `max_splits`)
-        # https://docs.sunpy.org/en/stable/_modules/sunpy/net/jsoc/jsoc.html#JSOCClient
         downloader = Downloader(
             max_conn=1,
             progress=True,
@@ -452,19 +376,40 @@ class DataManager:
             max_splits=1,
         )
 
-        paths = []
-        for url in urls:
-            filename = url.split("/")[-1]  # Extract the filename from the URL
-            paths.append(base_directory_path / filename)
+        # setup dataframe with download_paths
 
-        for aurl, fname in zip(urls, paths):
-            downloader.enqueue_file(aurl, filename=fname, max_splits=1)
+        urls_df["download_path" + suffix] = [
+            base_directory_path / Path(url).name if isinstance(url, str) else np.nan for url in urls_df[column_name]
+        ]
+        downloaded_successfully = []
+        for path in urls_df["download_path" + suffix]:
+            if isinstance(path, Path):
+                downloaded_successfully.append(False)
+            elif pd.isna(path):
+                downloaded_successfully.append(np.nan)
+            else:
+                raise InvalidDownloadPathError(f"Invalid download path: {path}")
+
+        urls_df["downloaded_successfully" + suffix] = downloaded_successfully
+
+        fileskip_counter = 0
+        for _, row in urls_df.iterrows():
+            if row[column_name] is not np.nan:
+                # download only if it doesn't exist or overwrite is True
+                # this assumes that parfive deals with checking the integrity of files downloaded
+                # and that none are corrupt
+                if not row["download_path" + suffix].exists() or overwrite:
+                    downloader.enqueue_file(row[column_name], filename=row["download_path" + suffix])
+                else:
+                    fileskip_counter += 1
+
+        if fileskip_counter > 0:
+            logger.info(f"{fileskip_counter} files already exist at the destination, and will not be overwritten.")
 
         results = downloader.download()
 
         if len(results.errors) != 0:
             logger.warning(f"results.errors: {results.errors}")
-            # attempt a retry
             retry_count = 0
             while len(results.errors) != 0 and retry_count < max_retries:
                 logger.info("retrying...")
@@ -477,4 +422,15 @@ class DataManager:
         else:
             logger.info("No errors reported by parfive")
 
-        return results
+        parfive_download_errors = [errors.url for errors in results.errors]
+
+        urls_df["downloaded_successfully" + suffix] = [
+            url not in parfive_download_errors if isinstance(url, str) else url for url in urls_df[column_name]
+        ]
+
+        logger.info(urls_df)
+        return urls_df
+
+
+class InvalidDownloadPathError(Exception):
+    pass
