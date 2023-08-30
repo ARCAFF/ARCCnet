@@ -65,17 +65,20 @@ def pd_dataframe(sunpy_hmi_copies):
 
 def test_read_datapaths(pd_dataframe, temp_path_fixture):
     # test the reading of datapaths
-    temp_dir_path, raw_data_path, process_data_path = temp_path_fixture
+    temp_dir_path, _, process_data_path = temp_path_fixture
     # save to the base of the tempdir
     # data is in raw/
     csv_path = temp_dir_path / Path("data.csv")
+    csv_path = temp_dir_path / Path("data.csv")
     pd_dataframe.to_csv(csv_path, index=False)
 
+    # Initialize the MagnetogramProcessor
     mp = MagnetogramProcessor(
-        csv_file=csv_path,
+        csv_in_file=csv_path,
         columns=["url_hmi", "url_mdi"],
         processed_data_dir=process_data_path,
-        raw_data_dir=raw_data_path,
+        process_data=False,
+        use_multiprocessing=False,
     )
 
     assert all(isinstance(item, Path) for item in mp.paths)
@@ -87,30 +90,27 @@ def test_process_data(pd_dataframe, temp_path_fixture, use_multiprocessing):
     Test Processing without multiprocessing
     """
     # Save the dataframe to a temporary CSV file
-    temp_dir_path, raw_data_path, process_data_path = temp_path_fixture
+    temp_dir_path, _, process_data_path = temp_path_fixture
     csv_path = temp_dir_path / Path("data.csv")
     pd_dataframe.to_csv(csv_path, index=False)
-
-    # Initialize the MagnetogramProcessor
-    mp = MagnetogramProcessor(
-        csv_file=csv_path,
-        columns=["url_hmi", "url_mdi"],
-        processed_data_dir=process_data_path,
-        raw_data_dir=raw_data_path,
-    )
+    csv_out = temp_dir_path / Path("procesed_data.csv")
 
     # check that the processed dir is empty
     assert not list(process_data_path.glob("*.fits"))
 
-    # Process the data with/without multiprocessing
-    # opens the raw/ data, saves to processed/
-    mp.process_data(use_multiprocessing=use_multiprocessing)
+    # Initialize the MagnetogramProcessor
+    mp = MagnetogramProcessor(
+        csv_in_file=csv_path,
+        csv_out_file=csv_out,
+        columns=["url_hmi", "url_mdi"],
+        processed_data_dir=process_data_path,
+        process_data=True,
+        use_multiprocessing=use_multiprocessing,
+    )
 
     # Construct paths for comparison
-    processed_paths = [process_data_path / path.name for path in mp.paths]
-
-    # Repeat the processing steps manually and save/load due to compression artifacts
-    raw_paths = [raw_data_path / path.name for path in mp.paths]
+    raw_paths = mp.paths
+    processed_paths = mp.processed_paths
 
     # sanity check to just ensure the raw and processed paths aren't the same
     assert (np.array(raw_paths) != np.array(processed_paths)).any()
