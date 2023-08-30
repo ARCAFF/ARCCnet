@@ -4,6 +4,7 @@ from pathlib import Path
 
 import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import sunpy.map
 from tqdm import tqdm
@@ -29,21 +30,44 @@ class MagnetogramProcessor:
 
     def __init__(
         self,
-        csv_file: Path = Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
-        columns: list[str] = ["url_hmi", "url_mdi"],
+        csv_in_file: Path = Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
+        csv_out_file: Path = Path(dv.MAG_INTERMEDIATE_HMIMDI_PROCESSED_DATA_CSV),
+        columns: list[str] = ["download_path_hmi", "download_path_mdi"],
         processed_data_dir: Path = Path(dv.MAG_INTERMEDIATE_DATA_DIR),
-        raw_data_dir: Path = Path(dv.MAG_RAW_DATA_DIR),
+        process_data: bool = True,
+        use_multiprocessing: bool = False,
     ) -> None:
         """
         Reads data paths, processes and saves the data.
         """
         logger.info("Instantiated `MagnetogramProcessor`")
         self.processed_data_dir = processed_data_dir
-        self.raw_data_dir = raw_data_dir
-        self.paths = self._read_datapaths(columns=columns, csv_file=csv_file)
+        self.paths, self.loaded_csv = self._read_columns(columns=columns, csv_file=csv_in_file)
 
-    def _read_datapaths(
-        self, columns: list[str] = ["url_hmi", "url_mdi"], csv_file=Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV)
+        if process_data:
+            self.processed_paths = self.process_data(
+                use_multiprocessing=use_multiprocessing,
+                paths=self.paths,
+                save_path=self.processed_data_dir,
+            )
+
+            # Map processed paths to original DataFrame using Path.name
+            processed_path_mapping = {path.name: path for path in self.processed_paths}
+            for column in columns:
+                self.loaded_csv[f"processed_{column}"] = self.loaded_csv.apply(
+                    lambda row: processed_path_mapping.get(Path(row[column]).name, np.nan)
+                    if pd.notna(row[column])
+                    else np.nan,
+                    axis=1,
+                )
+
+            # should probably allow to csv to be a value
+            self.loaded_csv.to_csv(csv_out_file, index=False)
+
+    def _read_columns(
+        self,
+        columns: list[str] = ["download_path_hmi", "download_path_mdi"],
+        csv_file=Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
     ):
         """
         Read and prepare data paths from CSV file.
@@ -66,7 +90,7 @@ class MagnetogramProcessor:
             loaded_data = pd.read_csv(csv_file)
             # ! TODO fix this with a clear head
             file_list = [column for col in columns for column in loaded_data[col].dropna().unique()]
-            paths = [self.raw_data_dir / Path(file).name for file in file_list]
+            paths = [Path(path) if isinstance(path, str) else np.nan for path in file_list]
 
             existing_paths = [path for path in paths if path.exists()]
             if len(existing_paths) < len(paths):
@@ -75,14 +99,14 @@ class MagnetogramProcessor:
         else:
             raise FileNotFoundError(f"{csv_file} does not exist.")
 
-        return paths
+        return paths, loaded_data
 
     def process_data(self, use_multiprocessing: bool = True, paths=None, save_path=None):
         """
         Process data using multiprocessing.
         """
-        if paths is None:
-            paths = self.paths
+        # if paths is None:
+        #     paths = self.paths
 
         if save_path is None:
             base_directory_path = self.processed_data_dir
@@ -92,23 +116,27 @@ class MagnetogramProcessor:
         if not base_directory_path.exists():
             base_directory_path.mkdir(parents=True)
 
+        processed_paths = []  # list of processed filepaths
+
+        logger.info(f"processing of {len(paths)} paths with multiprocessing = {use_multiprocessing}")
         if use_multiprocessing:
-            # self._process_and_save_data(paths, dir=base_directory_path)
-            logger.info(f"executing multiprocessing of {len(paths)} paths")
             # Use tqdm to create a progress bar for multiprocessing
             with multiprocessing.Pool() as pool:
-                for _ in tqdm(
+                for processed_path in tqdm(
                     pool.imap_unordered(
                         self._multiprocess_and_save_data_wrapper, [(path, base_directory_path) for path in paths]
                     ),
                     total=len(paths),
                     desc="Processing",
                 ):
-                    pass
+                    processed_paths.append(processed_path)
+                    # pass
         else:
-            logger.info("Processing data without multiprocessing")
             for path in tqdm(self.paths, desc="Processing"):
-                self._process_and_save_data(path, base_directory_path)
+                processed_path = self._process_and_save_data(path, base_directory_path)
+                processed_paths.append(processed_path)
+
+        return processed_paths
 
     def _multiprocess_and_save_data_wrapper(self, args):
         """
@@ -124,16 +152,17 @@ class MagnetogramProcessor:
 
         Returns
         -------
-        None
+        Path
+            A path for the processed file
 
         See Also:
         --------
         _process_and_save_data, _process_data
         """
         file, output_dir = args
-        self._process_and_save_data(file, output_dir)
+        return self._process_and_save_data(file, output_dir)
 
-    def _process_and_save_data(self, file: Path, output_dir: Path) -> None:
+    def _process_and_save_data(self, file: Path, output_dir: Path) -> Path:
         """
         Process data and save compressed map.
 
@@ -152,6 +181,7 @@ class MagnetogramProcessor:
         output_file = output_dir / file.name  # !TODO prefix the file.name?
         processed_data = self._process_datum(file)
         save_compressed_map(processed_data, path=output_file, overwrite=True)
+        return output_file
 
     def _process_datum(self, file) -> sunpy.map.Map:
         """
