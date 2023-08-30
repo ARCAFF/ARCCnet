@@ -101,16 +101,41 @@ class DataManager:
         #  Merge the HMI and MDI components of the `merged_df` with the SHARPs and SMARPs DataFrames
         # !TODO this is terrible, change this!
         # 3b. HMI-SHARPs
-        merged_df_hs = self.merged_df.copy(deep=True).drop(
-            columns=["datetime_mdi", "url_mdi"]
-            # columns=["magnetogram_fits_mdi", "datetime_mdi", "url_mdi"] + ["magnetogram_fits_mdi"]
-        )  # drop mdi columns and magnetogram_fits_hmi (this is the empty fits file)
+
+        srs_columns = [
+            "ID",
+            "Number",
+            "Carrington Longitude",
+            "Area",
+            "Z",
+            "Longitudinal Extent",
+            "Number of Sunspots",
+            "Mag Type",
+            "Latitude",
+            "Longitude",
+            "filepath_srs",
+            "filename_srs",
+            "loaded_successfully_srs",
+            "catalog_created_on_srs",
+            "datetime_srs",
+        ]
+
+        # drop mdi+srs cols
+        merged_df_hs = (
+            self.merged_df.copy(deep=True).drop(columns=["datetime_mdi", "url_mdi"] + srs_columns).drop_duplicates()
+        )
         merged_df_hs.columns = [col.rstrip("_hmi") if col.endswith("_hmi") else col for col in merged_df_hs.columns]
         self.hmi_sharps = self.merge_activeregionpatches(merged_df_hs, self.sharp_keys[["datetime", "url", "record"]])
+
         # 3c. MDI-SMARPs
-        merged_df_ms = self.merged_df.copy(deep=True).drop(
-            columns=["datetime_hmi", "url_hmi"]
-            # columns=["magnetogram_fits_hmi", "datetime_hmi", "url_hmi"] + ["magnetogram_fits_hmi"]
+        merged_df_ms = (
+            self.merged_df.copy(deep=True)
+            .drop(
+                columns=["datetime_hmi", "url_hmi"]
+                + srs_columns
+                # columns=["magnetogram_fits_hmi", "datetime_hmi", "url_hmi"] + ["magnetogram_fits_hmi"]
+            )
+            .drop_duplicates()
         )  # drop hmi columns and magnetogram_fits_mdi (this is the empty fits file)
         merged_df_ms.columns = [col.rstrip("_mdi") if col.endswith("_mdi") else col for col in merged_df_ms.columns]
         self.mdi_smarps = self.merge_activeregionpatches(merged_df_ms, self.smarp_keys[["datetime", "url", "record"]])
