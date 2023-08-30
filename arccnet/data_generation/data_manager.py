@@ -6,7 +6,7 @@ import pandas as pd
 from sunpy.util.parfive_helpers import Downloader
 
 import arccnet.data_generation.utils.default_variables as dv
-from arccnet.data_generation.catalogs.active_region_catalogs.swpc import SWPCCatalog
+from arccnet.catalogs.active_regions.swpc import SWPCCatalog
 from arccnet.data_generation.magnetograms.instruments import (
     HMILOSMagnetogram,
     HMISHARPs,

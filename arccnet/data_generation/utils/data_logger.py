@@ -4,7 +4,7 @@ import logging
 from arccnet.data_generation.utils.default_variables import DATA_DIR_LOGS, DATA_LOGFILE
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 formatter = logging.Formatter(
     # "%(asctime)s - %(name)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s"  # noqa: E501
@@ -23,3 +23,14 @@ fh = logging.FileHandler(DATA_LOGFILE)
 fh.setLevel(logging.INFO)
 fh.setFormatter(formatter)
 logger.addHandler(fh)
+
+
+def get_logger(name, level=logging.INFO):
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(level)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    return logger

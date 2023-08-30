@@ -1,16 +1,99 @@
+import sys
+import logging
 import tempfile
 from pathlib import Path
 
 import pandas as pd
 
+from astropy.table import QTable
+
 import arccnet.data_generation.utils.default_variables as dv
+from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
 from arccnet.data_generation.data_manager import DataManager
 from arccnet.data_generation.mag_processing import MagnetogramProcessor, RegionExtractor
 from arccnet.data_generation.region_detection import RegionDetection
-from arccnet.data_generation.utils.data_logger import logger
+from arccnet.data_generation.utils.data_logger import get_logger
+from arccnet.data_generation.utils.data_logger import logger as old_logger
+
+logger = get_logger(__name__, logging.DEBUG)
+
+
+def process_srs(config):
+    logger.info(f"Processing SRS with config: {config}")
+    swpc = SWPCCatalog()
+
+    data_root = config["paths"]["data_root"]
+
+    srs_query_file = Path(data_root) / "01_raw" / "noaa_srs" / "srs_query.parq"
+    srs_results_file = Path(data_root) / "02_intermediate" / "noaa_srs" / "srs_results.parq"
+    srs_raw_catalog_file = Path(data_root) / "02_intermediate" / "noaa_srs" / "srs_raw_catalog.parq"
+    srs_processed_catalog_file = Path(data_root) / "03_final" / "noaa_srs" / "srs_processed_catalog.parq"
+    srs_clean_catalog_file = Path(data_root) / "03_final" / "noaa_srs" / "srs_clean_catalog.parq"
+
+    srs_query_file.parent.mkdir(exist_ok=True, parents=True)
+    srs_results_file.parent.mkdir(exist_ok=True, parents=True)
+    srs_processed_catalog_file.parent.mkdir(exist_ok=True, parents=True)
+
+    srs_query = Query.create_empty(config["dates"]["start_date"], config["dates"]["end_date"])
+    if srs_query_file.exists():
+        srs_query = Query.read(srs_query_file)
+
+    srs_query = swpc.search(srs_query)
+    srs_query.write(srs_query_file, format="parquet", overwrite=True)
+
+    # move to reporting / vis
+    # num_expected_srs = len(query)
+    # num_missing_srs = sum(query["url"].mask)
+    # num_found_srs = num_expected_srs - num_missing_srs
+    # logger.info(f"Found: {num_found_srs} out of {num_expected_srs} SRS files")
+
+    srs_results = srs_query.copy()
+    if srs_results_file.exists():
+        srs_results = Result.read(srs_results_file, format="parquet")
+
+    srs_results = swpc.download(srs_results, path=data_root / "01_raw" / "noaa_srs" / "txt")
+    srs_results.write(srs_results_file, format="parquet", overwrite=True)
+
+    srs_raw_catalog = srs_results.copy()
+    if srs_raw_catalog_file.exists():
+        srs_raw_catalog = ClassificationCatalog.read(srs_raw_catalog_file)
+
+    srs_raw_catalog = swpc.create_catalog(srs_raw_catalog)
+    srs_raw_catalog.write(srs_raw_catalog_file, format="parquet", overwrite=True)
+
+    srs_processed_catalog = srs_raw_catalog.copy()
+    if srs_processed_catalog_file.exists():
+        srs_processed_catalog = ClassificationCatalog.read(srs_processed_catalog_file)
+
+    srs_processed_catalog = filter_srs(srs_processed_catalog)
+    srs_processed_catalog.write(srs_processed_catalog_file, format="parquet", overwrite=True)
+
+    srs_clean_catalog = QTable(srs_processed_catalog)[srs_processed_catalog["filtered"] == False]  # noqa
+    srs_clean_catalog.write(srs_clean_catalog_file, format="parquet", overwrite=True)
+
+    return srs_query, srs_results, srs_raw_catalog, srs_processed_catalog, srs_clean_catalog
+
+
+def get_config():
+    cwd = Path()
+    config = {"paths": {"data_root": cwd / "data"}, "dates": {"start_date": "1996-01-01", "end_date": "2023-01-01"}}
+    return config
+
+
+def main():
+    root_logger = logging.getLogger()
+    root_logger.setLevel("DEBUG")
+
+    logger.debug("Starting main")
+    config = get_config()
+    query, results, raw_catalog, processed_catalog, clean_cata = process_srs(config)
+    logger.debug("Finished main")
+    return 0
+
 
 if __name__ == "__main__":
-    logger.info(f"Executing {__file__} as main program")
+    main()
+    old_logger.info(f"Executing {__file__} as main program")
 
     data_download = False
     mag_process = False
@@ -100,3 +183,4 @@ if __name__ == "__main__":
             region_detection.regiondetection_df.to_csv(
                 Path(dv.MAG_PROCESSED_DIR) / Path("ARDetection.csv"), index=False
             )
+    sys.exit()
