@@ -121,8 +121,8 @@ def test_fetch_fits_invalid_df(data_manager_default, temp_path_fixture):
     assert result is None
 
 
-# Test the merge_activeregionpatchs method
-def test_merge_activeregionpatchs_basic(data_manager_default):
+# Test the merge_activeregionpatches method
+def test_merge_activeregionpatches_basic(data_manager_default):
     # Test Case: Basic merge
     full_disk_data = pd.DataFrame(
         {
@@ -136,7 +136,7 @@ def test_merge_activeregionpatchs_basic(data_manager_default):
             "url": ["cutout_url1", "cutout_url3"],
         }
     )
-    merged_df = data_manager_default.merge_activeregionpatchs(full_disk_data, cutout_data)
+    merged_df = data_manager_default.merge_activeregionpatches(full_disk_data, cutout_data)
     expected_merged_data = pd.DataFrame(
         {
             "datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 3, 0, 0)],
@@ -148,7 +148,7 @@ def test_merge_activeregionpatchs_basic(data_manager_default):
     pd.testing.assert_frame_equal(merged_df, expected_merged_data)
 
 
-def test_merge_activeregionpatchs_datetime_no_matching(data_manager_default):
+def test_merge_activeregionpatches_datetime_no_matching(data_manager_default):
     # Test Case: One cutout datetime doesn't match exactly to cutout data
     full_disk_data = pd.DataFrame(
         {
@@ -162,7 +162,7 @@ def test_merge_activeregionpatchs_datetime_no_matching(data_manager_default):
             "url": ["cutout_url1", "cutout_url3"],
         }
     )
-    merged_df = data_manager_default.merge_activeregionpatchs(full_disk_data, cutout_data)
+    merged_df = data_manager_default.merge_activeregionpatches(full_disk_data, cutout_data)
     expected_merged_data = pd.DataFrame(
         {
             "datetime": [datetime(2023, 1, 1, 0, 0)],
@@ -174,7 +174,7 @@ def test_merge_activeregionpatchs_datetime_no_matching(data_manager_default):
     pd.testing.assert_frame_equal(merged_df, expected_merged_data)
 
 
-def test_merge_activeregionpatchs_no_matching(data_manager_default):
+def test_merge_activeregionpatches_no_matching(data_manager_default):
     # Test Case: No matching cutout data
     full_disk_data = pd.DataFrame(
         {
@@ -188,7 +188,7 @@ def test_merge_activeregionpatchs_no_matching(data_manager_default):
             "url": ["cutout_url3"],
         }
     )
-    merged_df = data_manager_default.merge_activeregionpatchs(full_disk_data, cutout_data)
+    merged_df = data_manager_default.merge_activeregionpatches(full_disk_data, cutout_data)
     expected_merged_data = pd.DataFrame(
         {
             "datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 2, 0, 0)],
@@ -206,7 +206,7 @@ def test_merge_activeregionpatchs_no_matching(data_manager_default):
         pd.testing.assert_frame_equal(merged_df, expected_merged_data)
 
 
-def test_merge_activeregionpatchs_multiple_cutouts(data_manager_default):
+def test_merge_activeregionpatches_multiple_cutouts(data_manager_default):
     # Test Case: Multiple cutout data for the same full_disk_data
     full_disk_data = pd.DataFrame(
         {
@@ -220,7 +220,7 @@ def test_merge_activeregionpatchs_multiple_cutouts(data_manager_default):
             "url": ["cutout_url1", "cutout_url2", "cutout_url3"],
         }
     )
-    merged_df = data_manager_default.merge_activeregionpatchs(full_disk_data, cutout_data)
+    merged_df = data_manager_default.merge_activeregionpatches(full_disk_data, cutout_data)
     expected_merged_data = pd.DataFrame(
         {
             "datetime": [datetime(2023, 1, 1, 0, 0), datetime(2023, 1, 3, 0, 0), datetime(2023, 1, 3, 0, 0)],
