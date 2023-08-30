@@ -15,7 +15,7 @@ HMI_SEG_COL = "magnetogram"
 
 # ---- Observation Dates
 DATA_START_TIME = datetime(2010, 6, 1, 0, 0, 0)
-DATA_END_TIME = datetime(2011, 7, 1, 0, 0, 0)
+DATA_END_TIME = datetime(2010, 9, 1, 0, 0, 0)
 # SRS data is given at 00:30, valid at 00:00
 
 # -- Valid Classes
