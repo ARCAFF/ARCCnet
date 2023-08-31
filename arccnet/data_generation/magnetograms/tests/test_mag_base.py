@@ -49,6 +49,9 @@ def test_save_metadata_to_csv_with_temporary_file():
     # Call the method being tested
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_file_path = Path(temp_dir) / "temp_metadata.csv"
-        mock_instance._save_metadata_to_csv(keys_df, filepath=temp_file_path)
+        mock_instance._save_metadata_to_csv(keys_df, filepath=temp_file_path, index=False)
         # Verify the file is created
         assert temp_file_path.exists()
+
+        # test that the df are equal
+        pd.testing.assert_frame_equal(keys_df, pd.read_csv(temp_file_path))

@@ -88,11 +88,10 @@ class MagnetogramProcessor:
 
         if csv_file.exists():
             loaded_data = pd.read_csv(csv_file)
-            # ! TODO fix this with a clear head
             file_list = [column for col in columns for column in loaded_data[col].dropna().unique()]
             paths = [Path(path) if isinstance(path, str) else np.nan for path in file_list]
 
-            existing_paths = [path for path in paths if path.exists()]
+            existing_paths = [path for path in paths if path.exists()]  # check if the raw files exist
             if len(existing_paths) < len(paths):
                 missing_paths = [str(path) for path in paths if path not in existing_paths]
                 raise FileNotFoundError(f"The following paths do not exist: {', '.join(missing_paths)}")

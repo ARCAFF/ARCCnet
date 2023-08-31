@@ -28,7 +28,6 @@ def temp_path_fixture(request):
         shutil.rmtree(temp_dir)  # Clean up the temporary directory
 
     request.addfinalizer(cleanup)  # noqa PT021
-    # return the temp_dir, temp_dir/raw, temp_dir/processed
     return (Path(temp_dir), Path(raw_data_dir), Path(processed_data_dir))
 
 
@@ -68,7 +67,6 @@ def test_read_datapaths(pd_dataframe, temp_path_fixture):
     temp_dir_path, _, process_data_path = temp_path_fixture
     # save to the base of the tempdir
     # data is in raw/
-    csv_path = temp_dir_path / Path("data.csv")
     csv_path = temp_dir_path / Path("data.csv")
     pd_dataframe.to_csv(csv_path, index=False)
 
@@ -123,6 +121,7 @@ def test_process_data(pd_dataframe, temp_path_fixture, use_multiprocessing):
         processed_raw_map.data[
             ~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(processed_raw_map))
         ] = 0.0
+
         # ... save, read, delete
         processed_raw_path = process_data_path / Path("raw_processed.fits")
         save_compressed_map(processed_raw_map, path=processed_raw_path)

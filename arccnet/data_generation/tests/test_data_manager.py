@@ -46,13 +46,12 @@ def overwrite_fixture(request):
 
 # test_fetch_fits_valid with different overwrite settings
 def test_fetch_fits_overwrite(overwrite_fixture, data_manager_default, temp_path_fixture):
-    # Create an instance of YourClass
+    # Create an instance of DataManager
     instance = data_manager_default
 
-    # Test data that isn't valid
     test_urls = instance.merged_df[["url_hmi"]][0:3]
 
-    # Call the method being tested with the overwrite parameter from the fixture
+    # fetch_fits with the overwrite parameter from the fixture
     result = instance.fetch_fits(
         urls_df=test_urls,
         column_name="url_hmi",
@@ -61,20 +60,16 @@ def test_fetch_fits_overwrite(overwrite_fixture, data_manager_default, temp_path
         overwrite=overwrite_fixture,
     )
 
-    # Check if the downloaded_successfully column
     assert all(result["downloaded_successfully_hmi"])
 
 
 # test_fetch_fits_valid
 def test_fetch_fits_valid_one_invalid(overwrite_fixture, data_manager_default, temp_path_fixture):
-    # Create an instance of YourClass
     instance = data_manager_default
 
-    # Test data that isn't valid
     test_urls = instance.merged_df[["url_hmi"]][0:3]
     test_urls["url_hmi"][1] = "http://url"  # will fail download
 
-    # Call the method being tested
     result = instance.fetch_fits(
         urls_df=test_urls,
         column_name="url_hmi",
@@ -85,12 +80,11 @@ def test_fetch_fits_valid_one_invalid(overwrite_fixture, data_manager_default, t
 
     expected_values = [True, False, True]
 
-    # Check if the downloaded_successfully column is True False True
+    # Ensure the downloaded_successfully column is True False True
     assert all(result["downloaded_successfully_hmi"] == expected_values)
 
 
 def test_fetch_fits_valid_no_data(data_manager_default, temp_path_fixture):
-    # Create an instance of YourClass
     instance = data_manager_default
 
     # Test data that isn't valid
@@ -111,13 +105,11 @@ def test_fetch_fits_valid_no_data(data_manager_default, temp_path_fixture):
 
 
 def test_fetch_fits_invalid_df(data_manager_default, temp_path_fixture):
-    # Create an instance of YourClass
     instance = data_manager_default
 
-    # Call the method being tested with an invalid DataFrame
+    # provide None as the dataframe
     result = instance.fetch_fits(urls_df=None, column_name="url", base_directory_path=temp_path_fixture)
 
-    # Check if the result is None as expected
     assert result is None
 
 
@@ -197,7 +189,7 @@ def test_merge_activeregionpatches_no_matching(data_manager_default):
             "url_arc": [None, None],
         }
     ).dropna()
-    # the mergeactiveregion patches drops any NaN as there are no matches to the fulldisk data
+    # the mergeactiveregion_patches drops any NaN as there are no matches to the fulldisk data
 
     # Check if both data frames are empty
     if merged_df.empty and expected_merged_data.empty:
@@ -374,12 +366,10 @@ def test_merge_hmimdi_metadata(sample_merged_data, data_manager_default):
         for column in ["datetime_srs", "datetime_hmi", "datetime_mdi"]:
             expected_df[column] = pd.to_datetime(expected_df[column], errors="coerce")
 
-        # Example assertion related to datetime columns
         assert "datetime_srs" in merged_df.columns
         assert "datetime_hmi" in merged_df.columns
         assert "datetime_mdi" in merged_df.columns
 
-        # Example assertion related to NaN values
         assert not any(merged_df["datetime_srs"].isna())  # No NaN in srs datetime
 
         assert (

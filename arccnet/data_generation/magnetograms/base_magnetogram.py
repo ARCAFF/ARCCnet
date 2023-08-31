@@ -226,7 +226,7 @@ class BaseMagnetogram(ABC):
         r_urls = export_response.urls.copy()
         return r_urls
 
-    def _save_metadata_to_csv(self, keys: pd.DataFrame, filepath: str = None) -> None:
+    def _save_metadata_to_csv(self, keys: pd.DataFrame, filepath: str = None, **kwargs) -> None:
         """
         Save metadata to a CSV file.
 
@@ -238,7 +238,11 @@ class BaseMagnetogram(ABC):
             A DataFrame containing metadata keys.
 
         filepath : str, optional
-            The file path for saving the CSV file. If not provided, the default location is used (see `metadata_save_location`).
+            Filepath for saving the CSV file. If not provided, the default location is used
+            (refer to `metadata_save_location` attribute).
+
+        **kwargs
+            Additional keyword arguments to pass to pandas DataFrame's `to_csv` function.
 
         Returns
         -------
@@ -255,7 +259,7 @@ class BaseMagnetogram(ABC):
         if not directory_path.exists():
             directory_path.mkdir(parents=True)
 
-        keys.to_csv(file)
+        keys.to_csv(file, **kwargs)
 
     def _add_extracted_columns_to_df(
         self, df: pd.DataFrame, df_colname: str = "record"
@@ -451,7 +455,7 @@ class BaseMagnetogram(ABC):
         query = self.generate_drms_query(start_date, end_date)
         query_string = f"\t {self._type} Query: {query} "
 
-        keys, segs = self._query_jsoc(query)
+        keys, _ = self._query_jsoc(query)
         if len(keys) == 0:
             # return None if there are no results
             logger.warn(query_string + f"returned {len(keys)} results")

@@ -102,6 +102,7 @@ class DataManager:
         # !TODO this is terrible, change this!
         # 3b. HMI-SHARPs
 
+        # placeholder.
         srs_columns = [
             "ID",
             "Number",
@@ -144,7 +145,7 @@ class DataManager:
         # 4a. check if image data exists
         ofits = overwrite_fits  # hack to stop black formatting the lines
         if download_fits:
-            # this is not great, but will do for now
+            # this is not great, but will skip if files exist
             # adds "downloaded_successfully"+suffix and "download_path"+suffix
             # to each dataframe.
             self.merged_df = self.fetch_fits(self.merged_df, column_name="url_hmi", suffix="_hmi", overwrite=ofits)
@@ -193,25 +194,21 @@ class DataManager:
         # !TODO itereate over children of `BaseMagnetogram`
         hmi_keys = self.hmi.fetch_metadata(self.start_date, self.end_date, batch_frequency=12, to_csv=self.save_to_csv)
         mdi_keys = self.mdi.fetch_metadata(self.start_date, self.end_date, batch_frequency=12, to_csv=self.save_to_csv)
-        sharp_keys = self.sharps.fetch_metadata(
-            self.start_date, self.end_date, batch_frequency=3, to_csv=self.save_to_csv
-        )
-        smarp_keys = self.smarps.fetch_metadata(
-            self.start_date, self.end_date, batch_frequency=3, to_csv=self.save_to_csv
-        )
+        sharp_k = self.sharps.fetch_metadata(self.start_date, self.end_date, batch_frequency=3, to_csv=self.save_to_csv)
+        smarp_k = self.smarps.fetch_metadata(self.start_date, self.end_date, batch_frequency=3, to_csv=self.save_to_csv)
 
         # logging
         for name, dataframe in {
             "HMI Keys": hmi_keys,
-            "SHARP Keys": sharp_keys,
+            "SHARP Keys": sharp_k,
             "MDI Keys": mdi_keys,
-            "SMARP Keys": smarp_keys,
+            "SMARP Keys": smarp_k,
         }.items():
             logger.info(
                 f"{name}: \n{dataframe[['T_REC','T_OBS','DATE-OBS','datetime', 'url']]}"
             )  # magnetogram_fits', 'url']]}")
 
-        return srs, mdi_keys, hmi_keys, sharp_keys, smarp_keys
+        return srs, mdi_keys, hmi_keys, sharp_k, smarp_k
 
     def merge_activeregionpatches(
         self,
@@ -235,7 +232,6 @@ class DataManager:
         pd.DataFrame
             Merged DataFrame of active region patch data.
         """
-        # # merge srs_clean and hmi
         expected_columns = ["datetime", "url"]
 
         if not set(expected_columns).issubset(full_disk_data.columns):
@@ -250,26 +246,17 @@ class DataManager:
             )
             raise NotImplementedError()
 
-        # # !TODO do a check for certain keys (no duplicates...)
-        # # extract only the relevant HMI keys, and rename
-        # # (should probably do this earlier on)
-        # full_disk_data = full_disk_data[mag_cols]
-        # full_disk_data = full_disk_data.add_suffix("_hmi")
         full_disk_data_dropna = full_disk_data.dropna().reset_index(drop=True)
 
-        # cutout_data = cutout_data[mag_cols]
+        # !TODO can probably just do this in the merge with suffix = ...
         cutout_data = cutout_data.add_suffix("_arc")
         cutout_data_dropna = cutout_data.dropna().reset_index(drop=True)
-
-        logger.info(f"len of full_disk_data_dropna is {len(full_disk_data_dropna)}")
-        logger.info(f"len of cutout_data_dropna is {len(cutout_data_dropna)}")
 
         # need to figure out if a left merge is what we want...
         merged_df = pd.merge(
             full_disk_data_dropna, cutout_data_dropna, left_on="datetime", right_on="datetime_arc"
-        )  # no tolerance as should be exact
+        )  # no tolerance as should be exact!
 
-        logger.info(f"len of merged_df is {len(merged_df)}")
         return merged_df
 
     def merge_hmimdi_metadata(
