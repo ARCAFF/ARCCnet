@@ -42,7 +42,10 @@ if __name__ == "__main__":
             datetimes=["datetime_mdi", "datetime_hmi"],
             data_cols=["processed_download_path_mdi", "processed_download_path_hmi"],
             new_cols=["cutout_mdi", "cutout_hmi"],
-            cutout_sizes=[int(dv.X_EXTENT / 4), int(dv.Y_EXTENT / 4), int(dv.X_EXTENT), int(dv.Y_EXTENT)],
+            cutout_sizes=[
+                (int(dv.X_EXTENT / 4), int(dv.Y_EXTENT / 4)),
+                (int(dv.X_EXTENT), int(dv.Y_EXTENT)),
+            ],
             common_datetime_col="datetime_srs",
             num_random_attempts=10,
         )
