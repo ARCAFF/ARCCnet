@@ -170,9 +170,9 @@ class DataManager:
             self.mdi_sharps.to_csv(Path(dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV), index=False)
             logger.info(
                 "saving... \n"
-                + "\t `merged_df` to {dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV}\n"
-                + "\t `hmi_sharp` to {dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV}\n"
-                + "\t `mdi_sharps` to {dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV}\n"
+                + f"\t `merged_df` to {dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV}\n"
+                + f"\t `hmi_sharp` to {dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV}\n"
+                + f"\t `mdi_sharps` to {dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV}\n"
             )
         else:
             logger.warn("not saving merged csv files")
