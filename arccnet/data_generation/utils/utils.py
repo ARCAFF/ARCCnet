@@ -35,12 +35,14 @@ def save_compressed_map(amap: sunpy.map.Map, path: Path, **kwargs) -> None:
     Save a compressed map.
     If "bscale" and "bzero" exist in the metadata, remove before saving.
     See: https://github.com/sunpy/sunpy/issues/7139
+
     Parameters
     ----------
     amap : sunpy.map.Map
         the sunpy map object to be saved
     path : Path
         the path to save the file to
+
     Returns
     -------
     None
