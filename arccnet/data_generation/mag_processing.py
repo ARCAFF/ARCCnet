@@ -247,7 +247,6 @@ class SRSBox:
         bottom_left: tuple[float, float],
         shape: tuple[int, int],
         ar_pos_pixels=tuple[int, int],
-        time: str = None,
         identifier=None,
     ):
         self.top_right = top_right
@@ -255,7 +254,6 @@ class SRSBox:
         self.identifier = identifier
         self.shape = shape
         self.ar_pos_pixels = ar_pos_pixels
-        self.time = time
 
 
 class QSBox:
@@ -289,48 +287,62 @@ class RegionExtractor:
     def __init__(
         self,
         dataframe=Path(dv.MAG_INTERMEDIATE_HMIMDI_PROCESSED_DATA_CSV),
-        out_fnames: list[str] = ["mdi", "hmi"],
-        datetimes: list[str] = ["datetime_mdi", "datetime_hmi"],
-        data_cols: list[str] = ["processed_download_path_mdi", "processed_download_path_hmi"],
-        new_cols: list[str] = ["cutout_mdi", "cutout_hmi"],
-        cutout_sizes: list[tuple] = [
-            (int(dv.X_EXTENT / 4), int(dv.Y_EXTENT / 4)),
-            (int(dv.X_EXTENT), int(dv.Y_EXTENT)),
-        ],
+        out_fnames: list[str] = None,
+        datetimes: list[str] = None,
+        data_cols: list[str] = None,
+        new_cols: list[str] = None,
+        cutout_sizes: list[tuple] = None,
+        common_datetime_col: str = None,
         num_random_attempts: int = 10,
     ) -> None:
-        common_datetime_col = "datetime_srs"
+        # !TODO enforce if one of these is not None, the others need to be defined
+
+        # if np.array([out_fnames, datetimes, data_cols, new_cols, cutout_sizes, common_datetime_col]).any() is None:
+        #     ValueError("Please define all inputs")
 
         # load to df and make datetime
-        df = load_df_to_datetime(dataframe)
+        df = load_df_to_datetimedf(dataframe)
 
         self.dataframes = []
         combined_indices = set()
-        for datetime_col, data_col, new_col, cutout_size, ofname in zip(
+        columns = ["top_right", "bottom_left"]
+
+        for datetime_col, data_col, new_col, co_size, ofname in zip(
             datetimes, data_cols, new_cols, cutout_sizes, out_fnames
         ):
             # Create DataFrame for datetime_col and data_col not null
-            df_subset = df[(df[datetime_col].notnull() & df[data_col].notnull())]
-            combined_indices.update(df_subset.index)
-            df_subset = df_subset.reset_index(drop=True)
-            self.dataframes.append((df_subset, datetime_col, data_col, new_col, cutout_size, ofname))
+            df_sset = df[(df[datetime_col].notnull() & df[data_col].notnull())]
+            combined_indices.update(df_sset.index)
+            # df_sset = df_sset.reset_index(drop=True)
+            self.dataframes.append((df_sset, datetime_col, data_col, new_col, co_size, ofname))
 
-        # check that all indices are accounted for
+        # check that all indices in the original dataframe are accounted for
         if not set(df.index) == combined_indices:
             raise ValueError("there are missing rows")
 
         # ---
         dv_summary_plots_path = Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR)
-        df_arr = []
+
+        ardf_arr = []
+        qsdf_arr = []
 
         # iterate through dataframes
         for single_df in self.dataframes:
             df_subset, datetime_column, data_column, new_column, cutout_size, instr = single_df
-            qs_df = df_subset.copy()
+
+            ar_df = df_subset.copy(deep=True)
+            qs_df = df_subset.copy(deep=True)
+
+            for c in ["top_right", "bottom_left", new_column]:
+                if c not in ar_df.columns:
+                    ar_df[c] = None
+                else:
+                    raise ValueError("column already exists")
+
             xsize, ysize = cutout_size
-            print("cuoutsize", cutout_size)
             grouped_by_datetime = df_subset.groupby(common_datetime_col)
 
+            # group by the common datetime column, and iterate through
             for time_srs, group in grouped_by_datetime:
                 summary_info = []
 
@@ -350,7 +362,7 @@ class RegionExtractor:
 
                 # -- AR Extraction
                 columns = ["Latitude", "Longitude"]
-                for _, row in group.iterrows():
+                for idx, row in group.iterrows():
                     numbr = row["Number"]
 
                     my_hmi_submap, top_right, bottom_left, ar_pos_pixels = extract_region_lonlat(
@@ -361,6 +373,7 @@ class RegionExtractor:
                         xsize=xsize * u.pix,
                         ysize=ysize * u.pix,  # units should be dealt with earlier
                     )
+
                     summary_info.append(
                         SRSBox(
                             top_right=top_right,
@@ -368,17 +381,22 @@ class RegionExtractor:
                             identifier=numbr,
                             shape=my_hmi_submap.data.shape,
                             ar_pos_pixels=ar_pos_pixels,
-                            time=time_srs,
                         )
                     )
 
-                    # save
-                    save_compressed_map(
-                        my_hmi_submap,
+                    path = (
                         Path(dv.MAG_PROCESSED_FITS_DIR)
-                        / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_{numbr}_{instr}.fits",
-                        overwrite=True,
+                        / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_{numbr}_{instr}.fits"
                     )
+
+                    print(top_right.value, bottom_left.value, path)
+                    ar_df.at[idx, "top_right"] = (top_right.value[0], top_right.value[1])
+                    ar_df.at[idx, "bottom_left"] = (bottom_left.value[0], bottom_left.value[1])
+                    ar_df.at[idx, new_column] = path
+
+                    # print(ar_df[["top_right", "bottom_left", new_column]])
+
+                    save_compressed_map(my_hmi_submap, path, overwrite=True)
                     del my_hmi_submap
 
                 # -- QS Extraction
@@ -456,11 +474,21 @@ class RegionExtractor:
                 # !TODO add lat/lon for QS, add hmi_cutout_dim to SRS
                 qs_df = qs_df.sort_values("datetime_srs").reset_index(drop=True)
 
+                # print(qs_df)
+                # qs_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/ARExtraction.csv")
+
                 self.plotting(dv_summary_plots_path, instr, time_srs, summary_info, my_hmi_map, ysize)
 
                 del summary_info
 
-            df_arr.append(qs_df)
+            ardf_arr.append(ar_df)
+            qsdf_arr.append(qs_df)
+
+        ardf_arr[0].to_csv("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/AR_one.csv")
+        ardf_arr[1].to_csv("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/AR_two.csv")
+
+        final_df = pd.concat(qsdf_arr)
+        final_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/03_processed/mag/QS.csv")
 
     def plotting(self, dv_summary_plots_path, instr, time_srs, summary_info, my_hmi_map, ysize) -> None:
         fig = plt.figure(figsize=(5, 5))
@@ -508,7 +536,7 @@ class RegionExtractor:
             text.remove()
 
 
-def load_df_to_datetime(filename: Path = None):
+def load_df_to_datetimedf(filename: Path = None):
     """
     Load a CSV file into a DataFrame and convert columns with datetime prefix to datetime objects.
 
@@ -532,9 +560,9 @@ def load_df_to_datetime(filename: Path = None):
     return loaded_data
 
 
-def extract_submap_pixels(amap, center, xsize, ysize) -> sunpy.map.Map:
+def extract_submap_pixels(sunpy_map: sunpy.map.Map, center, xsize, ysize) -> sunpy.map.Map:
     """
-    ...
+    Given a the center and xsize/ysize extract a submap, and return bounds
     """
     # Perform in pixel coordinates
     top_right = [center[0] + (xsize - 1) / 2, center[1] + (ysize - 1) / 2] * u.pix
@@ -543,28 +571,36 @@ def extract_submap_pixels(amap, center, xsize, ysize) -> sunpy.map.Map:
         center[1] - (ysize - 1) / 2,
     ] * u.pix
 
-    submap = amap.submap(bottom_left, top_right=top_right)
+    submap = sunpy_map.submap(bottom_left, top_right=top_right)
     return submap, top_right, bottom_left
 
 
 @u.quantity_input
 def latlon_to_map_pixels(
-    latitude: u.deg, longitude: u.deg, time, amap: sunpy.map.Map, frame=sunpy.coordinates.frames.HeliographicStonyhurst
+    latitude: u.deg,
+    longitude: u.deg,
+    time,
+    sunpy_map: sunpy.map.Map,
+    frame=sunpy.coordinates.frames.HeliographicStonyhurst,
 ):
+    """
+    Given lat/lon in degrees, convert to pixels on a `sunpy.map.Map`
+    """
     ar_pos_hgs = SkyCoord(
         longitude,
         latitude,
         obstime=time,
         frame=frame,
     )
-    transformed = ar_pos_hgs.transform_to(amap.coordinate_frame)
-    ar_pos_pixels = transformed.to_pixel(amap.wcs)
+    transformed = ar_pos_hgs.transform_to(sunpy_map.coordinate_frame)
+    ar_pos_pixels = transformed.to_pixel(sunpy_map.wcs)
     return ar_pos_pixels
 
 
-def map_pixels_to_latlon(time, amap: sunpy.map.Map):
+def map_pixels_to_latlon(sunpy_map: sunpy.map.Map):
     """
-    provide pixels, get out latlon"""
+    provide pixels, get out latlon
+    """
     pass
 
 
