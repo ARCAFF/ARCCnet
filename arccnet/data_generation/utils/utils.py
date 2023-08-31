@@ -1,3 +1,4 @@
+from pathlib import Path
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -10,7 +11,47 @@ import astropy.io
 
 from arccnet.data_generation.utils.data_logger import logger
 
-__all__ = ["round_to_midnight", "save_df_to_html", "check_column_values", "save_df_to_html", "check_column_values", "grouped_stratified_split"]
+__all__ = [
+    "is_point_far_from_point",
+    "make_relative",
+    "save_compressed_map",
+    "round_to_midnight",
+    "save_df_to_html",
+    "check_column_values",
+    "grouped_stratified_split",
+]
+
+
+def is_point_far_from_point(x, y, x1, y1, threshold_x, threshold_y):
+    return abs(x - x1) > abs(threshold_x) or abs(y - y1) > abs(threshold_y)
+
+
+def make_relative(base_path, path):
+    return Path(path).relative_to(Path(base_path))
+
+
+def save_compressed_map(amap: sunpy.map.Map, path: Path, **kwargs) -> None:
+    """
+    Save a compressed map.
+    If "bscale" and "bzero" exist in the metadata, remove before saving.
+    See: https://github.com/sunpy/sunpy/issues/7139
+    Parameters
+    ----------
+    amap : sunpy.map.Map
+        the sunpy map object to be saved
+    path : Path
+        the path to save the file to
+    Returns
+    -------
+    None
+    """
+    if "bscale" in amap.meta:
+        del amap.meta["bscale"]
+
+    if "bzero" in amap.meta:
+        del amap.meta["bzero"]
+
+    amap.save(path, hdu_type=astropy.io.fits.CompImageHDU, **kwargs)
 
 
 def round_to_midnight(dt: datetime):

@@ -15,7 +15,7 @@ from astropy.coordinates import SkyCoord
 
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.utils.data_logger import logger
-from arccnet.data_generation.utils.utils import make_relative, save_compressed_map
+from arccnet.data_generation.utils.utils import is_point_far_from_point, save_compressed_map
 
 matplotlib.use("Agg")
 
@@ -240,27 +240,6 @@ class MagnetogramProcessor:
         return amap.rotate()
 
 
-def file_stuff(
-    dv_process_fits_path=Path(dv.MAG_PROCESSED_FITS_DIR),
-    dv_summary_plots_path=Path(dv.MAG_PROCESSED_SUMMARYPLOTS_DIR),
-    qsdir=Path(dv.MAG_PROCESSED_QSFITS_DIR),
-    dv_qs_summary_plots_path=Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR),
-):
-    """
-    has to be a better way to do this
-    """
-    if not dv_process_fits_path.exists():
-        dv_process_fits_path.mkdir(parents=True)
-    if not dv_summary_plots_path.exists():
-        dv_summary_plots_path.mkdir(parents=True)
-    if not qsdir.exists():
-        qsdir.mkdir(parents=True)
-    if not dv_qs_summary_plots_path.exists():
-        dv_qs_summary_plots_path.mkdir(parents=True)
-
-    return dv_process_fits_path, dv_summary_plots_path, dv_qs_summary_plots_path
-
-
 class SRSBox:
     def __init__(
         self,
@@ -287,7 +266,6 @@ class QSBox:
         bottom_left: tuple[float, float],
         shape: tuple[int, int],
         ar_pos_pixels: tuple[int, int],
-        center: SkyCoord,
         identifier=None,
     ):
         self.top_right = top_right
@@ -295,73 +273,69 @@ class QSBox:
         self.identifier = identifier
         self.shape = shape
         self.ar_pos_pixels = ar_pos_pixels
-        self.center = center
-        self.latitude, self.longitude = sunpy_map.center.transform_to(sunpy.coordinates.frames.HeliographicStonyhurst)
+
+        if sunpy.map.coordinate_is_on_solar_disk(sunpy_map.center):
+            latlon = sunpy_map.center.transform_to(sunpy.coordinates.frames.HeliographicStonyhurst)
+            self.center = sunpy_map.center
+            self.latitude = latlon.lat.value
+            self.longitude = latlon.lon.value
+        else:
+            self.center = np.nan
+            self.latitude = np.nan
+            self.longitude = np.nan
 
 
 class RegionExtractor:
-    def __init__(self, dataframe=Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV)) -> None:
-        # Load minimal data
-        num_random_attempts = 10
+    def __init__(
+        self,
+        dataframe=Path(dv.MAG_INTERMEDIATE_HMIMDI_PROCESSED_DATA_CSV),
+        out_fnames: list[str] = ["mdi", "hmi"],
+        datetimes: list[str] = ["datetime_mdi", "datetime_hmi"],
+        data_cols: list[str] = ["processed_download_path_mdi", "processed_download_path_hmi"],
+        new_cols: list[str] = ["cutout_mdi", "cutout_hmi"],
+        cutout_sizes: list[tuple] = [
+            (int(dv.X_EXTENT / 4), int(dv.Y_EXTENT / 4)),
+            (int(dv.X_EXTENT), int(dv.Y_EXTENT)),
+        ],
+        num_random_attempts: int = 10,
+    ) -> None:
+        common_datetime_col = "datetime_srs"
 
-        df = load_minimal_srs_mag_df(dataframe)
+        # load to df and make datetime
+        df = load_df_to_datetime(dataframe)
 
-        # Create DataFrame for datetime_hmi and processed_hmi not null
-        df_hmi = df[(df["datetime_hmi"].notnull() & df["processed_hmi"].notnull())]
+        self.dataframes = []
+        combined_indices = set()
+        for datetime_col, data_col, new_col, cutout_size, ofname in zip(
+            datetimes, data_cols, new_cols, cutout_sizes, out_fnames
+        ):
+            # Create DataFrame for datetime_col and data_col not null
+            df_subset = df[(df[datetime_col].notnull() & df[data_col].notnull())]
+            combined_indices.update(df_subset.index)
+            df_subset = df_subset.reset_index(drop=True)
+            self.dataframes.append((df_subset, datetime_col, data_col, new_col, cutout_size, ofname))
 
-        # Create DataFrame for datetime_mdi and processed_mdi not null
-        df_mdi = df[(df["datetime_mdi"].notnull() & df["processed_mdi"].notnull())]
+        # check that all indices are accounted for
+        if not set(df.index) == combined_indices:
+            raise ValueError("there are missing rows")
 
-        # Create DataFrame for rows not in df_hmi or df_mdi
-        df_not_in_either = df[~df.index.isin(df_hmi.index) & ~df.index.isin(df_mdi.index)]
-
-        # Reset the index if needed for all DataFrames
-        df_hmi.reset_index(drop=True, inplace=True)
-        df_mdi.reset_index(drop=True, inplace=True)
-        df_not_in_either.reset_index(drop=True, inplace=True)
-
-        # Print the filtered DataFrames
-        logger.info(f"DataFrame {df.shape}")
-        logger.info(f"DataFrame for HMI: {df_hmi.shape}")
-        logger.info(f"DataFrame for MDI: {df_mdi.shape}")
-        logger.info(f"DataFrame not in either: {df_not_in_either.shape}")
-        if df_not_in_either.shape[0] > 0:
-            raise ValueError("df_not_in_either is not None")
-
-        dv_process_fits_path, dv_summary_plots_path, _ = file_stuff()
-
-        sizes = {
-            "HMI SIDE1": (int(dv.X_EXTENT), int(dv.X_EXTENT)),  # ~0.5 arcsec per pixel
-            "MDI": (int(dv.X_EXTENT / 2), int(dv.X_EXTENT / 2)),  # ~ 2 arcsec per pixel so approximately divide by 2
-        }
-
-        instruments = {
-            "MDI": {
-                "df": df_mdi,
-                "cols": ["datetime_mdi", "processed_mdi"],
-                "newc": ["cutout_mdi", "cutout_dim_mdi"],
-            },
-            "HMI": {
-                "df": df_hmi,
-                "cols": ["datetime_hmi", "processed_hmi"],
-                "newc": ["cutout_hmi", "cutout_dim_hmi"],
-            },
-        }
-
+        # ---
+        dv_summary_plots_path = Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR)
         df_arr = []
-        for instr in instruments:
-            grouped_data = instruments[instr]["df"].groupby("datetime_srs")
-            datetime_column = instruments[instr]["cols"][0]
-            data_column = instruments[instr]["cols"][1]
-            newc0 = instruments[instr]["newc"][0]
-            newc1 = instruments[instr]["newc"][1]
 
-            qs_df = instruments[instr]["df"].copy()
-            for time_srs, group in grouped_data:
+        # iterate through dataframes
+        for single_df in self.dataframes:
+            df_subset, datetime_column, data_column, new_column, cutout_size, instr = single_df
+            qs_df = df_subset.copy()
+            xsize, ysize = cutout_size
+            print("cuoutsize", cutout_size)
+            grouped_by_datetime = df_subset.groupby(common_datetime_col)
+
+            for time_srs, group in grouped_by_datetime:
                 summary_info = []
 
-                if len(group.processed_hmi.unique()) != 1:
-                    raise ValueError("group.processed_hmi.unique() is not 1")
+                if len(group[data_column].unique()) != 1:
+                    raise ValueError("group[data_column].unique() is not 1")
 
                 my_hmi_map = sunpy.map.Map(group[data_column].unique()[0])  # take the first hmi
                 time_hmi = group[datetime_column].unique()[0]  # I think shane asked about just querying the map
@@ -374,20 +348,18 @@ class RegionExtractor:
                     indices = np.where(np.isnan(data))
                     data[indices] = 0.0
 
-                # set instrument
-                instrument = my_hmi_map.instrument
-                try:
-                    xsize, ysize = sizes[instrument]
-                except KeyError:
-                    raise ValueError(f"Size not defined for instrument: {instrument}")
-
                 # -- AR Extraction
                 columns = ["Latitude", "Longitude"]
                 for _, row in group.iterrows():
                     numbr = row["Number"]
 
                     my_hmi_submap, top_right, bottom_left, ar_pos_pixels = extract_region_lonlat(
-                        my_hmi_map, time_hmi, row[columns], xsize=xsize, ysize=ysize
+                        my_hmi_map,
+                        time_hmi,
+                        row[columns][0] * u.deg,
+                        row[columns][1] * u.deg,
+                        xsize=xsize * u.pix,
+                        ysize=ysize * u.pix,  # units should be dealt with earlier
                     )
                     summary_info.append(
                         SRSBox(
@@ -399,23 +371,27 @@ class RegionExtractor:
                             time=time_srs,
                         )
                     )
+
+                    # save
                     save_compressed_map(
-                        my_hmi_submap, dv_process_fits_path / f"{time_srs}_{numbr}_{instr}.fits", overwrite=True
+                        my_hmi_submap,
+                        Path(dv.MAG_PROCESSED_FITS_DIR)
+                        / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_{numbr}_{instr}.fits",
+                        overwrite=True,
                     )
                     del my_hmi_submap
 
                 # -- QS Extraction
-                for i in range(0, num_random_attempts):
+                iterations = 0
+                qs_df_len = 0
+                while qs_df_len < num_random_attempts and iterations <= 20:
                     # there may be an existing CS algo for this,
                     # it's essentially a simplified 2D bin packing problem,
-                    # however doing it randomly might be preferred.
-                    random_1ng = random.uniform(-1000, 1000) * u.arcsec
-                    random_lat = random.uniform(-1000, 1000) * u.arcsec
 
-                    # convert lng/lat in Helioprojective coordinates to pixel coordinates
+                    # generate random lng/lat and convert Helioprojective coordinates to pixel coordinates
                     ar_pos_hproj = SkyCoord(
-                        random_1ng,
-                        random_lat,
+                        random.uniform(-1000, 1000) * u.arcsec,
+                        random.uniform(-1000, 1000) * u.arcsec,
                         frame=my_hmi_map.coordinate_frame,
                     ).to_pixel(my_hmi_map.wcs)
 
@@ -431,56 +407,51 @@ class RegionExtractor:
 
                     if all(candidates):
                         # generate the submap
-                        qs_submap, top_right, bottom_left = extract_submap_pixels(
+                        qs_submap, fd_top_right, fd_bottom_left = extract_submap_pixels(
                             my_hmi_map, ar_pos_hproj, xsize, ysize
                         )
 
                         # create QS BBox object
-                        # make more elegant
                         qs_region = QSBox(
                             sunpy_map=qs_submap,
-                            top_right=top_right,
-                            bottom_left=bottom_left,
+                            top_right=fd_top_right,
+                            bottom_left=fd_bottom_left,
                             identifier=None,
                             shape=qs_submap.data.shape,
                             ar_pos_pixels=ar_pos_hproj,
                         )
+
+                        # only keep those with the center on disk
+                        if qs_region.center is np.nan:
+                            continue
+
                         summary_info.append(qs_region)
 
                         # save to file
                         output_filename = (
                             Path(dv.MAG_PROCESSED_QSFITS_DIR)
-                            / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS_{i}_{instr}.fits"
+                            / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS_{qs_df_len}_{instr}.fits"
                         )
-                        save_compressed_map(qs_submap, path=output_filename, overwrite=True)
 
-                        # create dummy dict
-                        # why does this destroy the fucking dtype of cols
-                        # Fix this to be in the class
-                        if sunpy.map.coordinate_is_on_solar_disk(qs_region.center):
-                            qs_lon = qs_region.longitude.value
-                            qs_lat = qs_region.latitude.value
-                        else:
-                            qs_lon = pd.NA
-                            qs_lat = pd.NA
+                        save_compressed_map(qs_submap, path=output_filename, overwrite=True)
 
                         qs_temp = pd.DataFrame(
                             {
-                                "datetime_hmi": time_hmi,
+                                datetime_column: time_hmi,
                                 "datetime_srs": time_srs,
-                                newc0: str(output_filename),
-                                newc1: [qs_region.shape],
-                                "Longitude": qs_lon,
-                                "Latitude": qs_lat,
+                                new_column: str(output_filename),
+                                new_column + "_dim": [qs_region.shape],
+                                "Longitude": qs_region.longitude,
+                                "Latitude": qs_region.latitude,
                             },
                             index=[0],
                         )
 
-                        # honestly, we should maybe just export the full qs_df without concat, and do that later
                         qs_df = pd.concat([qs_df, qs_temp], ignore_index=True)
                         del qs_submap
 
-                    # return qs_df containing all quiet sun regions for an instrument
+                        qs_df_len += 1
+                        iterations += 1
 
                 # !TODO add lat/lon for QS, add hmi_cutout_dim to SRS
                 qs_df = qs_df.sort_values("datetime_srs").reset_index(drop=True)
@@ -537,108 +508,34 @@ class RegionExtractor:
             text.remove()
 
 
-def load_minimal_srs_mag_df(filename: Path = Path(dv.MAG_INTERMEDIATE_DATA_CSV)):
+def load_df_to_datetime(filename: Path = None):
     """
-    load filename
+    Load a CSV file into a DataFrame and convert columns with datetime prefix to datetime objects.
+
+    Parameters
+    ----------
+    filename : Path or None
+        Path to the CSV file to load. Default is None
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame containing the loaded data with datetime columns converted to datetime objects.
     """
     if filename.exists():
         loaded_data = pd.read_csv(filename)
 
-    columns_to_update = ["url_hmi", "url_mdi"]
-    new_columns = ["processed_hmi", "processed_mdi"]
-
-    dv_base_path = Path(dv.MAG_INTERMEDIATE_DATA_DIR)
-
-    # Iterate through the columns and update the paths
-    # !TODO deal with earlier on in the codebase
-    for old_column, new_column in zip(columns_to_update, new_columns):
-        loaded_data[new_column] = loaded_data[old_column].map(
-            lambda x: dv_base_path / Path(x).name if pd.notna(x) else x
-        )
-
-    # only return a subset of the data. At this point it should all be matched
-    loaded_data = loaded_data[
-        [
-            "datetime_srs",
-            "ID",
-            "Number",
-            "Carrington Longitude",
-            "Area",
-            "Z",
-            "Longitudinal Extent",
-            "Number of Sunspots",
-            "Mag Type",
-            "Latitude",
-            "Longitude",
-            "filepath_srs",  # SRS
-            "datetime_mdi",
-            "processed_mdi",  # MDI
-            "datetime_hmi",
-            "processed_hmi",  # HMI
-        ]
-    ]
-
-    loaded_data["datetime_srs"] = pd.to_datetime(loaded_data["datetime_srs"])
-    loaded_data["datetime_hmi"] = pd.to_datetime(loaded_data["datetime_hmi"])
-    loaded_data["datetime_mdi"] = pd.to_datetime(loaded_data["datetime_mdi"])
+    datetime_columns = [col for col in loaded_data.columns if col.startswith("datetime")]
+    for col in datetime_columns:
+        loaded_data[col] = pd.to_datetime(loaded_data[col])
 
     return loaded_data
 
 
-def extract_submap_latlon(amap, time, coords, xsize=dv.X_EXTENT, ysize=dv.Y_EXTENT) -> sunpy.map.Map:
-    """
-
-    Parameters
-    ----------
-    map : sunpy.map.Map
-
-    time : datetime
-
-    coords : tuple
-        tuple consisting of (latitude, longitude)
-
-    xsize : int
-        x extent of region to extract (in pixels)
-
-    ysize : int
-        y extend of region to extract (in pixels)
-
-
-    Returns
-    -------
-    submap : sunpy.map.Map
-        sunpy map centered on coords, with size (xsize, ysize)
-
-    """
-    #     logger.info(f">> {map.date}, {time}")
-
-    lat, lng = coords
-
-    ar_pos_hgs = SkyCoord(
-        lng * u.deg,
-        lat * u.deg,
-        obstime=time,
-        frame=sunpy.coordinates.frames.HeliographicStonyhurst,
-    )
-
-    transformed = ar_pos_hgs.transform_to(map.coordinate_frame)
-    ar_pos_pixels = transformed.to_pixel(map.wcs)
-
-    submap, top_right, bottom_left = extract_submap_pixels(map, ar_pos_pixels, xsize, ysize)
-    # Perform in pixel coordinates
-    top_right = [ar_pos_pixels[0] + (xsize - 1) / 2, ar_pos_pixels[1] + (ysize - 1) / 2] * u.pix
-    bottom_left = [
-        ar_pos_pixels[0] - (xsize - 1) / 2,
-        ar_pos_pixels[1] - (ysize - 1) / 2,
-    ] * u.pix
-
-    submap = amap.submap(bottom_left, top_right=top_right)
-
-    return submap, top_right, bottom_left, ar_pos_pixels
-
-
 def extract_submap_pixels(amap, center, xsize, ysize) -> sunpy.map.Map:
-    """ """
+    """
+    ...
+    """
     # Perform in pixel coordinates
     top_right = [center[0] + (xsize - 1) / 2, center[1] + (ysize - 1) / 2] * u.pix
     bottom_left = [
@@ -687,7 +584,8 @@ def pixel_to_bboxcoords(xsize: u.pix, ysize: u.pix, box_center: u.pix):
     return bottom_left, top_right
 
 
-def extract_region_lonlat(amap, time, coords, xsize, ysize) -> sunpy.map.Map:
+@u.quantity_input
+def extract_region_lonlat(amap, time, lat: u.deg, lon: u.deg, xsize: u.pix, ysize: u.pix) -> sunpy.map.Map:
     """
 
     Parameters
@@ -712,97 +610,8 @@ def extract_region_lonlat(amap, time, coords, xsize, ysize) -> sunpy.map.Map:
         sunpy map centered on coords, with size (xsize, ysize)
 
     """
-    #     logger.info(f">> {amap.date}, {time}")
-
-    lat, lng = coords
-
-    ar_pos_pixels = latlon_to_map_pixels(lat * u.deg, lng * u.deg, time, amap)
-    bottom_left, top_right = pixel_to_bboxcoords(xsize * u.pix, ysize * u.pix, ar_pos_pixels * u.pix)
+    ar_pos_pixels = latlon_to_map_pixels(lat, lon, time, amap)
+    bottom_left, top_right = pixel_to_bboxcoords(xsize, ysize, ar_pos_pixels * u.pix)
     submap = amap.submap(bottom_left, top_right=top_right)
 
     return submap, top_right, bottom_left, ar_pos_pixels
-
-
-def make_relative(base_path, path):
-    return Path(path).relative_to(Path(base_path))
-
-
-def is_point_far_from_point(x, y, x1, y1, threshold_x, threshold_y):
-    return abs(x - x1) > abs(threshold_x) or abs(y - y1) > abs(threshold_y)
-
-
-def save_compressed_map(map: sunpy.map.Map, path: Path, **kwargs) -> None:
-    """
-    Save a compressed map.
-
-    If "bscale" and "bzero" exist in the metadata, remove before saving.
-    See: https://github.com/sunpy/sunpy/issues/7139
-
-    Parameters
-    ----------
-    map : sunpy.map.Map
-        the sunpy map object to be saved
-
-    path : Path
-        the path to save the file to
-
-    Returns
-    -------
-    None
-    """
-    if "bscale" in map.meta:
-        del map.meta["bscale"]
-
-    if "bzero" in map.meta:
-        del map.meta["bzero"]
-
-    map.save(path, hdu_type=astropy.io.fits.CompImageHDU, **kwargs)
-
-
-if __name__ == "__main__":
-    logger.info(f"Executing {__file__} as main program")
-
-    mag_process = False
-    ar_classification = False
-    # ar_detection = True
-
-    # 1. Process full-disk magnetograms
-    if mag_process:
-        mp = MagnetogramProcessor()
-        mp.process_data(use_multiprocessing=True)
-        logger.info(">> processed data")
-
-    # 2. Extract NOAA ARs and QS regions
-    if ar_classification:
-        _ = RegionExtractor()
-        # ar_df = ARExtractor()
-        # qs_df = QSExtractor()
-        # arccnet_df = pd.concat([ar_df.data, qs_df.data], ignore_index=True).sort_values(
-        #     by="datetime_hmi", ignore_index=True
-        # )
-        # arccnet_df = arccnet_df[
-        #     [
-        #         "datetime_srs",
-        #         "Latitude",
-        #         "Longitude",
-        #         "Number",
-        #         "Area",
-        #         "Z",
-        #         "Mag Type",
-        #         "datetime_hmi",
-        #         "hmi_cutout",
-        #         "hmi_cutout_dim",
-        #     ]
-        # ]
-        # # for now just limit to 400,800
-        # arccnet_df = arccnet_df[arccnet_df["hmi_cutout_dim"] == (400, 800)]
-        # arccnet_df["hmi_cutout"] = arccnet_df["hmi_cutout"].apply(
-        #     lambda path: make_relative(Path("/Users/pjwright/Documents/work/ARCCnet/"), path)
-        # )
-        # arccnet_df["Number"] = arccnet_df["Number"].astype("Int32")  # convert to Int with NaN, see SWPC
-        # logger.info(arccnet_df)
-        # arccnet_df.to_csv("/Users/pjwright/Documents/work/ARCCnet/data/04_final/AR-QS_classification.csv", index=False)
-
-    # 3. Extract SHARP regions for AR Classification
-    # !TODO ideally we want these SHARP around NOAA AR # along with classification in one df.
-    # https://gist.github.com/PaulJWright/f9e12454db8d23a46d8bee153c8fbd3a
