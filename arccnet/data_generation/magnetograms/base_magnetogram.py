@@ -1,4 +1,6 @@
+import time
 import datetime
+import http.client
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -191,11 +193,78 @@ class BaseMagnetogram(ABC):
         else:
             raise ValueError(f"Column '{column_name}' already exists in the DataFrame.")
 
+    def _data_export_request_with_retry(
+        self, query: str, max_retries=5, retry_delay=60, drms_export_delay=60, **kwargs
+    ) -> None:
+        """
+        Submit a data export request with retries and return the URLs.
+
+        This method provides a wrapper to `_data_export_request` to include a retry mechanism in case of connection issues.
+
+        Parameters
+        ----------
+        query : str
+            The JSOC query string.
+
+        max_retries : int, optional
+            The maximum number of retries before raising an exception (default is 3).
+
+        retry_delay : int, optional
+            The delay (in seconds) between retries (default is 60).
+
+        **kwargs
+            Additional keyword arguments for exporting files URLs.
+
+        Returns
+        -------
+        result : object or None
+            The result of the data export request if successful; None if all retries fail.
+
+        Raises
+        ------
+        DataExportRequestError
+            If the data export request fails even after the maximum number of retries.
+        """
+        retries = 1
+        while retries <= max_retries:
+            try:
+                return self._data_export_request(query, **kwargs)
+            except Exception as e:
+                # Two primary Exceptions have been raised in testing:
+                # 1. http.client.RemoteDisconnected
+                # 2. drms.exceptions.DrmsExportError
+                # The latter occurs after the former due to the request still pending
+                if isinstance(e, http.client.RemoteDisconnected):
+                    if retries <= max_retries:
+                        logger.warning(
+                            f"\t ... Exception: '{e}' raised. Retrying in {retry_delay} seconds: retry {retries} of {max_retries}."
+                        )
+                        time.sleep(retry_delay)
+                        retries += 1
+                    else:
+                        logger.error(f"All {retries} retries failed. Raising DataExportRequestError.")
+                        raise DataExportRequestError("Failed to export data after multiple retries")
+                elif isinstance(e, drms.exceptions.DrmsExportError):
+                    if "pending export requests" in str(e):
+                        logger.info(
+                            f"\t ... waiting {drms_export_delay} seconds for pending export requests to complete."
+                        )
+                        time.sleep(drms_export_delay)  # Wait for 60 seconds before checking again
+                    else:
+                        logger.warning(
+                            f"\t ... Exception: '{e}' raised. Retrying in {retry_delay} seconds: retry {retries} of {max_retries}."
+                        )
+                        retries += 1
+                else:
+                    raise e
+
+        raise DataExportRequestError("Failed to export data after multiple retries")
+
     def _data_export_request(
         self,
         query: str,
         **kwargs,
-    ) -> None:  #!TODO fix type hinting
+    ) -> None:
         """
         Submi a data export request and return the urls.
 
@@ -211,7 +280,7 @@ class BaseMagnetogram(ABC):
 
         Returns
         -------
-        r_urls : ??? #!TODO fix type hinting
+        r_urls : pd.DataFrame
             urls extracted from the export response
         """
         # !TODO, shouldn't have to do this; the query should be the query
@@ -467,7 +536,7 @@ class BaseMagnetogram(ABC):
         #   1. segs is a list of data files. The full .fits can be made with keys & segs. (commented out)
         #   2. r_urls provides the urls of the full .fits files
         # self._add_magnetogram_urls(keys, segs, url=dv.JSOC_BASE_URL, column_name="magnetogram_fits")
-        r_urls = self._data_export_request(query)
+        r_urls = self._data_export_request_with_retry(query)
         # extract info e.g. date, active region number from the `r_url["record"]` using `_get_matching_info_from_record`
         # and insert back into r_urls as additional column names.
         # for now, return `merge_columns` which are the columns in the original keys that correspond to `column_names`
@@ -507,3 +576,7 @@ class BaseMagnetogram(ABC):
     def validate_metadata(self):
         # not sure how to validate
         raise NotImplementedError("Metadata validation is not implemented")
+
+
+class DataExportRequestError(Exception):
+    pass

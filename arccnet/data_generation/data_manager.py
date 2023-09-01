@@ -194,8 +194,8 @@ class DataManager:
         # !TODO itereate over children of `BaseMagnetogram`
         hmi_keys = self.hmi.fetch_metadata(self.start_date, self.end_date, batch_frequency=12, to_csv=self.save_to_csv)
         mdi_keys = self.mdi.fetch_metadata(self.start_date, self.end_date, batch_frequency=12, to_csv=self.save_to_csv)
-        sharp_k = self.sharps.fetch_metadata(self.start_date, self.end_date, batch_frequency=3, to_csv=self.save_to_csv)
-        smarp_k = self.smarps.fetch_metadata(self.start_date, self.end_date, batch_frequency=3, to_csv=self.save_to_csv)
+        sharp_k = self.sharps.fetch_metadata(self.start_date, self.end_date, batch_frequency=4, to_csv=self.save_to_csv)
+        smarp_k = self.smarps.fetch_metadata(self.start_date, self.end_date, batch_frequency=4, to_csv=self.save_to_csv)
 
         # logging
         for name, dataframe in {
