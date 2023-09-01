@@ -20,13 +20,13 @@ class DetectionBox:
 class RegionDetection:
     def __init__(self, filename: Path = None):
         """
-        Initialize an instance of ARDetection.
+        Initialize a RegionDetection instance
 
         Parameters
         ----------
         filename : Path, optional
-            Path to the input CSV file, If No path is provided,
-            this defaults to HMI-SHARPs: dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV
+            Path to the input CSV file. If no path is provided,
+            this defaults to HMI-SHARPs: dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV.
         """
         full_disk_path_column = "download_path"
         cutout_path_column = "download_path_arc"
