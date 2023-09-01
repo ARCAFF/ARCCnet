@@ -73,8 +73,10 @@ class RegionDetection:
 
             for _, row in group.iterrows():
                 cutout_map = sunpy.map.Map(row[col_cutout])
-                cutout_map = cutout_map.rotate()
 
+                # rotate with missing, the value to use for pixels in the output map that are beyond the extent of the input map,
+                # set to zero. the default is `np.nan`
+                cutout_map = cutout_map.rotate(missing=0)
                 bl_transformed = cutout_map.bottom_left_coord.transform_to(fulldisk_map.coordinate_frame).to_pixel(
                     fulldisk_map.wcs
                 )
