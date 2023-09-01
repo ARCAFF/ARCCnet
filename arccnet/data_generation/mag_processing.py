@@ -32,7 +32,7 @@ class MagnetogramProcessor:
         self,
         csv_in_file: Path = Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
         csv_out_file: Path = Path(dv.MAG_INTERMEDIATE_HMIMDI_PROCESSED_DATA_CSV),
-        columns: list[str] = ["download_path_hmi", "download_path_mdi"],
+        columns: list[str] = None,
         processed_data_dir: Path = Path(dv.MAG_INTERMEDIATE_DATA_DIR),
         process_data: bool = True,
         use_multiprocessing: bool = False,
@@ -41,6 +41,8 @@ class MagnetogramProcessor:
         Reads data paths, processes and saves the data.
         """
         logger.info("Instantiated `MagnetogramProcessor`")
+        if columns is None:
+            columns = ["download_path_hmi", "download_path_mdi"]
         self.processed_data_dir = processed_data_dir
         self.paths, self.loaded_csv = self._read_columns(columns=columns, csv_file=csv_in_file)
 
