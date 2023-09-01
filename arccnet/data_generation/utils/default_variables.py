@@ -151,7 +151,6 @@ HMI_IC_RAW_CSV = os.path.join(HMI_IC_DIR, "raw.csv")
 
 HMI_SHARPS_DIR = os.path.join(MAG_RAW_DIR, "sharps")
 HMI_SHARPS_RAW_CSV = os.path.join(HMI_SHARPS_DIR, "raw.csv")
-
 MDI_SMARPS_DIR = os.path.join(MAG_RAW_DIR, "smarps")
 MDI_SMARPS_RAW_CSV = os.path.join(MDI_SMARPS_DIR, "raw.csv")
 
