@@ -1,3 +1,4 @@
+import tempfile
 from pathlib import Path
 
 import pandas as pd
@@ -5,6 +6,7 @@ import pandas as pd
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.data_manager import DataManager
 from arccnet.data_generation.mag_processing import MagnetogramProcessor, RegionExtractor
+from arccnet.data_generation.region_detection import RegionDetection
 from arccnet.data_generation.utils.data_logger import logger
 
 if __name__ == "__main__":
@@ -13,6 +15,7 @@ if __name__ == "__main__":
     data_download = False
     mag_process = False
     region_extraction = True
+    region_detection = True
 
     if data_download:
         data_manager = DataManager(
@@ -82,3 +85,16 @@ if __name__ == "__main__":
                 "catalog_created_on_srs",
             ]
         ).to_csv(Path(dv.MAG_PROCESSED_DIR) / Path("QSExtraction.csv"), index=False)
+
+    if region_detection:
+        hs_match = pd.read_csv(dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV)
+
+        # need to alter the original code, but change the download_path to processed data
+        hs_match["download_path"] = hs_match["download_path"].str.replace("01_raw", "02_intermediate")
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            # save the temporary change to the data
+            filepath = Path(tmpdirname) / Path("temp.csv")
+            hs_match.to_csv(filepath)
+            region_detection = RegionDetection(filepath)
+
+            region_detection.regiondetection_df.to_csv(Path(dv.MAG_PROCESSED_DIR) / Path("ARDetection.csv"))
