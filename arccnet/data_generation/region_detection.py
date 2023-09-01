@@ -8,6 +8,8 @@ from tqdm import tqdm
 import arccnet.data_generation.utils.default_variables as dv
 from arccnet.data_generation.utils.data_logger import logger
 
+__all__ = ["RegionDetection", "DetectionBox"]
+
 
 @dataclass
 class DetectionBox:
