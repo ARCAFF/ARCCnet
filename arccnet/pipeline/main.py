@@ -1,5 +1,4 @@
 from pathlib import Path
-from datetime import datetime
 
 import pandas as pd
 
@@ -16,8 +15,8 @@ if __name__ == "__main__":
 
     if data_download:
         data_manager = DataManager(
-            start_date=datetime(2010, 1, 1),
-            end_date=datetime(2010, 9, 1),
+            start_date=dv.DATA_START_TIME,
+            end_date=dv.DATA_END_TIME,
             merge_tolerance=pd.Timedelta("30m"),
             download_fits=True,
             overwrite_fits=False,
