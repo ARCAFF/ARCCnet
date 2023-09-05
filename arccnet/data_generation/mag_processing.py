@@ -240,6 +240,29 @@ class MagnetogramProcessor:
 
 
 class RegionBox:
+    """
+    Parameters
+    ----------
+    top_right
+        pixel coordinates of the top right of the bounding box
+
+    bottom_left
+        pixel coordinates of the top right of the bounding box
+
+    shape
+        shape in pixels of the region
+
+    ar_pos_pixels
+        pixel coordinates of the active region centre
+
+    identifier
+        an identifier for the region, e.g. NOAA AR Number
+
+    filepath
+        filepath of the region
+
+    """
+
     def __init__(
         self,
         top_right: tuple[float, float],
@@ -638,9 +661,8 @@ def extract_region_lonlat(sunpy_map, time, lat: u.deg, lon: u.deg, xsize: u.pix,
 
     Returns
     -------
-    submap : sunpy.map.Map
-        sunpy map centered on coords, with size (xsize, ysize)
-
+    tuple[float], tuple[float], tuple[float]]
+        locations of the top right, bottom left and active region center
     """
     ar_pos_pixels = latlon_to_map_pixels(lat, lon, time, sunpy_map)
     bottom_left, top_right = pixel_to_bboxcoords(xsize, ysize, ar_pos_pixels * u.pix)
@@ -650,6 +672,9 @@ def extract_region_lonlat(sunpy_map, time, lat: u.deg, lon: u.deg, xsize: u.pix,
 
 @u.quantity_input
 def pixel_to_bboxcoords(xsize: u.pix, ysize: u.pix, box_center: u.pix):
+    """
+    Given the box center, and xsize, ysize, return the bottom left and top right coordinates in pixels
+    """
     # remove u.pix
     xsize = xsize.value
     ysize = ysize.value
@@ -673,7 +698,7 @@ def latlon_to_map_pixels(
     frame=sunpy.coordinates.frames.HeliographicStonyhurst,
 ):
     """
-    Given lat/lon in degrees, convert to pixels on a `sunpy.map.Map`
+    Given lat/lon in degrees, convert to pixel locations
     """
     ar_pos_hgs = SkyCoord(
         longitude,
