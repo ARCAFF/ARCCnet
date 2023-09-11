@@ -97,4 +97,6 @@ if __name__ == "__main__":
             hs_match.to_csv(filepath)
             region_detection = RegionDetection(filepath)
 
-            region_detection.regiondetection_df.to_csv(Path(dv.MAG_PROCESSED_DIR) / Path("ARDetection.csv"), index=False)
+            region_detection.regiondetection_df.to_csv(
+                Path(dv.MAG_PROCESSED_DIR) / Path("ARDetection.csv"), index=False
+            )
