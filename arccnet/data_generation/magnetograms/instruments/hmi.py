@@ -135,7 +135,11 @@ class HMILOSMagnetogram(BaseMagnetogram):
         str
             The name of the HMI data segment.
         """
+<<<<<<< HEAD
         return "magnetogram"
+=======
+        return config["magnetograms"]["hmi_seg_col"]
+>>>>>>> c767ecb (Move config from python moudle to config file)
 
     @property
     def metadata_save_location(self) -> str:
