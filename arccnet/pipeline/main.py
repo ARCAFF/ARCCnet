@@ -2,6 +2,7 @@ import sys
 import logging
 import tempfile
 from pathlib import Path
+from datetime import timedelta
 
 import pandas as pd
 
@@ -11,6 +12,12 @@ from arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
 from arccnet.data_generation.data_manager import DataManager
 from arccnet.data_generation.mag_processing import MagnetogramProcessor, RegionExtractor
+from arccnet.data_generation.magnetograms.instruments import (
+    HMILOSMagnetogram,
+    HMISHARPs,
+    MDILOSMagnetogram,
+    MDISMARPs,
+)
 from arccnet.data_generation.region_detection import RegionDetection
 from arccnet.data_generation.utils.data_logger import get_logger
 from arccnet.data_generation.utils.data_logger import logger as old_logger
@@ -72,6 +79,30 @@ def process_srs(config):
     srs_clean_catalog.write(srs_clean_catalog_file, format="parquet", overwrite=True)
 
     return srs_query, srs_results, srs_raw_catalog, srs_processed_catalog, srs_clean_catalog
+
+
+def process_mag(config):
+    # provide list
+    mag_objs = [HMILOSMagnetogram, MDILOSMagnetogram, HMISHARPs, MDISMARPs]
+    batch_freq = [12, 12, 4, 4]
+
+    dm = DataManager(
+        start_date=config["dates"]["start_date"],
+        end_date=config["dates"]["end_date"],
+        frequency=timedelta(days=1),
+        magnetograms=mag_objs,
+    )
+
+    mag_meta = dm.search(batch_frequency=batch_freq)
+    mag_meta
+
+    dm.download()
+
+
+def get_config():
+    cwd = Path()
+    config = {"paths": {"data_root": cwd / "data"}, "dates": {"start_date": "1996-01-01", "end_date": "2023-01-01"}}
+    return config
 
 
 def main():

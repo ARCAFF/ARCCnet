@@ -146,7 +146,8 @@ class BaseMagnetogram(ABC):
         """
         keys, segs = self._drms_client.query(
             query,
-            key="**ALL**",  # drms.const.all = '**ALL**'
+            key="**ALL**",  # the needed columns vary
+            # key=["T_REC", "T_OBS", "DATE-OBS", "DATAMEDN"], # "**ALL**",  # drms.const.all = '**ALL**'
             seg=self.segment_column_name,
         )
         return keys, segs
@@ -270,7 +271,7 @@ class BaseMagnetogram(ABC):
         **kwargs,
     ) -> None:
         """
-        Submi a data export request and return the urls.
+        Submit a data export request and return the urls.
 
         This method submoits a data export request to JSOC based on the provided query and additional keyword arguments.
 
@@ -389,7 +390,7 @@ class BaseMagnetogram(ABC):
         start_date: datetime.datetime,
         end_date: datetime.datetime,
         batch_frequency: int = 3,
-        to_csv: bool = True,
+        to_csv: bool = False,
         dynamic_columns=["url"],
     ) -> pd.DataFrame:
         """
@@ -410,8 +411,11 @@ class BaseMagnetogram(ABC):
             The frequency for each batch.
             Default is 3 (3 months), empirically determined based on the density of files seen in SHARPs queries.
 
-        to_csv : `bool`, optional
-            Whether to save the fetched metadata to a CSV file. Defaults to True.
+        to_csv : bool, optional
+            Whether to save the fetched metadata to a CSV file. Defaults to False.
+
+        dynamic_columns : ...
+            ...
 
         Returns
         -------
