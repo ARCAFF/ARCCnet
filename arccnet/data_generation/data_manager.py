@@ -191,44 +191,49 @@ class DataManager:
 
         results = [] 
         for meta, query in zip(metadata_list, self._query_objects):
-            
-            # instantiate a QTable object, converting pandas to QTable.
-            # t = QTable
-            # t = t.from_pandas(meta)
-            # t["temp_t"] = t["DATE-OBS"].jd # is DATE-OBS what we should be using?
-
-            # probably rename the temp_t column
-            # stacked = query["srs"] # what does this do?
-            # stacked.rename_columns(stacked.colnames, [n.lower().replace(" ", "_") for n in stacked.colnames])
-            # stacked["temp_t"] = stacked["start_time"].jd
-            # result["temp_t"] = result["start_time"].jd
-            # 
-
             # do the join in pandas, and then convert to QTable?
-            # we probably want to merge asof with a tolerance closest?
 
-            pd_query = query.to_pandas()
+            # removing url, but appending Query(...) without url column will complain
+            # probably a better way to deal with this
+            pd_query = query.to_pandas() # [['target_time']]
             
-            merged_df = pd.merge_asof(
-                left=pd_query,
-                right=meta,
-                left_on="target_time",
-                right_on=...,
-                suffixes=["_query", "_meta"],
-                tolerance=merge_tolerance,  # HMI is at 720s (12 min) cadence
+            # generate a mapping from target_time to datetime with a tolerance.
+            # probably want a test that this whole code gets the same thing if there are no duplicates...
+            merged_time = pd.merge_asof(
+                left=pd_query[["target_time"]],
+                right=meta[['datetime']].drop_duplicates(), 
+                left_on=["target_time"],
+                right_on=["datetime"],
+                # suffixes=["_query", "_meta"],
+                tolerance=timedelta(minutes=12),  # HMI is at 720s (12 min) cadence
                 direction="nearest",
             )
-            
-            result = QTable.from_pandas(merged_df)
-            # !TODO Replace NaN values in the "url" column with masked values or change this...
-            result['url'] = MaskedColumn(data=[""] * len(result['url']), mask=np.full(len(result['url']), True))
-            # result['url'] = MaskedColumn(data=result['url'], mask=(result['url'] == ""), dtype='str')
-            # qtable['url'] = MaskedColumn(data=pdt['url'], mask=(pdt['url'] == ""), dtype='str')
 
-            # astropy merging:
-            # result = join(query, meta, join_type="left", keys="temp_t") # maybe convert meta to a custom QTable
+            # for now, ensure that there are no duplicates of the same "datetime" in the df
+            if len(merged_time['datetime'].unique()) != len(merged_time['datetime']):
+                raise ValueError("there are duplicates of datetime from the right df")
+
+            # find the rows in the metadata which match the exact datetime
+            # which there may be multiple for cutouts at the same full-disk time 
+            # ... and join
+            matched_rows = meta[meta['datetime'].isin(merged_time['datetime'])]
+
+            # -- Bit hacky to stop HARPNUM becoming a float
+            #    I think Shane may have found a better way to deal with this?
+            # Convert int64 columns to Int64
+            int64_columns = matched_rows.select_dtypes(include=['int64']).columns
+            # Create a new DataFrame with Int64 data types
+            new_df = matched_rows.copy()
+            for col in int64_columns:
+                new_df[col] = matched_rows[col].astype('Int64')
+
+            merged_df = pd.merge(merged_time, new_df, on='datetime', how='left')
+            
+            result = Query(QTable.from_pandas(merged_df))
+            # !TODO Replace NaN values in the "url" column with masked values or change this...
             # remove columns ? 
             # rename columns ?
+
             results.append(Query(result))
 
         # !TODO merge _query_objects and mag_tables
