@@ -1,6 +1,25 @@
-# Licensed under a 3-clause BSD style license - see LICENSE.rst
+# isort: skip_file
+"""
+``ARCCnet``
+===========
 
-from .version import __version__
+Active Region Classification Network
 
-# Then you can be explicit to control what ends up in the namespace,
-# __all__ = ["do_primes"]
+Part of the ARCAFF project
+
+* Homepage: https://arcaff.eu
+* Documentation:
+"""
+from arccnet.utils.config import load_config, print_config  # noqa
+
+# from arccnet.util.logger import _init_log  # noqa
+from .version import __version__  # noqa
+
+config = load_config()
+# log = _init_log(config=config)
+
+__all__ = [
+    "config",
+    "print_config",
+    "__version__",
+]

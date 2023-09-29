@@ -19,8 +19,8 @@ import astropy.units as u
 from astropy.table import MaskedColumn, QTable, join, vstack
 from astropy.time import Time
 
+from arccnet.catalogs.active_regions import HALE_CLASSES, MCINTOSH_CLASSES
 from arccnet.data_generation.utils.data_logger import get_logger
-from arccnet.data_generation.utils.default_variables import HALE_CLASSES, MCINTOSH_CLASSES
 
 logger = get_logger(__name__, logging.DEBUG)
 
@@ -37,7 +37,7 @@ class Query(QTable):
 
     Notes
     -----
-    Under the hood uses QTable and Masked columns to define if a expected result is present or missing
+    Under the hood uses QTable and Masked columns to define if an expected result is present or missing
 
     """
     required_column_types = {"start_time": Time, "end_time": Time, "url": str}
@@ -51,7 +51,7 @@ class Query(QTable):
 
     @property
     def is_empty(self) -> bool:
-        r"""Is the query empty."""
+        r"""Empty query"""
         return np.all(self["url"].mask == np.full(len(self), True))
 
     @property
@@ -66,9 +66,9 @@ class Query(QTable):
 
         Parameters
         ----------
-        start
+        start : `str`, `datetime` or `Time`
             Start time, any format supported by `astropy.time.Time`
-        end
+        end : `str`, `datetime` or `Time`
             End time, any format supported by `astropy.time.Time`
 
         Returns
@@ -93,7 +93,7 @@ class Query(QTable):
 
 class Result(QTable):
     r"""
-    Result object define both the result and download status.
+    Result object defines both the result and download status.
 
     The value of the 'path' is used to encode if the corresponding file was downloaded or not.
 
@@ -164,11 +164,11 @@ class SWPCCatalog:
         Parameters
         ----------
         query : `Query`
-            Query to search data for
+            Search query.
         overwrite : `boolean`
             Set true to overwrite previous query results.
         retry_missing : `boolean`
-            Try to obtain missing results based on previous query.
+            Try to obtain missing results based on a previous query.
 
         Returns
         -------
@@ -208,7 +208,7 @@ class SWPCCatalog:
             stacked.rename_columns(stacked.colnames, [n.lower().replace(" ", "_") for n in stacked.colnames])
             stacked["temp_t"] = stacked["start_time"].jd
             result["temp_t"] = result["start_time"].jd
-            # join doesn't seem to like custom table objects also some issues joining on time objects due to rounding
+            # join doesn't seem to like custom table objects, also some issues joining on time objects due to rounding
             # so have to convert to an actual string/number for comparison
             result = join(QTable(result), stacked, join_type="left", keys="temp_t", table_names=["query", "result"])
             result.rename_column("url_result", "url")
@@ -220,7 +220,9 @@ class SWPCCatalog:
         logger.debug("Exiting search")
         return result
 
-    def download(self, query: Query | Result, path=None, overwrite=False, retry_missing=False) -> Result:
+    def download(
+        self, query: Query | Result, path=None, overwrite=False, retry_missing=False, progress=False
+    ) -> Result:
         r"""
         Download query results.
 
@@ -234,6 +236,8 @@ class SWPCCatalog:
             Overwrite existing data
         retry_missing : `bool`
             Try and re-download missing data
+        progress : `bool`
+            Display progress bar
 
         Returns
         -------
@@ -259,7 +263,7 @@ class SWPCCatalog:
 
         if new_query is not None:
             logger.debug("Downloading ...")
-            downloads = self._download(new_query[~new_query["url"].mask], overwrite, path)
+            downloads = self._download(new_query[~new_query["url"].mask], overwrite, path, progress=progress)
             results = self._match(results, downloads)
 
         logger.debug("Exiting download")
@@ -323,21 +327,16 @@ class SWPCCatalog:
         logger.debug("Finished creating catalog")
         return catalog
 
-    def _download(
-        self,
-        query: Query,
-        overwrite: bool,
-        path: str,
-    ) -> UnifiedResponse:
+    def _download(self, query: Query, overwrite: bool, path: str, progress=False) -> UnifiedResponse:
         r"""
         Download query results.
 
         Parameters
         ----------
         query : `Query`
-            Query to download file for
+            Query to download.
         overwrite : `bool`
-            Overwrite existing files
+            Overwrite existing files.
         path : `str`
             Path to save files to see `Fido` for details
 
@@ -359,7 +358,7 @@ class SWPCCatalog:
         results = Fido.fetch(
             query,
             path=path,
-            progress=True,
+            progress=progress,
             overwrite=overwrite,
         )
         # Replace original method - not sure if this is needed
@@ -456,7 +455,7 @@ def filter_srs(
     lon_rate_limit: u.Quantity[u.deg / u.day] = 7.5 * u.deg / u.day,
 ) -> ClassificationCatalog:
     r"""
-    Filter SRS for unphysical position or rate of change of positions
+    Filter SRS for unphysical position or positions rate of change.
 
     Parameters
     ----------

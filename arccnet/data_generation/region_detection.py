@@ -6,7 +6,7 @@ import sunpy.map
 from pandas import DataFrame
 from tqdm import tqdm
 
-import arccnet.data_generation.utils.default_variables as dv
+from arccnet import config
 from arccnet.data_generation.utils.data_logger import logger
 
 __all__ = ["RegionDetection", "DetectionBox"]
@@ -35,7 +35,7 @@ class RegionDetection:
         cutout_path_column = "download_path_arc"
 
         if filename is None:
-            filename = dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV
+            filename = config["paths"]["mag_intermediate_hmisharps_data_csv"]
 
         self.loaded_data = pd.read_csv(filename)
 

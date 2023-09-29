@@ -2,7 +2,7 @@ import datetime
 
 import pandas as pd
 
-import arccnet.data_generation.utils.default_variables as dv
+from arccnet import config
 from arccnet.data_generation.magnetograms.base_magnetogram import BaseMagnetogram
 from arccnet.data_generation.magnetograms.utils import datetime_to_jsoc
 
@@ -123,7 +123,7 @@ class HMILOSMagnetogram(BaseMagnetogram):
         This is used for converting DATE-OBS to a datetime. This perhaps isn't
         the ideal way to do this.
         """
-        return dv.HMI_DATE_FORMAT
+        return config["magnetograms"]["hmi_date_format"]
 
     @property
     def segment_column_name(self) -> str:
@@ -135,7 +135,7 @@ class HMILOSMagnetogram(BaseMagnetogram):
         str
             The name of the HMI data segment.
         """
-        return dv.HMI_SEG_COL
+        return config["magnetograms"]["hmi_seg_col"]
 
     @property
     def metadata_save_location(self) -> str:
@@ -147,7 +147,7 @@ class HMILOSMagnetogram(BaseMagnetogram):
         str
             The HMI directory path for saving metadata.
         """
-        return dv.HMI_MAG_RAW_CSV
+        return config["paths"]["hmi_mag_raw_csv"]
 
 
 class HMIBMagnetogram(HMILOSMagnetogram):
@@ -205,7 +205,7 @@ class HMIContinuum(HMILOSMagnetogram):
         str
             The HMI directory path for saving metadata.
         """
-        return dv.HMI_IC_RAW_CSV
+        return config["paths"]["hmi_ic_raw_csv"]
 
 
 class HMISHARPs(HMILOSMagnetogram):
@@ -322,7 +322,7 @@ class HMISHARPs(HMILOSMagnetogram):
         str
             The HMI directory path for saving metadata.
         """
-        return dv.HMI_SHARPS_RAW_CSV
+        return config["paths"]["hmi_sharps_raw_csv"]
 
 
 class HMIMagnetogramNRT(HMILOSMagnetogram):

@@ -7,7 +7,7 @@ from pathlib import Path
 import drms
 import pandas as pd
 
-import arccnet.data_generation.utils.default_variables as dv
+from arccnet import config
 from arccnet.data_generation.utils.data_logger import logger
 
 __all__ = ["BaseMagnetogram"]
@@ -16,7 +16,7 @@ __all__ = ["BaseMagnetogram"]
 class BaseMagnetogram(ABC):
     def __init__(self) -> None:
         super().__init__()
-        self._drms_client = drms.Client(debug=False, verbose=False, email=dv.JSOC_DEFAULT_EMAIL)
+        self._drms_client = drms.Client(debug=False, verbose=False, email=config["jsoc"]["jsoc_default_email"])
 
     @abstractmethod
     def generate_drms_query(self, start_time: datetime, end_time: datetime, frequency: str) -> str:
@@ -152,7 +152,11 @@ class BaseMagnetogram(ABC):
         return keys, segs
 
     def _add_magnetogram_urls(
-        self, df: pd.DataFrame, segments: pd.Series, url: str = dv.JSOC_BASE_URL, column_name: str = "magnetogram_fits"
+        self,
+        df: pd.DataFrame,
+        segments: pd.Series,
+        url: str = config["jsoc"]["jsoc_base_url"],
+        column_name: str = "magnetogram_fits",
     ) -> pd.DataFrame:
         """
         Add magnetogram URLs to the DataFrame.

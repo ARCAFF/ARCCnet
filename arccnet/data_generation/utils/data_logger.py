@@ -1,7 +1,8 @@
 import os
 import logging
+from datetime import datetime
 
-from arccnet.data_generation.utils.default_variables import DATA_DIR_LOGS, DATA_LOGFILE
+from arccnet import config
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -17,9 +18,10 @@ ch.setLevel(logging.INFO)
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
-os.makedirs(DATA_DIR_LOGS, exist_ok=True)
+os.makedirs(config["paths"]["data_dir_logs"], exist_ok=True)
+data_logfile = f"{config['paths']['data_dir_logs']}{datetime.utcnow().strftime('%Y_%m_%d_%H%M%S')}.log"
 # create file handler and set level to INFO
-fh = logging.FileHandler(DATA_LOGFILE)
+fh = logging.FileHandler(data_logfile)
 fh.setLevel(logging.INFO)
 fh.setFormatter(formatter)
 logger.addHandler(fh)

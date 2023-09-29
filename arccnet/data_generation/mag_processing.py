@@ -12,7 +12,7 @@ from tqdm import tqdm
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 
-import arccnet.data_generation.utils.default_variables as dv
+from arccnet import config
 from arccnet.data_generation.utils.data_logger import logger
 from arccnet.data_generation.utils.utils import is_point_far_from_point, save_compressed_map
 
@@ -30,10 +30,10 @@ class MagnetogramProcessor:
 
     def __init__(
         self,
-        csv_in_file: Path = Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
-        csv_out_file: Path = Path(dv.MAG_INTERMEDIATE_HMIMDI_PROCESSED_DATA_CSV),
+        csv_in_file: Path = Path(config["paths"]["mag_intermediate_hmimdi_data_csv"]),
+        csv_out_file: Path = Path(config["paths"]["mag_intermediate_hmimdi_processed_data_csv"]),
         columns: list[str] = None,
-        processed_data_dir: Path = Path(dv.MAG_INTERMEDIATE_DATA_DIR),
+        processed_data_dir: Path = Path(config["paths"]["mag_intermediate_data_dir"]),
         process_data: bool = True,
         use_multiprocessing: bool = False,
     ) -> None:
@@ -69,7 +69,7 @@ class MagnetogramProcessor:
     def _read_columns(
         self,
         columns: list[str] = ["download_path_hmi", "download_path_mdi"],
-        csv_file=Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
+        csv_file=Path(config["paths"]["mag_intermediate_hmimdi_data_csv"]),
     ):
         """
         Read and prepare data paths from CSV file.
@@ -303,7 +303,7 @@ class QSBox(RegionBox):
 class RegionExtractor:
     def __init__(
         self,
-        dataframe=Path(dv.MAG_INTERMEDIATE_HMIMDI_PROCESSED_DATA_CSV),
+        dataframe=Path(config["paths"]["mag_intermediate_hmimdi_processed_data_csv"]),
         out_fnames: list[str] = None,
         datetimes: list[str] = None,
         data_cols: list[str] = None,
@@ -315,7 +315,7 @@ class RegionExtractor:
         self.validate([out_fnames, datetimes, data_cols, cutout_sizes], length=2)
         # load to df and make datetime
         self.df = load_df_to_datetimedf(dataframe)
-        dv_summary_plots_path = Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR)
+        dv_summary_plots_path = Path(config["paths"]["mag_processed_qssummaryplots_dir"])
 
         self.dataframes = []
         combined_indices = set()
@@ -396,7 +396,7 @@ class RegionExtractor:
                     my_hmi_submap = my_hmi_map.submap(bottom_left, top_right=top_right)
 
                     path = (
-                        Path(dv.MAG_PROCESSED_FITS_DIR)
+                        Path(config["paths"]["mag_processed_fits_dir"])
                         / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_{numbr}_{instr}.fits"
                     )
 
@@ -461,7 +461,7 @@ class RegionExtractor:
 
                         # save to file
                         output_filename = (
-                            Path(dv.MAG_PROCESSED_QSFITS_DIR)
+                            Path(config["paths"]["mag_processed_qsfits_dir"])
                             / f"{time_srs.year}-{time_srs.month}-{time_srs.day}_QS_{qs_df_len}_{instr}.fits"
                         )
 

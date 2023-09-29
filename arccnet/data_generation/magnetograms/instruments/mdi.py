@@ -2,7 +2,7 @@ import datetime
 
 import pandas as pd
 
-import arccnet.data_generation.utils.default_variables as dv
+from arccnet import config
 from arccnet.data_generation.magnetograms.base_magnetogram import BaseMagnetogram
 from arccnet.data_generation.magnetograms.utils import datetime_to_jsoc
 
@@ -99,7 +99,7 @@ class MDILOSMagnetogram(BaseMagnetogram):
         This is used for converting DATE-OBS to a datetime. This perhaps isn't
         the ideal way to do this.
         """
-        return dv.MDI_DATE_FORMAT
+        return config["magnetograms"]["mdi_date_format"]
 
     @property
     def segment_column_name(self) -> str:
@@ -109,7 +109,7 @@ class MDILOSMagnetogram(BaseMagnetogram):
         str:
             Name of the MDI data segment
         """
-        return dv.MDI_SEG_COL
+        return config["magnetograms"]["mdi_seg_col"]
 
     @property
     def metadata_save_location(self) -> str:
@@ -119,7 +119,7 @@ class MDILOSMagnetogram(BaseMagnetogram):
         str:
             MDI directory path
         """
-        return dv.MDI_MAG_RAW_CSV
+        return config["paths"]["mdi_mag_raw_csv"]
 
 
 class MDISMARPs(MDILOSMagnetogram):
@@ -255,4 +255,4 @@ class MDISMARPs(MDILOSMagnetogram):
         str
             The HMI directory path for saving metadata.
         """
-        return dv.MDI_SMARPS_RAW_CSV
+        return config["paths"]["mdi_smarps_raw_csv"]

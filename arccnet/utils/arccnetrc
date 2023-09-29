@@ -1,0 +1,106 @@
+;
+; ARCCnet Configuration
+;
+
+;;;;;;;;;;;;;;;;;;;
+; General Options ;
+;;;;;;;;;;;;;;;;;;;
+[general]
+start_date = 1995-01-01T00:00:00
+end_date = 2022-12-31T00:00:00
+merge_tolerance = 30m
+
+;;;;;;;;;;;;;;;;;
+; JSOC specific ;
+;;;;;;;;;;;;;;;;;
+[jsoc]
+jsoc_date_format = %Y.%m.%d_%H:%M:%S
+jsoc_base_url = http://jsoc.stanford.edu
+
+;;;;;;;;;;;;;;;;
+; Magnetograms ;
+;;;;;;;;;;;;;;;;
+[magnetograms]
+mdi_date_format = %Y-%m-%dT%H:%M:%SZ
+mdi_seg_col = data
+hmi_date_format = %Y-%m-%dT%H:%M:%S.%fZ
+hmi_seg_col = magnetogram
+
+[magnetograms.cutouts]
+x_extent = 800
+y_extent = 400
+
+;;;;;;;;;
+; Paths ;
+;;;;;;;;;
+[paths]
+
+data_dir_raw = 01_raw
+data_dir_intermediate = 02_intermediate
+data_dir_processed = 03_processed
+data_dir_final = 04_final
+
+mag_raw_dir = ${data_dir_raw}/mag
+
+hmi_mag_dir = ${mag_raw_dir}/hmi
+hmi_mag_raw_csv = ${mag_raw_dir}/raw.csv
+
+hmi_ic_dir = ${mag_raw_dir}/continuum
+hmi_ic_raw_csv = ${hmi_ic_dir}/raw.csv
+
+hmi_sharps_dir = ${mag_raw_dir}/sharps
+hmi_sharps_raw_csv = ${hmi_sharps_dir}/raw.csv
+mdi_smarps_dir = ${mag_raw_dir}/smarps
+mdi_smarps_raw_csv = ${mdi_smarps_dir}/raw.csv
+
+mdi_mag_dir = ${mag_raw_dir}/mdi
+mdi_mag_raw_csv = ${mdi_mag_dir}/raw.csv
+mag_raw_data_dir = ${mag_raw_dir}/fits
+mag_raw_sharp_data_dir = ${mag_raw_dir}/sharp_fits
+
+mag_intermediate_dir = ${data_dir_intermediate}/mag
+mag_intermediate_data_dir = ${mag_intermediate_dir}/fits
+mag_intermediate_hmimdi_data_csv = ${mag_intermediate_dir}/clean_catalog_hmimdi.csv
+mag_intermediate_hmimdi_processed_data_csv = ${mag_intermediate_dir}/clean_catalog_hmimdi_processed.csv
+mag_intermediate_hmisharps_data_csv =  ${mag_intermediate_dir}/clean_catalog_hmisharp.csv
+mag_intermediate_mdismarps_data_csv =  ${mag_intermediate_dir}/clean_catalog_mdismarp.csv
+
+mag_processed_dir = ${data_dir_processed}/mag
+mag_processed_fits_dir = ${mag_processed_dir}/fits
+mag_processed_summaryplots_dir = ${mag_processed_dir}/summary_plots
+mag_processed_qssummaryplots_dir = ${mag_processed_dir}/qs_summary_plots
+mag_processed_qsfits_dir = ${mag_processed_dir}qs_fits
+
+data_dir_logs = ${data_dir_raw}/logs
+data_logfile = ${data_dir_logs}/data_processing_
+
+;;;;;;;;;;;;
+; Logger   ;
+;;;;;;;;;;;;
+[logger]
+
+# Threshold for the logging messages. Logging messages that are less severe
+# than this level will be ignored. The levels are 'DEBUG', 'INFO', 'WARNING',
+# 'ERROR'
+log_level = INFO
+
+# Whether to use color for the level names
+use_color = True
+
+# Whether to log warnings.warn calls
+log_warnings = True
+
+# Whether to log exceptions before raising them
+log_exceptions = False
+
+# Whether to always log messages to a log file
+log_to_file = False
+
+# The file to log messages to
+# log_file_path = arccnet.log
+
+# Threshold for logging messages to log_file_path
+log_file_level = INFO
+
+# Format for log file entries
+log_file_format = %(asctime)s, %(origin)s, %(levelname)s, %(message)s

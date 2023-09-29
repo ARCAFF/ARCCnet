@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import arccnet.data_generation.utils.default_variables as dv
+from arccnet import config
 from arccnet.data_generation.magnetograms.instruments.hmi import HMILOSMagnetogram, HMISHARPs
 from arccnet.data_generation.magnetograms.instruments.mdi import MDILOSMagnetogram, MDISMARPs
 
@@ -169,7 +169,7 @@ class TestHMILOSProperties:
         assert hmi_instance.segment_column_name == "magnetogram"
 
     def test_metadata_save_location(self, hmi_instance):
-        assert hmi_instance.metadata_save_location == dv.HMI_MAG_RAW_CSV
+        assert hmi_instance.metadata_save_location == config["paths"]["hmi_mag_raw_csv"]
 
     def test_type(self, hmi_instance):
         assert hmi_instance._type == hmi_instance.__class__.__name__
@@ -191,7 +191,7 @@ class TestHMISHARPsProperties:
         assert sharp_instance.segment_column_name == "bitmap"
 
     def test_metadata_save_location(self, sharp_instance):
-        assert sharp_instance.metadata_save_location == dv.HMI_SHARPS_RAW_CSV
+        assert sharp_instance.metadata_save_location == config["paths"]["hmi_sharps_raw_csv"]
 
     def test_type(self, sharp_instance):
         assert sharp_instance._type == sharp_instance.__class__.__name__
@@ -214,7 +214,7 @@ class TestMDILOSProperties:
         assert mdi_instance.segment_column_name == "data"
 
     def test_metadata_save_location(self, mdi_instance):
-        assert mdi_instance.metadata_save_location == dv.MDI_MAG_RAW_CSV
+        assert mdi_instance.metadata_save_location == config["paths"]["mdi_mag_raw_csv"]
 
     def test_type(self, mdi_instance):
         assert mdi_instance._type == mdi_instance.__class__.__name__
@@ -236,7 +236,7 @@ class TestMDISMARPsProperties:
         assert smarp_instance.segment_column_name == "bitmap"
 
     def test_metadata_save_location(self, smarp_instance):
-        assert smarp_instance.metadata_save_location == dv.MDI_SMARPS_RAW_CSV
+        assert smarp_instance.metadata_save_location == config["paths"]["mdi_smarps_raw_csv"]
 
     def test_type(self, smarp_instance):
         assert smarp_instance._type == smarp_instance.__class__.__name__

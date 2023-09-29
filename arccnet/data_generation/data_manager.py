@@ -6,7 +6,7 @@ import pandas as pd
 from pandas import DataFrame, Timedelta
 from sunpy.util.parfive_helpers import Downloader
 
-import arccnet.data_generation.utils.default_variables as dv
+from arccnet import config
 from arccnet.catalogs.active_regions.swpc import SWPCCatalog
 from arccnet.data_generation.magnetograms.instruments import (
     HMILOSMagnetogram,
@@ -28,9 +28,10 @@ class DataManager:
 
     def __init__(
         self,
-        start_date: datetime = dv.DATA_START_TIME,
-        end_date: datetime = dv.DATA_END_TIME,
-        merge_tolerance: Timedelta = pd.Timedelta("30m"),
+        *,
+        start_date: datetime,
+        end_date: datetime,
+        merge_tolerance: Timedelta,
         download_fits: bool = True,
         overwrite_fits: bool = False,
         save_to_csv: bool = True,
@@ -162,18 +163,18 @@ class DataManager:
             logger.info("the data has not been downloaded")
 
         if self.save_to_csv:
-            base_directory_path = Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV).parent
+            base_directory_path = Path(config["paths"]["mag_intermediate_hmimdi_data_csv"]).parent
             if not base_directory_path.exists():
                 base_directory_path.mkdir(parents=True)
 
-            self.merged_df.to_csv(Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV), index=False)
-            self.hmi_sharps.to_csv(Path(dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV), index=False)
-            self.mdi_sharps.to_csv(Path(dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV), index=False)
+            self.merged_df.to_csv(Path(config["paths"]["mag_intermediate_hmimdi_data_csv"]), index=False)
+            self.hmi_sharps.to_csv(Path(config["paths"]["mag_intermediate_hmisharps_data_csv"]), index=False)
+            self.mdi_sharps.to_csv(Path(config["path"]["mag_intermediate_mdismarps_data_csv"]), index=False)
             logger.info(
                 "saving... \n"
-                + f"\t `merged_df` to {dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV}\n"
-                + f"\t `hmi_sharp` to {dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV}\n"
-                + f"\t `mdi_sharps` to {dv.MAG_INTERMEDIATE_MDISMARPS_DATA_CSV}\n"
+                + f"\t `merged_df` to {Path(config['paths']['mag_intermediate_hmimdi_data_csv'])}\n"
+                + f"\t `hmi_sharp` to {Path(config['paths']['mag_intermediate_hmisharps_data_csv'])}\n"
+                + f"\t `mdi_sharps` to {Path(config['paths']['mag_intermediate_mdismarps_data_csv'])}\n"
             )
         else:
             logger.warn("not saving merged csv files")
@@ -367,7 +368,7 @@ class DataManager:
         urls_df: DataFrame = None,
         column_name="url",
         suffix="",
-        base_directory_path: Path = Path(dv.MAG_RAW_DATA_DIR),
+        base_directory_path: Path = Path(config["paths"]["mag_raw_data_dir"]),
         max_retries: int = 5,
         overwrite: bool = False,
     ) -> DataFrame:
