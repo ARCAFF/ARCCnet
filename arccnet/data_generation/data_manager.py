@@ -22,7 +22,7 @@ from astropy.time import Time
 __all__ = ["DataManager"]
 
 
-class MagnetogramQuery(QTable):
+class Query(QTable):
     r"""
     Query object define both the query and results.
 
@@ -34,14 +34,19 @@ class MagnetogramQuery(QTable):
     Under the hood uses QTable and Masked columns to define if a expected result is present or missing
 
     """
-    required_column_types = {"start_time": Time, "end_time": Time, "url": str}
+    required_column_types = {"target_time": Time, "url": str}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
         if not set(self.colnames).issuperset(set(self.required_column_types.keys())):
             raise ValueError(
                 f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns."
             )
+        # !TODO this doesn't work and we can't enforce the column type!
+        # for colname, coltype in self.required_column_types.items():
+        #     if colname not in self.colnames or not all(isinstance(value, coltype) for value in self[colname]):
+        #         raise ValueError(f"{colname} column must contain {coltype} values.")
 
     @property
     def is_empty(self) -> bool:
@@ -54,7 +59,7 @@ class MagnetogramQuery(QTable):
         return self[self["url"].mask == True]  # noqa
 
     @classmethod
-    def create_empty(cls, start, end, frequency: timedelta, tolerance: timedelta):
+    def create_empty(cls, start, end, frequency: timedelta): #, tolerance: timedelta):
         r"""
         Create an 'empty' Query.
 
@@ -101,10 +106,6 @@ class DataManager:
         end_date: datetime,
         frequency: timedelta,
         magnetograms: list[BaseMagnetogram],
-        # merge_tolerance: pd.Timedelta = pd.Timedelta("30m"),
-        # download_fits: bool = True,
-        # overwrite_fits: bool = False,
-        # save_to_csv: bool = True,
     ):
         """
         Initialize the DataManager.
@@ -134,7 +135,7 @@ class DataManager:
                 raise ValueError(f"{class_obj.__name__} is not a subclass of BaseMagnetogram")
 
         self._mag_objects = magnetograms
-        self._query_objects = [MagnetogramQuery.create_empty(self.start_date, self.end_date, self.frequency) for _ in self._mag_objects]
+        self._query_objects = [Query.create_empty(self.start_date, self.end_date, self.frequency) for _ in self._mag_objects]
 
     @property
     def start_date(self):
@@ -153,24 +154,24 @@ class DataManager:
         return self._frequency
     
     # list | int 
-    def search(self, batch_frequency: int = 4) -> list[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def search(self, batch_frequency: int = 4, merge_tolerance: timedelta = timedelta(minutes=12)) -> list[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Fetch and return data from various sources.
 
         Returns
         -------
-        tuple
-            Tuple containing data from different sources.
+        list(Query)
+            List of Query objects
         """
+        logger.debug("Entering search")
 
-        times = None
+        # times = None # hmm...
 
         # Check if batch_frequency is a list or a single value
         if isinstance(batch_frequency, list):
             # Check if the length of batch_frequency matches the number of elements in self._mag_objects
             if len(batch_frequency) != len(self._mag_objects):
                 raise ValueError("Length of batch_frequency list must match the number of Magnetogram objects")
-            
             # If it's a list, use it for each data source individually
             metadata_list = [
                 data_source.fetch_metadata(self.start_date, self.end_date, batch_frequency=bf)
@@ -183,19 +184,72 @@ class DataManager:
                 for data_source in self._mag_objects
             ]
 
-        # could just iterate this way
         for meta in metadata_list:
             logger.debug(
                 f"{meta.__class__.__name__}: \n{meta[['T_REC','T_OBS','DATE-OBS','datetime', 'url']]}"
             )
 
-        return metadata_list
-    
-    def download(self, metadata: list(dict)):
-        for md in metadata:
-            print(md)
+        results = [] 
+        for meta, query in zip(metadata_list, self._query_objects):
+            
+            # instantiate a QTable object, converting pandas to QTable.
+            # t = QTable
+            # t = t.from_pandas(meta)
+            # t["temp_t"] = t["DATE-OBS"].jd # is DATE-OBS what we should be using?
 
-        return 0
+            # probably rename the temp_t column
+            # stacked = query["srs"] # what does this do?
+            # stacked.rename_columns(stacked.colnames, [n.lower().replace(" ", "_") for n in stacked.colnames])
+            # stacked["temp_t"] = stacked["start_time"].jd
+            # result["temp_t"] = result["start_time"].jd
+            # 
+
+            # do the join in pandas, and then convert to QTable?
+            # we probably want to merge asof with a tolerance closest?
+
+            pd_query = query.to_pandas()
+            
+            merged_df = pd.merge_asof(
+                left=pd_query,
+                right=meta,
+                left_on="target_time",
+                right_on=...,
+                suffixes=["_query", "_meta"],
+                tolerance=merge_tolerance,  # HMI is at 720s (12 min) cadence
+                direction="nearest",
+            )
+            
+            result = QTable.from_pandas(merged_df)
+            # !TODO Replace NaN values in the "url" column with masked values or change this...
+            result['url'] = MaskedColumn(data=[""] * len(result['url']), mask=np.full(len(result['url']), True))
+            # result['url'] = MaskedColumn(data=result['url'], mask=(result['url'] == ""), dtype='str')
+            # qtable['url'] = MaskedColumn(data=pdt['url'], mask=(pdt['url'] == ""), dtype='str')
+
+            # astropy merging:
+            # result = join(query, meta, join_type="left", keys="temp_t") # maybe convert meta to a custom QTable
+            # remove columns ? 
+            # rename columns ?
+            results.append(Query(result))
+
+        # !TODO merge _query_objects and mag_tables
+        logger.debug("Exiting search")
+        return results
+    
+    def download(self, query_list: list(dict)):
+        logger.debug("Entering download")
+
+        downloads = []
+        for query in query_list:
+            # expand like swpc
+            missing = query["path"] == ""
+            new_query = query[missing]
+            downloads = new_query[~new_query["url"].mask]
+            # downloads = self._download(downloads, overwrite, path)
+            # results = self._match(results, downloads)]
+            # downloads.append(results)
+
+        logger.debug("Exiting download")
+        return downloads
 
     @staticmethod
     def download_from_column(
