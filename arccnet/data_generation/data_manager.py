@@ -90,6 +90,27 @@ class Query(QTable):
         return empty_query
 
 
+class Result(QTable):
+    r"""
+    Result object define both the result and download status.
+
+    The value of the 'path' is used to encode if the corresponding file was downloaded or not.
+
+    Notes
+    -----
+    Under the hood uses QTable and Masked columns to define if a file was downloaded or not
+
+    """
+    required_column_types = {"target_times": Time, "url": str, "path": str}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not set(self.colnames).issuperset(set(self.required_column_types.keys())):
+            raise ValueError(
+                f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns"
+            )
+
+
 class DataManager:
     """
     Main data management class.
@@ -153,9 +174,7 @@ class DataManager:
         return self._frequency
 
     # list | int
-    def search(
-        self, batch_frequency: int = 4, merge_tolerance: timedelta = timedelta(minutes=12)
-    ) -> list[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def search(self, batch_frequency: int = 4, merge_tolerance: timedelta = timedelta(minutes=12)) -> list[Query]:
         """
         Fetch and return data from various sources.
 
@@ -239,24 +258,93 @@ class DataManager:
         logger.debug("Exiting search")
         return results
 
-    def download(self, query_list: list(dict)):
+    def download(self, query_list: list(dict), path=None, overwrite=False, retry_missing=False):
         logger.debug("Entering download")
 
         downloads = []
         for query in query_list:
             # expand like swpc
-            missing = query["path"] == ""
-            new_query = query[missing]
-            downloads = new_query[~new_query["url"].mask]
-            # downloads = self._download(downloads, overwrite, path)
-            # results = self._match(results, downloads)]
-            # downloads.append(results)
+
+            new_query = None
+            results = query.copy()
+
+            if overwrite is True or "path" not in query.colnames:
+                logger.debug(f"Full download with overwrite: (overwrite = {overwrite})")
+                new_query = QTable(query)
+
+            if retry_missing is True:
+                logger.debug(f"Downloading with retry_missing: (retry_missing = {retry_missing})")
+                missing = query["path"] == ""
+                new_query = query[missing]
+
+            if new_query is not None:
+                logger.debug("Downloading ...")
+                downloads = self._download(new_query[~new_query["url"].mask]["url"], overwrite, path)
+                # results = self._match(results, downloads)
+
+            downloads.append(results)
 
         logger.debug("Exiting download")
-        return downloads
+        return Result(downloads)
+
+    def _download(
+        column,  # is this urls or a table?
+        path: Path,
+        max_retries=5,
+    ):
+        """
+        Download data from URLs in a DataFrame using parfive.
+
+        Parameters
+        ----------
+        urls_df : pd.DataFrame
+            DataFrame containing a "url" column with URLs to download.
+
+        base_directory_path : Path
+            Base directory path to save downloaded files. Default is `arccnet.data_generation.utils.default_variables.MAG_RAW_DATA_DIR`.
+
+        max_retries : int, optional
+            Maximum number of download retries. Default is 5.
+
+        Returns
+        -------
+        UnifiedResponse
+            The download results response
+        """
+        downloader = Downloader(
+            max_conn=1,
+            progress=True,
+            overwrite=False,
+            max_splits=1,
+        )
+
+        for url in column:
+            if url != "":  # remove?
+                # download only if it doesn't exist or overwrite is True
+                # this assumes that parfive deals with checking the integrity of files downloaded
+                # and that none are corrupt
+                downloader.enqueue_file(url=url, path=path)
+
+        results = downloader.download()
+
+        if len(results.errors) != 0:
+            logger.warning(f"results.errors: {results.errors}")
+            retry_count = 0
+            while len(results.errors) != 0 and retry_count < max_retries:
+                logger.info("retrying...")
+                downloader.retry(results)
+                retry_count += 1
+            if len(results.errors) != 0:
+                logger.error("Failed after maximum retries.")
+            else:
+                logger.info("Errors resolved after retry.")
+        else:
+            logger.info("No errors reported by parfive")
+
+        return results
 
     @staticmethod
-    def download_from_column(
+    def download_from_df_column(
         urls_df: pd.DataFrame = None,
         column_name="url",
         suffix="",
