@@ -161,10 +161,6 @@ class DataManager:
         return self._end_date
 
     @property
-    def tolerance(self):
-        return self._tolerance
-
-    @property
     def frequency(self):
         return self._frequency
 
@@ -331,8 +327,9 @@ class DataManager:
         results = Result(results.columns)
         return results
 
+    @staticmethod
     def _download(
-        column,  # is this urls or a table?
+        column: list[str],
         path: Path,
         max_retries=5,
     ):
@@ -341,10 +338,10 @@ class DataManager:
 
         Parameters
         ----------
-        urls_df : pd.DataFrame
-            DataFrame containing a "url" column with URLs to download.
+        column : list(str)
+            list of URLs (str) to download.
 
-        base_directory_path : Path
+        path : Path
             Base directory path to save downloaded files. Default is `arccnet.data_generation.utils.default_variables.MAG_RAW_DATA_DIR`.
 
         max_retries : int, optional
@@ -352,7 +349,7 @@ class DataManager:
 
         Returns
         -------
-        UnifiedResponse
+        parfive.results.Results
             The download results response
         """
         downloader = Downloader(
@@ -363,107 +360,8 @@ class DataManager:
         )
 
         for url in column:
-            if url != "":  # remove?
-                # download only if it doesn't exist or overwrite is True
-                # this assumes that parfive deals with checking the integrity of files downloaded
-                # and that none are corrupt
-
-                # check if exists before adding... (but then want to return the path of it existing...)
-                downloader.enqueue_file(url=url, path=path)
-
-        results = downloader.download()
-
-        if len(results.errors) != 0:
-            logger.warning(f"results.errors: {results.errors}")
-            retry_count = 0
-            while len(results.errors) != 0 and retry_count < max_retries:
-                logger.info("retrying...")
-                downloader.retry(results)
-                retry_count += 1
-            if len(results.errors) != 0:
-                logger.error("Failed after maximum retries.")
-            else:
-                logger.info("Errors resolved after retry.")
-        else:
-            logger.info("No errors reported by parfive")
-
-        return results
-
-    @staticmethod
-    def download_from_df_column(
-        urls_df: pd.DataFrame = None,
-        column_name="url",
-        suffix="",
-        base_directory_path: Path = None,
-        max_retries: int = 5,
-        overwrite: bool = False,
-    ) -> pd.DataFrame:
-        """
-        Download data from URLs in a DataFrame using parfive.
-
-        Parameters
-        ----------
-        urls_df : pd.DataFrame
-            DataFrame containing a "url" column with URLs to download.
-
-        base_directory_path : Path
-            Base directory path to save downloaded files. Default is `arccnet.data_generation.utils.default_variables.MAG_RAW_DATA_DIR`.
-
-        max_retries : int, optional
-            Maximum number of download retries. Default is 5.
-
-        Returns
-        -------
-        urls_df
-             DataFrame containing "download_path" and "downloaded_successfully" columns
-        """
-        if (
-            urls_df is None
-            or not isinstance(urls_df, pd.DataFrame)
-            or column_name not in urls_df.columns
-            or base_directory_path
-        ):
-            logger.warning(f"Invalid DataFrame format. Expected a DataFrame with a '{column_name}' column.")
-            return None
-        if base_directory_path is None:
-            logger.warning("Provide a base_directory_path.")
-            raise ValueError("base_directory_path is None")
-
-        downloader = Downloader(
-            max_conn=1,
-            progress=True,
-            overwrite=False,
-            max_splits=1,
-        )
-
-        # setup dataframe with download_paths
-        urls_df["download_path" + suffix] = [
-            base_directory_path / Path(url).name if isinstance(url, str) else np.nan for url in urls_df[column_name]
-        ]
-        downloaded_successfully = []
-        for path in urls_df["download_path" + suffix]:
-            if isinstance(path, Path):
-                downloaded_successfully.append(False)
-            elif pd.isna(path):
-                downloaded_successfully.append(np.nan)
-            else:
-                raise InvalidDownloadPathError(f"Invalid download path: {path}")
-
-        urls_df["downloaded_successfully" + suffix] = downloaded_successfully
-
-        fileskip_counter = 0
-        for _, row in urls_df.iterrows():
-            if row[column_name] is not np.nan:
-                # download only if it doesn't exist or overwrite is True
-                # this assumes that parfive deals with checking the integrity of files downloaded
-                # and that none are corrupt
-                if not row["download_path" + suffix].exists() or overwrite:
-                    downloader.enqueue_file(row[column_name], filename=row["download_path" + suffix])
-                else:
-                    fileskip_counter += 1
-
-        if fileskip_counter > 0:
-            logger.info(f"{fileskip_counter} files already exist at the destination, and will not be overwritten.")
+            # may want to check if the url is a url?
+            downloader.enqueue_file(url=url, path=path)
 
         results = downloader.download()
 
@@ -482,12 +380,10 @@ class DataManager:
             logger.info("No errors reported by parfive")
 
         parfive_download_errors = [errors.url for errors in results.errors]
+        if len(parfive_download_errors) != 0:
+            logger.warn(f"parfive_download_errors {parfive_download_errors}")
 
-        urls_df["downloaded_successfully" + suffix] = [
-            url not in parfive_download_errors if isinstance(url, str) else url for url in urls_df[column_name]
-        ]
-
-        return urls_df
+        return results
 
 
 def merge_activeregionpatches(
