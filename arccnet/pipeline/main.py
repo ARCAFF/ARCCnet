@@ -83,20 +83,62 @@ def process_srs(config):
 
 def process_mag(config):
     # provide list
-    mag_objs = [HMILOSMagnetogram, MDILOSMagnetogram, HMISHARPs, MDISMARPs]
+    mag_objs = [HMILOSMagnetogram(), MDILOSMagnetogram(), HMISHARPs(), MDISMARPs()]
     batch_freq = [12, 12, 4, 4]
+    freq = timedelta(days=1)
 
+    data_root = config["paths"]["data_root"]
+
+    # query files
+    hmi_query_file = Path(data_root) / "01_raw" / "mag" / "hmi_query.parq"
+    mdi_query_file = Path(data_root) / "01_raw" / "mag" / "mdi_query.parq"
+    sharps_query_file = Path(data_root) / "01_raw" / "mag" / "sharps_query.parq"
+    smarps_query_file = Path(data_root) / "01_raw" / "mag" / "smarps_query.parq"
+    query_files = [hmi_query_file, mdi_query_file, sharps_query_file, smarps_query_file]
+
+    # results files
+    hmi_results_file = Path(data_root) / "02_intermediate" / "mag" / "hmi_results.parq"
+    mdi_results_file = Path(data_root) / "02_intermediate" / "mag" / "mdi_results.parq"
+    sharps_results_file = Path(data_root) / "02_intermediate" / "mag" / "sharps_results.parq"
+    smarps_results_file = Path(data_root) / "02_intermediate" / "mag" / "smarps_results.parq"
+    results_files = [hmi_results_file, mdi_results_file, sharps_results_file, smarps_results_file]
+
+    # merged files
+    Path(data_root) / "03_final" / "mag" / "srs_hmi_mdi_merged.parq"
+    Path(data_root) / "03_final" / "mag" / "hmi_sharps_merged.parq"
+    Path(data_root) / "03_final" / "mag" / "mdi_smarps_merged.parq"
+
+    # !TODO implement reading of files if they exist.
+
+    # !TODO consider providing a custom class for each BaseMagnetogram
     dm = DataManager(
         start_date=config["dates"]["start_date"],
         end_date=config["dates"]["end_date"],
-        frequency=timedelta(days=1),
+        frequency=freq,
         magnetograms=mag_objs,
     )
 
-    mag_meta = dm.search(batch_frequency=batch_freq)
-    mag_meta
+    query_objects = dm.query_objects
+    for qo, qf in zip(query_objects, query_files):
+        qo.write(qf, format="parquet", overwrite=True)
 
-    dm.download()
+    # problem here is that the urls aren't around forever.
+    results_objects = dm.search(batch_frequency=batch_freq)
+    for ro, rf in zip(results_objects, results_files):
+        ro.write(rf, format="parquet", overwrite=True)
+        # probably want to save [Result.write(..)]
+
+    # Merge SRS, HMI, MDI; srs_hmi_mdi_file
+    # Merge HMI SHARPs - hmi_sharps_file
+    # Merge MDI SMARPs - hmi_smarps_file
+    download_objects = dm.download(
+        results_objects, path=Path(data_root) / "02_intermediate" / "mag" / "fits", overwrite=False, retry_missing=False
+    )
+
+    # minimal Result
+    download_result = [download_obj[["target_time", "url", "path"]] for download_obj in download_objects]
+
+    return query_objects, results_objects, download_objects, download_result
 
 
 def get_config():
@@ -111,6 +153,9 @@ def main():
 
     logger.debug("Starting main")
     query, results, raw_catalog, processed_catalog, clean_cata = process_srs(config)
+    mag_query, mag_results, mag_download = process_mag(config)
+
+    process_mag(config)
     logger.debug("Finished main")
 
     old_logger.info(f"Executing {__file__} as main program")

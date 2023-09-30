@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import numpy as np
 import pandas as pd
@@ -75,16 +75,11 @@ class Query(QTable):
         end = Time(end)
         start_pydate = start.to_datetime()
         end_pydate = end.to_datetime()
-        dt = int((end_pydate - start_pydate) / frequency)  # maybe?
+        dt = int((end_pydate - start_pydate) / frequency)
 
-        target_times = Time([start_pydate + i * frequency for i in range(dt + 1)])  # maybe?
-        # start_times = target_times - tolerance
-        # end_times = target_times + tolerance
+        target_times = Time([start_pydate + (i * frequency) for i in range(dt + 1)])
 
-        # this breaks, should it be end_pydate?
-        # if not start_times[-1].isclose(end):
-        #     raise ValueError(f"Expected end time {times[-1]} does not match supplied end time: {end}")
-
+        # set urls as a masked column
         urls = MaskedColumn(data=[""] * len(target_times), mask=np.full(len(target_times), True))
         empty_query = cls(data=[target_times, urls], names=["target_time", "url"])
         return empty_query
@@ -101,7 +96,7 @@ class Result(QTable):
     Under the hood uses QTable and Masked columns to define if a file was downloaded or not
 
     """
-    required_column_types = {"target_times": Time, "url": str, "path": str}
+    required_column_types = {"target_time": Time, "url": str, "path": str}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -120,8 +115,8 @@ class DataManager:
 
     def __init__(
         self,
-        start_date: datetime,
-        end_date: datetime,
+        start_date: str,
+        end_date: str,
         frequency: timedelta,
         magnetograms: list[BaseMagnetogram],
     ):
@@ -143,13 +138,13 @@ class DataManager:
         # download_fits : bool, optional
         #     Whether to download FITS files. Default is True.
         """
-        self._start_date = start_date
-        self._end_date = end_date
+        self._start_date = Time(start_date)
+        self._end_date = Time(end_date)
         self._frequency = frequency
 
         # Check that all class objects are subclasses of `BaseMagnetogram`
         for class_obj in magnetograms:
-            if not issubclass(class_obj, BaseMagnetogram):
+            if not issubclass(class_obj.__class__, BaseMagnetogram):
                 raise ValueError(f"{class_obj.__name__} is not a subclass of BaseMagnetogram")
 
         self._mag_objects = magnetograms
@@ -173,7 +168,14 @@ class DataManager:
     def frequency(self):
         return self._frequency
 
-    # list | int
+    @property
+    def mag_objects(self):
+        return self._mag_objects
+
+    @property
+    def query_objects(self):
+        return self._query_objects
+
     def search(self, batch_frequency: int = 4, merge_tolerance: timedelta = timedelta(minutes=12)) -> list[Query]:
         """
         Fetch and return data from various sources.
@@ -187,22 +189,15 @@ class DataManager:
 
         # times = None # hmm...
 
-        # Check if batch_frequency is a list or a single value
-        if isinstance(batch_frequency, list):
-            # Check if the length of batch_frequency matches the number of elements in self._mag_objects
-            if len(batch_frequency) != len(self._mag_objects):
-                raise ValueError("Length of batch_frequency list must match the number of Magnetogram objects")
-            # If it's a list, use it for each data source individually
-            metadata_list = [
-                data_source.fetch_metadata(self.start_date, self.end_date, batch_frequency=bf)
-                for data_source, bf in zip(self._mag_objects, batch_frequency)
-            ]
-        else:
-            # If it's a single value, use it for all data sources
-            metadata_list = [
-                data_source.fetch_metadata(self.start_date, self.end_date, batch_frequency=batch_frequency)
-                for data_source in self._mag_objects
-            ]
+        # If it's a single value, use it for all data sources
+        # !TODO consider implementing as a list (probably not needed)
+        metadata_list = [
+            # !TODO write this in a better way to not have to convert from astropy time to datetime is bad.
+            data_source.fetch_metadata(
+                self.start_date.to_datetime(), self.end_date.to_datetime(), batch_frequency=batch_frequency
+            )
+            for data_source in self._mag_objects
+        ]
 
         for meta in metadata_list:
             logger.debug(f"{meta.__class__.__name__}: \n{meta[['T_REC','T_OBS','DATE-OBS','datetime', 'url']]}")
@@ -215,11 +210,14 @@ class DataManager:
             # probably a better way to deal with this
             pd_query = query.to_pandas()  # [['target_time']]
 
-            # generate a mapping from target_time to datetime with a tolerance.
+            # check this dropping... how is datetime determined? are we dropping all missing?
+            meta_datetime = meta[["datetime"]].drop_duplicates().dropna()
+
+            # generate a mapping from target_time to datetime with the specified tolerance.
             # probably want a test that this whole code gets the same thing if there are no duplicates...
             merged_time = pd.merge_asof(
                 left=pd_query[["target_time"]],
-                right=meta[["datetime"]].drop_duplicates(),
+                right=meta_datetime,
                 left_on=["target_time"],
                 right_on=["datetime"],
                 # suffixes=["_query", "_meta"],
@@ -227,16 +225,22 @@ class DataManager:
                 direction="nearest",
             )
 
+            merged_time = merged_time.dropna()  # can be NaT in the datetime column
+
+            logger.debug(
+                f"len(meta) {len(meta)}; len(meta_datetime), {len(meta_datetime)}; len(merged_time), {len(merged_time)}"
+            )
+
             # for now, ensure that there are no duplicates of the same "datetime" in the df
-            if len(merged_time["datetime"].unique()) != len(merged_time["datetime"]):
+            # this would happen if two `target_time` share a single `meta[datetime]`
+            if len(merged_time["datetime"].dropna().unique()) != len(merged_time["datetime"].dropna()):
                 raise ValueError("there are duplicates of datetime from the right df")
 
-            # find the rows in the metadata which match the exact datetime
-            # which there may be multiple for cutouts at the same full-disk time
-            # ... and join
+            # extract the rows in the metadata which match the exact datetime
+            # which there may be multiple for cutouts at the same full-disk time, and join
             matched_rows = meta[meta["datetime"].isin(merged_time["datetime"])]
 
-            # -- Bit hacky to stop HARPNUM becoming a float
+            # -- Bit hacky to stop H(T)ARPNUM becoming a float
             #    I think Shane may have found a better way to deal with this?
             # Convert int64 columns to Int64
             int64_columns = matched_rows.select_dtypes(include=["int64"]).columns
@@ -245,20 +249,31 @@ class DataManager:
             for col in int64_columns:
                 new_df[col] = matched_rows[col].astype("Int64")
 
-            merged_df = pd.merge(merged_time, new_df, on="datetime", how="left")
+            logger.debug(f"len(merged_time) {len(merged_time)}; len(new_df), {len(new_df)}")
 
-            result = Query(QTable.from_pandas(merged_df))
+            # merged_time <- this is the times that match between the query and output
+            # new_df / matched_rows are the rows in the output at the same time as the query
+            merged_df = pd.merge(merged_time, new_df, on="datetime", how="left")
+            # I hope this isn't nonsense, and keeps the `urls` as a masked column
+            # how does this work with sharps/smarps where same datetime for multiple rows
+
+            # now merge with original query (only target_time)
+            if len(pd_query.url.dropna().unique()) == 0:
+                merged_df = pd.merge(pd_query["target_time"], merged_df, on="target_time", how="left")
+            else:
+                raise NotImplementedError("pd_query.url is not empty")
+
+            logger.debug(f"len(merged_df) {len(merged_df)}")
+
             # !TODO Replace NaN values in the "url" column with masked values or change this...
             # remove columns ?
             # rename columns ?
+            results.append(Query(QTable.from_pandas(merged_df)))
 
-            results.append(Query(result))
-
-        # !TODO merge _query_objects and mag_tables
         logger.debug("Exiting search")
         return results
 
-    def download(self, query_list: list(dict), path=None, overwrite=False, retry_missing=False):
+    def download(self, query_list: list[Query], path=None, overwrite=False, retry_missing=False):
         logger.debug("Entering download")
 
         downloads = []
@@ -279,13 +294,42 @@ class DataManager:
 
             if new_query is not None:
                 logger.debug("Downloading ...")
-                downloads = self._download(new_query[~new_query["url"].mask]["url"], overwrite, path)
-                # results = self._match(results, downloads)
+                downloads = self._download(new_query[~new_query["url"].mask]["url"].data.data, overwrite, path)
+                results = self._match(results, downloads.data)  # should return a results object.
 
-            downloads.append(results)
+            downloads.append(Result(results))
 
         logger.debug("Exiting download")
-        return Result(downloads)
+        return downloads
+
+    def _match(self, results: Query, downloads: np.array) -> Result:  # maybe?
+        """ """
+        logger.info("Downloads to query or new data")
+        results = QTable(results)
+
+        if "path" in results.colnames:
+            results.remove_column("path")
+
+        # make empty path column
+        results["path"] = None
+
+        results_df = QTable.to_pandas(results)
+        results_df["temp_url_name"] = [Path(url).name if not pd.isna(url) else "" for url in results_df["url"]]
+        downloads_df = pd.DataFrame({"temp_path": downloads})
+        downloads_df["temp_path_name"] = downloads_df["temp_path"].apply(lambda x: Path(x).name)
+        merged_df = pd.merge(results_df, downloads_df, left_on="temp_url_name", right_on="temp_path_name", how="left")
+
+        merged_df.drop(columns=["temp_url_name", "temp_path_name"], inplace=True)
+
+        results = QTable.from_pandas(merged_df)
+        results["path"][results["path"] is None] = ""  # for masking
+        # Table weirdness
+        tmp_path = MaskedColumn(results["temp_path"].data.tolist())
+        tmp_path.mask = results["url"].mask
+        results.replace_column("path", tmp_path)
+        results.remove_column("temp_path")
+        results = Result(results.columns)
+        return results
 
     def _download(
         column,  # is this urls or a table?
@@ -323,6 +367,8 @@ class DataManager:
                 # download only if it doesn't exist or overwrite is True
                 # this assumes that parfive deals with checking the integrity of files downloaded
                 # and that none are corrupt
+
+                # check if exists before adding... (but then want to return the path of it existing...)
                 downloader.enqueue_file(url=url, path=path)
 
         results = downloader.download()
