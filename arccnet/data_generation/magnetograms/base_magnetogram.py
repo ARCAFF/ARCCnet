@@ -414,8 +414,10 @@ class BaseMagnetogram(ABC):
         to_csv : bool, optional
             Whether to save the fetched metadata to a CSV file. Defaults to False.
 
-        dynamic_columns : ...
-            ...
+        dynamic_columns : list[str]
+            Columns that will be different with each request. This is used for dropping duplicates.
+            For example, JSOC prepares the set of files at each request, returning unique URLs.
+            Default is ["url"].
 
         Returns
         -------
@@ -477,7 +479,7 @@ class BaseMagnetogram(ABC):
         if to_csv:
             self._save_metadata_to_csv(combined_metadata)
 
-        logger.info(combined_metadata.shape)
+        logger.debug(combined_metadata.shape)
         return combined_metadata
 
     def fetch_metadata_batch(

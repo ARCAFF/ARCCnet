@@ -1,26 +1,19 @@
-import sys
 import logging
-import tempfile
 from pathlib import Path
 from datetime import timedelta
 
-import pandas as pd
-
 from astropy.table import QTable
 
-from arccnet import config
+import arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
 from arccnet.data_generation.data_manager import DataManager
-from arccnet.data_generation.mag_processing import MagnetogramProcessor, RegionExtractor
 from arccnet.data_generation.magnetograms.instruments import (
     HMILOSMagnetogram,
     HMISHARPs,
     MDILOSMagnetogram,
     MDISMARPs,
 )
-from arccnet.data_generation.region_detection import RegionDetection
 from arccnet.data_generation.utils.data_logger import get_logger
-from arccnet.data_generation.utils.data_logger import logger as old_logger
 
 logger = get_logger(__name__, logging.DEBUG)
 
@@ -84,7 +77,8 @@ def process_srs(config):
 def process_mag(config):
     # provide list
     mag_objs = [HMILOSMagnetogram(), MDILOSMagnetogram(), HMISHARPs(), MDISMARPs()]
-    batch_freq = [12, 12, 4, 4]
+    # batch_freq = [12, 12, 4, 4]
+    batch_freq = 4
     freq = timedelta(days=1)
 
     data_root = config["paths"]["data_root"]
@@ -103,6 +97,12 @@ def process_mag(config):
     smarps_results_file = Path(data_root) / "02_intermediate" / "mag" / "smarps_results.parq"
     results_files = [hmi_results_file, mdi_results_file, sharps_results_file, smarps_results_file]
 
+    hmi_results_file_raw = Path(data_root) / "01_raw" / "mag" / "hmi_results.parq"
+    mdi_results_file_raw = Path(data_root) / "01_raw" / "mag" / "mdi_results.parq"
+    sharps_results_file_raw = Path(data_root) / "01_raw" / "mag" / "sharps_results.parq"
+    smarps_results_file_raw = Path(data_root) / "01_raw" / "mag" / "smarps_results.parq"
+    results_files_raw = [hmi_results_file_raw, mdi_results_file_raw, sharps_results_file_raw, smarps_results_file_raw]
+
     # merged files
     Path(data_root) / "03_final" / "mag" / "srs_hmi_mdi_merged.parq"
     Path(data_root) / "03_final" / "mag" / "hmi_sharps_merged.parq"
@@ -119,11 +119,16 @@ def process_mag(config):
     )
 
     query_objects = dm.query_objects
+
     for qo, qf in zip(query_objects, query_files):
         qo.write(qf, format="parquet", overwrite=True)
 
     # problem here is that the urls aren't around forever.
-    results_objects = dm.search(batch_frequency=batch_freq)
+    metadata_raw, results_objects = dm.search(batch_frequency=batch_freq)
+
+    for df, rf in zip(metadata_raw, results_files_raw):
+        df.to_parquet(path=rf)
+
     for ro, rf in zip(results_objects, results_files):
         ro.write(rf, format="parquet", overwrite=True)
         # probably want to save [Result.write(..)]
@@ -158,100 +163,96 @@ def main():
     process_mag(config)
     logger.debug("Finished main")
 
-    old_logger.info(f"Executing {__file__} as main program")
-
-    data_download = False
-    mag_process = False
-    region_extraction = True
-    region_detection = True
-
-    if data_download:
-        DataManager(
-            start_date=config["general"]["start_date"],
-            end_date=config["general"]["end_date"],
-            merge_tolerance=pd.Timedelta(config["general"]["merge_tolerance"]),
-            download_fits=True,
-            overwrite_fits=False,
-            save_to_csv=True,
-        )
-
-    if mag_process:
-        MagnetogramProcessor(
-            csv_in_file=Path(config["paths"]["mag_intermediate_hmimdi_data_csv"]),
-            csv_out_file=Path(config["paths"]["mag_intermediate_hmimdi_processed_data_csv"]),
-            columns=["download_path_hmi", "download_path_mdi"],
-            processed_data_dir=Path(config["paths"]["mag_intermediate_data_dir"]),
-            process_data=True,
-            use_multiprocessing=True,
-        )
-
-    # Build 03_processed directory
-    paths_03 = [
-        Path(config["paths"]["mag_processed_fits_dir"]),
-        Path(config["paths"]["mag_processed_qssummaryplots_dir"]),
-        Path(config["paths"]["mag_processed_qsfits_dir"]),
-    ]
-    for path in paths_03:
-        if not path.exists():
-            path.mkdir(parents=True)
-
-    if region_extraction:
-        x_extent = config.getint("magnetograms.cutouts", "x_extent")
-        y_extent = config.getint("magnetograms.cutouts", "y_extent")
-        region_extractor = RegionExtractor(
-            dataframe=Path(config["paths"]["mag_intermediate_hmimdi_processed_data_csv"]),
-            out_fnames=["mdi", "hmi"],
-            datetimes=["datetime_mdi", "datetime_hmi"],
-            data_cols=["processed_download_path_mdi", "processed_download_path_hmi"],
-            # new_cols=["cutout_mdi", "cutout_hmi"],
-            cutout_sizes=[
-                (int(x_extent / 4), int(x_extent / 4)),
-                (int(y_extent), int(y_extent)),
-            ],
-            common_datetime_col="datetime_srs",
-            num_random_attempts=10,
-        )
-
-        # Save the AR Classification dataset
-        region_extractor.activeregion_classification_df.to_csv(
-            Path(config["paths"]["mag_processed_dir"]) / "ARExtraction.csv", index=False
-        )
-        # Drop SRS-related rows (minus "datetime_srs")
-        region_extractor.quietsun_df.drop(
-            columns=[
-                "ID",
-                "Number",
-                "Carrington Longitude",
-                "Area",
-                "Z",
-                "Longitudinal Extent",
-                "Number of Sunspots",
-                "Mag Type",
-                "Latitude",
-                "Longitude",
-                "filepath_srs",
-                "filename_srs",
-                "loaded_successfully_srs",
-                "catalog_created_on_srs",
-            ]
-        ).to_csv(Path(config["paths"]["mag_processed_dir"]) / "QSExtraction.csv", index=False)
-
-    if region_detection:
-        hs_match = pd.read_csv(config["paths"]["mag_intermediate_hmisharps_data_csv"])
-
-        # need to alter the original code, but change the download_path to processed data
-        hs_match["download_path"] = hs_match["download_path"].str.replace("01_raw", "02_intermediate")
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            # save the temporary change to the data
-            filepath = Path(tmpdirname) / Path("temp.csv")
-            hs_match.to_csv(filepath)
-            region_detection = RegionDetection(filepath)
-
-            region_detection.regiondetection_df.to_csv(
-                Path(config["paths"]["mag_processed_dir"]) / "ARDetection.csv", index=False
-            )
-
-
 if __name__ == "__main__":
     main()
-    sys.exit()
+    # old_logger.info(f"Executing {__file__} as main program")
+
+    # data_download = False
+    # mag_process = False
+    # region_extraction = True
+    # region_detection = True
+
+    # if data_download:
+    #     data_manager = DataManager(
+    #         start_date=dv.DATA_START_TIME,
+    #         end_date=dv.DATA_END_TIME,
+    #         merge_tolerance=pd.Timedelta("30m"),
+    #         download_fits=True,
+    #         overwrite_fits=False,
+    #         save_to_csv=True,
+    #     )
+
+    # if mag_process:
+    #     mag_processor = MagnetogramProcessor(
+    #         csv_in_file=Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
+    #         csv_out_file=Path(dv.MAG_INTERMEDIATE_HMIMDI_PROCESSED_DATA_CSV),
+    #         columns=["download_path_hmi", "download_path_mdi"],
+    #         processed_data_dir=Path(dv.MAG_INTERMEDIATE_DATA_DIR),
+    #         process_data=True,
+    #         use_multiprocessing=True,
+    #     )
+
+    # # Build 03_processed directory
+    # paths_03 = [
+    #     Path(dv.MAG_PROCESSED_FITS_DIR),
+    #     Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR),
+    #     Path(dv.MAG_PROCESSED_QSFITS_DIR),
+    # ]
+    # for path in paths_03:
+    #     if not path.exists():
+    #         path.mkdir(parents=True)
+
+    # if region_extraction:
+    #     region_extractor = RegionExtractor(
+    #         dataframe=Path(dv.MAG_INTERMEDIATE_HMIMDI_PROCESSED_DATA_CSV),
+    #         out_fnames=["mdi", "hmi"],
+    #         datetimes=["datetime_mdi", "datetime_hmi"],
+    #         data_cols=["processed_download_path_mdi", "processed_download_path_hmi"],
+    #         # new_cols=["cutout_mdi", "cutout_hmi"],
+    #         cutout_sizes=[
+    #             (int(dv.X_EXTENT / 4), int(dv.Y_EXTENT / 4)),
+    #             (int(dv.X_EXTENT), int(dv.Y_EXTENT)),
+    #         ],
+    #         common_datetime_col="datetime_srs",
+    #         num_random_attempts=10,
+    #     )
+
+    #     # Save the AR Classification dataset
+    #     region_extractor.activeregion_classification_df.to_csv(
+    #         Path(dv.MAG_PROCESSED_DIR) / Path("ARExtraction.csv"), index=False
+    #     )
+    #     # Drop SRS-related rows (minus "datetime_srs")
+    #     region_extractor.quietsun_df.drop(
+    #         columns=[
+    #             "ID",
+    #             "Number",
+    #             "Carrington Longitude",
+    #             "Area",
+    #             "Z",
+    #             "Longitudinal Extent",
+    #             "Number of Sunspots",
+    #             "Mag Type",
+    #             "Latitude",
+    #             "Longitude",
+    #             "filepath_srs",
+    #             "filename_srs",
+    #             "loaded_successfully_srs",
+    #             "catalog_created_on_srs",
+    #         ]
+    #     ).to_csv(Path(dv.MAG_PROCESSED_DIR) / Path("QSExtraction.csv"), index=False)
+
+    # if region_detection:
+    #     hs_match = pd.read_csv(dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV)
+
+    #     # need to alter the original code, but change the download_path to processed data
+    #     hs_match["download_path"] = hs_match["download_path"].str.replace("01_raw", "02_intermediate")
+    #     with tempfile.TemporaryDirectory() as tmpdirname:
+    #         # save the temporary change to the data
+    #         filepath = Path(tmpdirname) / Path("temp.csv")
+    #         hs_match.to_csv(filepath)
+    #         region_detection = RegionDetection(filepath)
+
+    #         region_detection.regiondetection_df.to_csv(
+    #             Path(dv.MAG_PROCESSED_DIR) / Path("ARDetection.csv"), index=False
+    #         )
+    # sys.exit()

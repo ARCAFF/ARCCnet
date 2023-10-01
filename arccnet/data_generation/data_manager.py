@@ -188,10 +188,9 @@ class DataManager:
         # If it's a single value, use it for all data sources
         # !TODO consider implementing as a list (probably not needed)
         metadata_list = [
-            # !TODO write this in a better way to not have to convert from astropy time to datetime is bad.
             data_source.fetch_metadata(
                 self.start_date.to_datetime(), self.end_date.to_datetime(), batch_frequency=batch_frequency
-            )
+            )  # understand if that conversion from astropy time to datetime is bad.
             for data_source in self._mag_objects
         ]
 
@@ -207,7 +206,9 @@ class DataManager:
             pd_query = query.to_pandas()  # [['target_time']]
 
             # check this dropping... how is datetime determined? are we dropping all missing?
-            meta_datetime = meta[["datetime"]].drop_duplicates().dropna()
+            meta_datetime = (
+                meta[["datetime"]].drop_duplicates().dropna().sort_values("datetime").reset_index(drop=True)
+            )  # adding sorting here... is this going to mess something up?
 
             # generate a mapping from target_time to datetime with the specified tolerance.
             # probably want a test that this whole code gets the same thing if there are no duplicates...
@@ -267,7 +268,7 @@ class DataManager:
             results.append(Query(QTable.from_pandas(merged_df)))
 
         logger.debug("Exiting search")
-        return results
+        return metadata_list, results
 
     def download(self, query_list: list[Query], path=None, overwrite=False, retry_missing=False):
         logger.debug("Entering download")
@@ -290,8 +291,10 @@ class DataManager:
 
             if new_query is not None:
                 logger.debug("Downloading ...")
-                downloads = self._download(new_query[~new_query["url"].mask]["url"].data.data, overwrite, path)
-                results = self._match(results, downloads.data)  # should return a results object.
+                downloaded_files = self._download(
+                    column=new_query[~new_query["url"].mask]["url"].data.data, path=path, overwrite=False
+                )
+                results = self._match(results, downloaded_files.data)  # should return a results object.
 
             downloads.append(Result(results))
 
@@ -315,9 +318,9 @@ class DataManager:
         downloads_df["temp_path_name"] = downloads_df["temp_path"].apply(lambda x: Path(x).name)
         merged_df = pd.merge(results_df, downloads_df, left_on="temp_url_name", right_on="temp_path_name", how="left")
 
-        merged_df.drop(columns=["temp_url_name", "temp_path_name"], inplace=True)
-
+        merged_df.drop(columns=["temp_url_name"], inplace=True)
         results = QTable.from_pandas(merged_df)
+
         results["path"][results["path"] is None] = ""  # for masking
         # Table weirdness
         tmp_path = MaskedColumn(results["temp_path"].data.tolist())
@@ -329,19 +332,20 @@ class DataManager:
 
     @staticmethod
     def _download(
-        column: list[str],
+        column,  # is this urls or a table?
         path: Path,
-        max_retries=5,
+        overwrite: bool = False,
+        max_retries: int = 5,
     ):
         """
         Download data from URLs in a DataFrame using parfive.
 
         Parameters
         ----------
-        column : list(str)
-            list of URLs (str) to download.
+        urls_df : pd.DataFrame
+            DataFrame containing a "url" column with URLs to download.
 
-        path : Path
+        base_directory_path : Path
             Base directory path to save downloaded files. Default is `arccnet.data_generation.utils.default_variables.MAG_RAW_DATA_DIR`.
 
         max_retries : int, optional
@@ -349,18 +353,16 @@ class DataManager:
 
         Returns
         -------
-        parfive.results.Results
-            The download results response
+        'parfive.results.Results'
         """
         downloader = Downloader(
             max_conn=1,
             progress=True,
-            overwrite=False,
+            overwrite=overwrite,
             max_splits=1,
         )
 
         for url in column:
-            # may want to check if the url is a url?
             downloader.enqueue_file(url=url, path=path)
 
         results = downloader.download()
@@ -378,10 +380,6 @@ class DataManager:
                 logger.info("Errors resolved after retry.")
         else:
             logger.info("No errors reported by parfive")
-
-        parfive_download_errors = [errors.url for errors in results.errors]
-        if len(parfive_download_errors) != 0:
-            logger.warn(f"parfive_download_errors {parfive_download_errors}")
 
         return results
 
