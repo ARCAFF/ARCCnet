@@ -2,8 +2,6 @@ import logging
 from pathlib import Path
 from datetime import timedelta
 
-import pandas as pd
-
 from astropy.table import QTable
 
 import arccnet import config
@@ -76,7 +74,7 @@ def process_srs(config):
     return srs_query, srs_results, srs_raw_catalog, srs_processed_catalog, srs_clean_catalog
 
 
-def process_mag(config):
+def process_mag(config, srs_catalog):
     # provide list
     mag_objs = [
         HMILOSMagnetogram(),
@@ -130,7 +128,7 @@ def process_mag(config):
         qo.write(qf, format="parquet", overwrite=True)
 
     # problem here is that the urls aren't around forever.
-    metadata_raw, results_objects = dm.search(batch_frequency=batch_freq)
+    metadata_raw, results_objects = dm.search(batch_frequency=batch_freq, merge_tolerance=timedelta(minutes=30))
 
     for df, rf in zip(metadata_raw, results_files_raw):
         df.to_parquet(path=rf)
@@ -139,69 +137,66 @@ def process_mag(config):
         ro.write(rf, format="parquet", overwrite=True)
         # probably want to save [Result.write(..)]
 
-    # Merge SRS, HMI, MDI; srs_hmi_mdi_file
-    # Merge HMI SHARPs - hmi_sharps_file
-    # Merge MDI SMARPs - hmi_smarps_file
-    download_objects = dm.download(
-        results_objects, path=Path(data_root) / "02_intermediate" / "mag" / "fits", overwrite=False, retry_missing=False
-    )
+    # download_objects = dm.download(
+    #     results_objects, path=Path(data_root) / "02_intermediate" / "mag" / "fits", overwrite=False, retry_missing=False
+    # )
 
-    # minimal Result
-    download_result = [download_obj[["target_time", "url", "path"]] for download_obj in download_objects]
+    # # minimal Result
+    # download_result = [download_obj[["target_time", "url", "path"]] for download_obj in download_objects]
 
-    # this is dodgy...
-    srs = None
-    hmi = download_result[0]
-    mdi = download_result[1]
-    sharps = download_result[2]
-    smarps = download_result[3]
+    # # this is dodgy...
+    # srs = srs_catalog.copy()
+    # hmi = download_result[0]
+    # mdi = download_result[1]
+    # sharps = download_result[2]
+    # smarps = download_result[3]
 
-    # 1. merge SRS-HMI-MDI
-    # srs = None
-    # hmi = None
-    # mdi = None
-    # utilise that time_srs and target_time_hmi are the same, e.g. generated from start,end,frequency
-    srsmdihmi = pd.merge(srs.add_suffix("_srs"), hmi.add_suffix("_hmi"), left_on="time_srs", right_on="target_time_hmi")
-    srsmdihmi = pd.merge(srsmdihmi, mdi.add_suffix("_mdi"), left_on="time_srs", right_on="target_time_mdi")
-    dropped_rows = srsmdihmi.copy()
-    # maybe change to path_srs/mdi/hmi etc.
-    srsmdihmi_dropped = srsmdihmi.dropna(subset=["url_srs"]).reset_index(drop=True)
-    srsmdihmi_dropped = srsmdihmi_dropped.dropna(subset=["url_hmi", "url_mdi"], how="all").reset_index(drop=True)
-    srsmdihmi_minimal = srsmdihmi_dropped[["path_srs", "url_hmi", "url_mdi"]]
-    logger.debug(
-        print(
-            f"len(srsmdihmi): {len(srsmdihmi)}, len(srsmdihmi_dropped): {len(srsmdihmi_dropped)}; and there are {len(dropped_rows[~dropped_rows.index.isin(srsmdihmi_dropped.index)])} dropped rows"
-        )
-    )
-    logger.debug(srsmdihmi_minimal.head())
+    # # 1. merge SRS-HMI-MDI
+    # # srs = None
+    # # hmi = None
+    # # mdi = None
+    # # utilise that time_srs and target_time_hmi are the same, e.g. generated from start,end,frequency
+    # srsmdihmi = pd.merge(srs.add_suffix("_srs"), hmi.add_suffix("_hmi"), left_on="time_srs", right_on="target_time_hmi")
+    # srsmdihmi = pd.merge(srsmdihmi, mdi.add_suffix("_mdi"), left_on="time_srs", right_on="target_time_mdi")
+    # dropped_rows = srsmdihmi.copy()
+    # # maybe change to path_srs/mdi/hmi etc.
+    # srsmdihmi_dropped = srsmdihmi.dropna(subset=["url_srs"]).reset_index(drop=True)
+    # srsmdihmi_dropped = srsmdihmi_dropped.dropna(subset=["url_hmi", "url_mdi"], how="all").reset_index(drop=True)
+    # srsmdihmi_minimal = srsmdihmi_dropped[["path_srs", "url_hmi", "url_mdi"]]
+    # logger.debug(
+    #     print(
+    #         f"len(srsmdihmi): {len(srsmdihmi)}, len(srsmdihmi_dropped): {len(srsmdihmi_dropped)}; and there are {len(dropped_rows[~dropped_rows.index.isin(srsmdihmi_dropped.index)])} dropped rows"
+    #     )
+    # )
+    # logger.debug(srsmdihmi_minimal.head())
 
-    # 2. merge HMI-SHARPs
-    # sharps = None
-    # hmi = None
+    # # 2. merge HMI-SHARPs
+    # # sharps = None
+    # # hmi = None
 
-    hmi_sharps = pd.merge(
-        hmi.dropna(subset=["filename"]).reset_index(drop=True),
-        sharps.dropna(subset=["filename"]).reset_index(drop=True).add_suffix("_arc"),
-        left_on="datetime",
-        right_on="datetime_arc",
-    )
+    # hmi_sharps = pd.merge(
+    #     hmi.dropna(subset=["filename"]).reset_index(drop=True),
+    #     sharps.dropna(subset=["filename"]).reset_index(drop=True).add_suffix("_arc"),
+    #     left_on="datetime",
+    #     right_on="datetime_arc",
+    # )
 
-    logger.debug(hmi_sharps.head())
+    # logger.debug(hmi_sharps.head())
 
-    # 3. merge MDI-SMARPs
-    # smarps = None
-    # mdi = None
+    # # 3. merge MDI-SMARPs
+    # # smarps = None
+    # # mdi = None
 
-    mdi_smarps = pd.merge(
-        mdi.dropna(subset=["filename"]).reset_index(drop=True),
-        smarps.dropna(subset=["filename"]).reset_index(drop=True).add_suffix("_arc"),
-        left_on="datetime",
-        right_on="datetime_arc",
-    )
+    # mdi_smarps = pd.merge(
+    #     mdi.dropna(subset=["filename"]).reset_index(drop=True),
+    #     smarps.dropna(subset=["filename"]).reset_index(drop=True).add_suffix("_arc"),
+    #     left_on="datetime",
+    #     right_on="datetime_arc",
+    # )
 
-    logger.debug(mdi_smarps.head())
+    # logger.debug(mdi_smarps.head())
 
-    return query_objects, results_objects, download_objects, download_result
+    return query_objects, results_objects  # , download_objects, download_result
 
 
 def get_config():
@@ -218,10 +213,10 @@ def main():
     root_logger.setLevel("DEBUG")
 
     logger.debug("Starting main")
-    query, results, raw_catalog, processed_catalog, clean_cata = process_srs(config)
-    mag_query, mag_results, mag_download = process_mag(config)
+    config = get_config()
+    query, results, raw_catalog, processed_catalog, clean_catalog = process_srs(config)
 
-    process_mag(config)
+    process_mag(config, clean_catalog)
     logger.debug("Finished main")
 
 if __name__ == "__main__":

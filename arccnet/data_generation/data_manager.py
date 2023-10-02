@@ -177,7 +177,7 @@ class DataManager:
     def query_objects(self):
         return self._query_objects
 
-    def search(self, batch_frequency: int = 4, merge_tolerance: timedelta = timedelta(minutes=12)) -> list[Query]:
+    def search(self, batch_frequency: int, merge_tolerance: timedelta) -> list[Query]:
         """
         Fetch and return data from various sources.
 
