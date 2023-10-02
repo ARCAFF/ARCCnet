@@ -2,6 +2,8 @@ import logging
 from pathlib import Path
 from datetime import timedelta
 
+import pandas as pd
+
 from astropy.table import QTable
 
 import arccnet import config
@@ -76,10 +78,14 @@ def process_srs(config):
 
 def process_mag(config):
     # provide list
-    mag_objs = [HMILOSMagnetogram(), MDILOSMagnetogram(), HMISHARPs(), MDISMARPs()]
-    # batch_freq = [12, 12, 4, 4]
-    batch_freq = 4
-    freq = timedelta(days=1)
+    mag_objs = [
+        HMILOSMagnetogram(),
+        MDILOSMagnetogram(),
+        HMISHARPs(),
+        MDISMARPs(),
+    ]  # unsure if this should just be put into the config file.
+    batch_freq = 4  # move to config
+    freq = timedelta(days=1)  # move to config?
 
     data_root = config["paths"]["data_root"]
 
@@ -143,12 +149,67 @@ def process_mag(config):
     # minimal Result
     download_result = [download_obj[["target_time", "url", "path"]] for download_obj in download_objects]
 
+    # this is dodgy...
+    srs = None
+    hmi = download_result[0]
+    mdi = download_result[1]
+    sharps = download_result[2]
+    smarps = download_result[3]
+
+    # 1. merge SRS-HMI-MDI
+    # srs = None
+    # hmi = None
+    # mdi = None
+    # utilise that time_srs and target_time_hmi are the same, e.g. generated from start,end,frequency
+    srsmdihmi = pd.merge(srs.add_suffix("_srs"), hmi.add_suffix("_hmi"), left_on="time_srs", right_on="target_time_hmi")
+    srsmdihmi = pd.merge(srsmdihmi, mdi.add_suffix("_mdi"), left_on="time_srs", right_on="target_time_mdi")
+    dropped_rows = srsmdihmi.copy()
+    # maybe change to path_srs/mdi/hmi etc.
+    srsmdihmi_dropped = srsmdihmi.dropna(subset=["url_srs"]).reset_index(drop=True)
+    srsmdihmi_dropped = srsmdihmi_dropped.dropna(subset=["url_hmi", "url_mdi"], how="all").reset_index(drop=True)
+    srsmdihmi_minimal = srsmdihmi_dropped[["path_srs", "url_hmi", "url_mdi"]]
+    logger.debug(
+        print(
+            f"len(srsmdihmi): {len(srsmdihmi)}, len(srsmdihmi_dropped): {len(srsmdihmi_dropped)}; and there are {len(dropped_rows[~dropped_rows.index.isin(srsmdihmi_dropped.index)])} dropped rows"
+        )
+    )
+    logger.debug(srsmdihmi_minimal.head())
+
+    # 2. merge HMI-SHARPs
+    # sharps = None
+    # hmi = None
+
+    hmi_sharps = pd.merge(
+        hmi.dropna(subset=["filename"]).reset_index(drop=True),
+        sharps.dropna(subset=["filename"]).reset_index(drop=True).add_suffix("_arc"),
+        left_on="datetime",
+        right_on="datetime_arc",
+    )
+
+    logger.debug(hmi_sharps.head())
+
+    # 3. merge MDI-SMARPs
+    # smarps = None
+    # mdi = None
+
+    mdi_smarps = pd.merge(
+        mdi.dropna(subset=["filename"]).reset_index(drop=True),
+        smarps.dropna(subset=["filename"]).reset_index(drop=True).add_suffix("_arc"),
+        left_on="datetime",
+        right_on="datetime_arc",
+    )
+
+    logger.debug(mdi_smarps.head())
+
     return query_objects, results_objects, download_objects, download_result
 
 
 def get_config():
     cwd = Path()
-    config = {"paths": {"data_root": cwd / "data"}, "dates": {"start_date": "1996-01-01", "end_date": "2023-01-01"}}
+    config = {
+        "paths": {"data_root": cwd / "data"},
+        "dates": {"start_date": "1996-01-01", "end_date": "2022-12-31"},
+    }  # until the end of 2022
     return config
 
 
