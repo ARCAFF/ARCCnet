@@ -27,13 +27,7 @@ def load_config():
     # Read in configuration files
     config.read(config_files)
 
-    if not config.has_option("paths", "data_root"):
-        config.set("paths", "data_root", str(Path(dirs.user_data_dir) / "arccnet"))
-
-    data_root = Path(config["paths"]["data_root"])
-    for option, value in config["paths"].items():
-        if option != "data_root":
-            config.set("paths", option, str(data_root / value))
+    config.set("paths", "data_root", str(Path(dirs.user_data_dir) / "arccnet"))
 
     return config
 

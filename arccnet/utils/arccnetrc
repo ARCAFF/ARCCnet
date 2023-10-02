@@ -21,10 +21,8 @@ jsoc_base_url = http://jsoc.stanford.edu
 ; Magnetograms ;
 ;;;;;;;;;;;;;;;;
 [magnetograms]
-mdi_date_format = %Y-%m-%dT%H:%M:%SZ
-mdi_seg_col = data
-hmi_date_format = %Y-%m-%dT%H:%M:%S.%fZ
-hmi_seg_col = magnetogram
+
+
 
 [magnetograms.cutouts]
 x_extent = 800
@@ -35,10 +33,10 @@ y_extent = 400
 ;;;;;;;;;
 [paths]
 
-data_dir_raw = 01_raw
-data_dir_intermediate = 02_intermediate
-data_dir_processed = 03_processed
-data_dir_final = 04_final
+data_dir_raw = ${data_root}/01_raw
+data_dir_intermediate = ${data_root}/02_intermediate
+data_dir_processed = ${data_root}/03_processed
+data_dir_final = ${data_root}/04_final
 
 mag_raw_dir = ${data_dir_raw}/mag
 

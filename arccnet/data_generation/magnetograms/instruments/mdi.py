@@ -99,7 +99,7 @@ class MDILOSMagnetogram(BaseMagnetogram):
         This is used for converting DATE-OBS to a datetime. This perhaps isn't
         the ideal way to do this.
         """
-        return config["magnetograms"]["mdi_date_format"]
+        return "%Y-%m-%dT%H:%M:%SZ"
 
     @property
     def segment_column_name(self) -> str:
@@ -109,7 +109,7 @@ class MDILOSMagnetogram(BaseMagnetogram):
         str:
             Name of the MDI data segment
         """
-        return config["magnetograms"]["mdi_seg_col"]
+        return "data"
 
     @property
     def metadata_save_location(self) -> str:

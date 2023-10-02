@@ -48,6 +48,7 @@ class Query(QTable):
             raise ValueError(
                 f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns."
             )
+        self["url"] = MaskedColumn(self["url"])
 
     @property
     def is_empty(self) -> bool:
@@ -322,7 +323,7 @@ class SWPCCatalog:
             elif srs_table is False:
                 srs_data.append(file_info)
 
-        catalog = vstack(srs_data)
+        catalog = vstack(srs_data, metadata_conflicts="silent")
         catalog = ClassificationCatalog(catalog)
         logger.debug("Finished creating catalog")
         return catalog

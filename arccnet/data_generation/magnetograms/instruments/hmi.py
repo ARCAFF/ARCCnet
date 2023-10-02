@@ -123,7 +123,7 @@ class HMILOSMagnetogram(BaseMagnetogram):
         This is used for converting DATE-OBS to a datetime. This perhaps isn't
         the ideal way to do this.
         """
-        return config["magnetograms"]["hmi_date_format"]
+        return "%Y-%m-%dT%H:%M:%S.%fZ"
 
     @property
     def segment_column_name(self) -> str:
@@ -135,7 +135,7 @@ class HMILOSMagnetogram(BaseMagnetogram):
         str
             The name of the HMI data segment.
         """
-        return config["magnetograms"]["hmi_seg_col"]
+        return "magnetogram"
 
     @property
     def metadata_save_location(self) -> str:
