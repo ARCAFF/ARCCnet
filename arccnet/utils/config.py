@@ -1,3 +1,8 @@
+"""
+
+
+"""
+
 import configparser
 from pathlib import Path
 
@@ -10,6 +15,9 @@ dirs = PlatformDirs("ARCCnet", "ARCCAF")
 #: User configuration directory
 CONFIG_DIR = Path(dirs.user_config_dir)
 
+#: User data directory
+DATA_DIR = Path(dirs.user_data_dir)
+
 __all__ = ["load_config", "print_config", "CONFIG_DIR"]
 
 
@@ -21,7 +29,7 @@ def load_config():
     """
     config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
 
-    # Get locations of SunPy configuration files to be loaded
+    # Get locations of ARCCnet configuration files to be loaded
     config_files = _find_config_files()
 
     # Read in configuration files
@@ -35,6 +43,9 @@ def load_config():
 def _find_config_files():
     """
     Finds locations of ARCCnet configuration files.
+
+    Checks for default, site and user configuration see `platformdirs` documentation for details on how locations are
+    chosen.
     """
     config_files = []
     config_filename = "arccnetrc"
@@ -53,8 +64,7 @@ def _find_config_files():
     # if a user configuration file exists, add that to list of files to read
     # so that any values set there will override ones specified in the default
     # config file
-    config_path = Path(dirs.user_config_dir)
-    if config_path.joinpath(config_filename).exists():
+    if CONFIG_DIR.joinpath(config_filename).exists():
         config_files.append(str(config_path.joinpath(config_filename)))
 
     return config_files
