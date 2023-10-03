@@ -16,6 +16,7 @@ jupytext:
 # Active Region Classification
 
 ## Introduction
+
 Sunspot groups or {term}`ARs` classifications were some of the earliest properties used in forecast solar flares, and they are still in use today.
 Initially {term}`ARs` were classified using the Zurich system {cite:p}`waldmeier1938`, after Hale's discovered of magnetic fields in sunspots this was followed by the addition of the Hale or Mt Wislon {cite:p}`hale1919,kunzel1965` classification and finally a modified version of Zurich scheme known as the McIntosh classification {cite:p}`mcintosh1990`.
 Hale or Mt Wilson and McIntosh classification are still produced daily by space weather forecasting centers such as UKMet and SWPC.
@@ -23,12 +24,14 @@ Human operators use solar observations and guides to produce the classification 
 
 The first task of {term}`ARCAFF` project is to train neural networks to classify {term}`ARs` in order to do this the first task of any machine learning task is the creation of the training and evaluation dataset in this case the "AR Localisation and Classification ML Datasets".
 The task has been broken down into:
+
 1. Active Region Cutout Classification -- given an {term}`AR` cutout produce classifications,
 2. Active Region Detection -- given a full disk image produce a bounding boxes and classifications for each {term}`AR`.
 
 To assemble these dataset data on {term}`AR` classification and detected bounding boxes mush be combined with magnetogram observations.
 
 ### Purpose and Scope of the deliverable
+
 The purpose of this deliverable is to describe the input data and processes use to create the "AR Localisation and Classification ML Datasets" and also describe the datasets themselves.
 
 ### References
@@ -62,8 +65,10 @@ SWPC
 ## Source Data
 
 ### AR Classifications
+
 The primary source of {term}`AR` classifications are {term}`NOAA`'s {term}`SWPC` {term}`SRS` reports which are jointly prepared by the U.S. Dept. of Commerce and {term}`NOAA`.
 {numref}`code:srs-report` shows and example of an {term}`SRS` report the key information is contained in Section I and is:
+
 * 'Nubr' - The NOAA number,
 * 'Location' - Sunspot group location, in heliographic degrees latitude and degrees east or west from central meridian, rotated to 00:00 UTC,
 * 'Z' - Modified Zurich classification of the group,
@@ -100,11 +105,12 @@ None
 ```{code-cell} python3
 :tags: [hide-cell, remove-input, remove-output]
 from myst_nb import glue
-
+import datetime
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog
 from arccnet.visualisation.data import plot_srs_coverage, plot_srs_map, plot_filtered_srs_trace
-from arccnet.data_generation.utils.default_variables import DATA_START_TIME, DATA_END_TIME
-pcat = ClassificationCatalog.read('../../data/03_final/noaa_srs/srs_processed_catalog.parq')
+DATA_START_TIME = datetime.datetime(1996,1,1)
+DATA_END_TIME = datetime.datetime(2023,1,1)
+pcat = ClassificationCatalog.read('../../data/03_processed/noaa_srs/srs_processed_catalog.parq')
 pcat_df = pcat.to_pandas()
 srs_coverage_fig, srs_coverage_ax = plot_srs_coverage(pcat)
 glue("srs_coverage_fig", srs_coverage_fig, display=False)
@@ -145,14 +151,11 @@ The daily {term}`SRS` reports can be combined to form a series for each {term}`A
 Solar features such as {term}`ARs` should move across the disk at approximately the solar sidereal rotation rate of ~14 deg/day with respect to longitude with little variation in latitude ~ 0 deg/day.
 The rate of change of longitude or latitude have been separately filtered to +- 7.5 deg/day of the expected rates resulting in {glue}`srs_ars_bad_no` bad positions across {glue}`srs_ars_bad_unique_no` {term}`ARs` to be filtered, leaving {glue}`srs_ars_good_no` classifications across {glue}`srs_ars_good_unique_no` {term}`ARs`.
 
-
-
 ```{glue:figure} srs_coverage_fig
 :alt: "SRS Coverage"
 :name: "fig:srs:coverage"
 SRS coverage from {glue}`start_date` to {glue}`end_date`.
 ```
-
 
 ```{glue:figure} srs_map_fig
 :alt: "SRS Map"
@@ -166,10 +169,9 @@ Visualisation of all parsed SRS AR data from {glue}`start_date` to {glue}`end_da
 Traces of the progression of a number of AR across the solar disk. The traces for ARs 7946, 8090 and 8238 show issues with the reported data and will be removed from the dataset.
 ```
 
-## Summary
-
-
+<!-- ## Summary
 
 ## Bibliography
+
 ```{bibliography}
-```
+``` -->
