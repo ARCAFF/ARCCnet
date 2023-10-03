@@ -5,7 +5,7 @@ from platformdirs import PlatformDirs
 
 import arccnet
 
-dirs = PlatformDirs("ARCCnet", "ARCCAF")
+dirs = PlatformDirs("ARCCnet", "ARCAFF")
 
 #: User configuration directory
 CONFIG_DIR = Path(dirs.user_config_dir)
