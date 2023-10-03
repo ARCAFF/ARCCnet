@@ -211,8 +211,6 @@ def process_mag(config, srs_catalog):
 
     return query_objects, results_objects, download_objects, minimal_download_objects
 
-    return 0
-
 
 def main():
     root_logger = logging.getLogger()
@@ -220,7 +218,6 @@ def main():
 
     logger.debug("Starting main")
     query, results, raw_catalog, processed_catalog, clean_catalog = process_srs(config)
-
     process_mag(config, clean_catalog)
     logger.debug("Finished main")
 
