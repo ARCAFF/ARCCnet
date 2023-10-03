@@ -35,7 +35,7 @@ class Query(QTable):
     Under the hood uses QTable and Masked columns to define if a expected result is present or missing
 
     """
-    required_column_types = {"target_time": Time, "url": str}
+    required_column_types = {"target_time": Time, "url": str}  # column types are not currently enforced
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -44,10 +44,6 @@ class Query(QTable):
             raise ValueError(
                 f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns."
             )
-        # !TODO this doesn't work and we can't enforce the column type!
-        # for colname, coltype in self.required_column_types.items():
-        #     if colname not in self.colnames or not all(isinstance(value, coltype) for value in self[colname]):
-        #         raise ValueError(f"{colname} column must contain {coltype} values.")
 
     @property
     def is_empty(self) -> bool:
@@ -80,16 +76,18 @@ class Query(QTable):
         end = Time(end)
         start_pydate = start.to_datetime()
         end_pydate = end.to_datetime()
-        dt = int((end_pydate - start_pydate) / frequency)
 
+        dt = int((end_pydate - start_pydate) / frequency)
         target_times = Time([start_pydate + (i * frequency) for i in range(dt + 1)])
 
         # set urls as a masked column
         urls = MaskedColumn(data=[""] * len(target_times), mask=np.full(len(target_times), True))
         empty_query = cls(data=[target_times, urls], names=["target_time", "url"])
+
         return empty_query
 
 
+# could just import the Result object from SRS and adjust required_column_types, but this is more explicit
 class Result(QTable):
     r"""
     Result object define both the result and download status.
@@ -130,18 +128,17 @@ class DataManager:
 
         Parameters
         ----------
-        start_date : datetime
-            Start date of data acquisition period. Default is `arccnet.data_generation.utils.default_variables.DATA_START_TIME`.
+        start_date : str
+            Start date of data acquisition period.
 
-        end_date : datetime
-            End date of data acquisition period. Default is `arccnet.data_generation.utils.default_variables.DATA_END_TIME`.
+        end_date : str
+            End date of data acquisition period.
 
+        frequency : timedelta
+            Observation frequency
 
-        # merge_tolerance : pd.Timedelta, optional
-        #     Time tolerance for merging operations. Default is pd.Timedelta("30m").
-
-        # download_fits : bool, optional
-        #     Whether to download FITS files. Default is True.
+        magnetograms : list(BaseMagnetogram)
+            List of classes derived from BaseMagnetogram.
         """
         self._start_date = Time(start_date)
         self._end_date = Time(end_date)
@@ -153,6 +150,8 @@ class DataManager:
                 raise ValueError(f"{class_obj.__name__} is not a subclass of BaseMagnetogram")
 
         self._mag_objects = magnetograms
+
+        # Generate empty query for each provided magnetogram object
         self._query_objects = [
             Query.create_empty(self.start_date, self.end_date, self.frequency) for _ in self._mag_objects
         ]
@@ -180,6 +179,14 @@ class DataManager:
     def search(self, batch_frequency: int, merge_tolerance: timedelta) -> list[Query]:
         """
         Fetch and return data from various sources.
+
+        Parameters
+        ----------
+        batch_frequency : int
+            integer number of months to batch search.
+
+        merge_tolerance : timedelta
+            the tolerance on observation time to target target time.
 
         Returns
         -------
@@ -215,15 +222,13 @@ class DataManager:
                 meta[["datetime"]].drop_duplicates().dropna().sort_values("datetime").reset_index(drop=True)
             )  # adding sorting here... is this going to mess something up?
 
-            # generate a mapping from target_time to datetime with the specified tolerance.
-            # probably want a test that this whole code gets the same thing if there are no duplicates...
+            # generate a mapping between target_time to datetime with the specified tolerance.
             merged_time = pd.merge_asof(
                 left=pd_query[["target_time"]],
                 right=meta_datetime,
                 left_on=["target_time"],
                 right_on=["datetime"],
-                # suffixes=["_query", "_meta"],
-                tolerance=merge_tolerance,  # HMI is at 720s (12 min) cadence
+                tolerance=merge_tolerance,
                 direction="nearest",
             )
 
@@ -275,7 +280,25 @@ class DataManager:
         logger.debug("Exiting search")
         return metadata_list, results
 
-    def download(self, query_list: list[Query], path=None, overwrite=False, retry_missing=False):
+    def download(self, query_list: list[Query], path: Path = None, overwrite: bool = False):
+        """
+
+        Parameters
+        ----------
+        query_list : list[Query]
+            list of Query(QTable) objects
+
+        path : Path
+            download path
+
+        overwrite : bool
+            overwrite files on download. Default is False
+
+        Returns
+        -------
+        downloads : list[Result]
+            list of Result objects
+        """
         logger.debug("Entering download")
 
         downloads = []
@@ -289,25 +312,35 @@ class DataManager:
                 logger.debug(f"Full download with overwrite: (overwrite = {overwrite})")
                 new_query = QTable(query)
 
-            if retry_missing is True:
-                logger.debug(f"Downloading with retry_missing: (retry_missing = {retry_missing})")
-                missing = query["path"] == ""
-                new_query = query[missing]
+            # a way of retrying missing would be good, but JSOC URLs are temporary.
 
             if new_query is not None:
                 logger.debug("Downloading ...")
                 downloaded_files = self._download(
-                    column=new_query[~new_query["url"].mask]["url"].data.data, path=path, overwrite=False
+                    column=new_query[~new_query["url"].mask]["url"].data.data, path=path, overwrite=overwrite
                 )
                 results = self._match(results, downloaded_files.data)  # should return a results object.
+            else:
+                pass  # this should be fixed...
 
             downloads.append(Result(results))
 
         logger.debug("Exiting download")
         return downloads
 
-    def _match(self, results: Query, downloads: np.array) -> Result:  # maybe?
-        """ """
+    def _match(self, results: Result, downloads: np.array) -> Result:  # maybe?
+        """
+        match results against downloaded files
+
+        Parameters
+        ----------
+        results : Result
+            Result(QTable)
+
+        downloads : np.array
+            downloaded filenames
+
+        """
         logger.info("Downloads to query or new data")
         results = QTable(results)
 
@@ -323,11 +356,11 @@ class DataManager:
         downloads_df["temp_path_name"] = downloads_df["temp_path"].apply(lambda x: Path(x).name)
         merged_df = pd.merge(results_df, downloads_df, left_on="temp_url_name", right_on="temp_path_name", how="left")
 
-        merged_df.drop(columns=["temp_url_name"], inplace=True)
+        # double check this logic...
+        merged_df.drop(columns=["temp_url_name", "temp_path_name"], inplace=True)
         results = QTable.from_pandas(merged_df)
 
         results["path"][results["path"] is None] = ""  # for masking
-        # Table weirdness
         tmp_path = MaskedColumn(results["temp_path"].data.tolist())
         tmp_path.mask = results["url"].mask
         results.replace_column("path", tmp_path)
@@ -337,21 +370,24 @@ class DataManager:
 
     @staticmethod
     def _download(
-        column,  # is this urls or a table?
+        data_list,
         path: Path,
         overwrite: bool = False,
         max_retries: int = 5,
     ):
         """
-        Download data from URLs in a DataFrame using parfive.
+        Download data from URLs
 
         Parameters
         ----------
-        urls_df : pd.DataFrame
-            DataFrame containing a "url" column with URLs to download.
+        data_list
+            list of URLs to download
 
-        base_directory_path : Path
-            Base directory path to save downloaded files. Default is `arccnet.data_generation.utils.default_variables.MAG_RAW_DATA_DIR`.
+        path : Path
+            Path to save downloaded files.
+
+        overwrite : bool, optional
+            Flag to overwrite files. Default is False
 
         max_retries : int, optional
             Maximum number of download retries. Default is 5.
@@ -367,7 +403,7 @@ class DataManager:
             max_splits=1,
         )
 
-        for url in column:
+        for url in data_list:
             downloader.enqueue_file(url=url, path=path)
 
         results = downloader.download()

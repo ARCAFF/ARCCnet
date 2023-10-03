@@ -41,7 +41,7 @@ def process_srs(config):
     srs_clean_catalog_file.parent.mkdir(exist_ok=True, parents=True)
 
     srs_query = Query.create_empty(config["general"]["start_date"], config["general"]["end_date"])
-    if srs_query_file.exists():
+    if srs_query_file.exists():  # this is fine only if the query agrees
         srs_query = Query.read(srs_query_file)
 
     srs_query = swpc.search(srs_query)
@@ -95,17 +95,24 @@ def process_mag(config, srs_catalog):
     query_files = [hmi_query_file, mdi_query_file, sharps_query_file, smarps_query_file]
 
     # results files
+    hmi_results_file_raw = Path(data_root) / "01_raw" / "mag" / "hmi_results.parq"
+    mdi_results_file_raw = Path(data_root) / "01_raw" / "mag" / "mdi_results.parq"
+    sharps_results_file_raw = Path(data_root) / "01_raw" / "mag" / "sharps_results.parq"
+    smarps_results_file_raw = Path(data_root) / "01_raw" / "mag" / "smarps_results.parq"
+    results_files_raw = [hmi_results_file_raw, mdi_results_file_raw, sharps_results_file_raw, smarps_results_file_raw]
+
     hmi_results_file = Path(data_root) / "02_intermediate" / "mag" / "hmi_results.parq"
     mdi_results_file = Path(data_root) / "02_intermediate" / "mag" / "mdi_results.parq"
     sharps_results_file = Path(data_root) / "02_intermediate" / "mag" / "sharps_results.parq"
     smarps_results_file = Path(data_root) / "02_intermediate" / "mag" / "smarps_results.parq"
     results_files = [hmi_results_file, mdi_results_file, sharps_results_file, smarps_results_file]
 
-    hmi_results_file_raw = Path(data_root) / "01_raw" / "mag" / "hmi_results.parq"
-    mdi_results_file_raw = Path(data_root) / "01_raw" / "mag" / "mdi_results.parq"
-    sharps_results_file_raw = Path(data_root) / "01_raw" / "mag" / "sharps_results.parq"
-    smarps_results_file_raw = Path(data_root) / "01_raw" / "mag" / "smarps_results.parq"
-    results_files_raw = [hmi_results_file_raw, mdi_results_file_raw, sharps_results_file_raw, smarps_results_file_raw]
+    # save the downloads files in 02_intermediate as they do not link to processed data
+    hmi_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "hmi_downloads.parq"
+    mdi_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "mdi_downloads.parq"
+    sharps_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "sharps_downloads.parq"
+    smarps_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "smarps_downloads.parq"
+    downloads_files = [hmi_downloads_file, mdi_downloads_file, sharps_downloads_file, smarps_downloads_file]
 
     # merged files
     Path(data_root) / "03_final" / "mag" / "srs_hmi_mdi_merged.parq"
@@ -137,19 +144,22 @@ def process_mag(config, srs_catalog):
         ro.write(rf, format="parquet", overwrite=True)
         # probably want to save [Result.write(..)]
 
-    # download_objects = dm.download(
-    #     results_objects, path=Path(data_root) / "02_intermediate" / "mag" / "fits", overwrite=False, retry_missing=False
-    # )
+    download_objects = dm.download(
+        results_objects, path=Path(data_root) / "02_intermediate" / "mag" / "fits", overwrite=False, retry_missing=False
+    )
+
+    for do, dfiles in zip(download_objects, downloads_files):
+        do.write(dfiles, format="parquet", overwrite=True)
 
     # # minimal Result
-    # download_result = [download_obj[["target_time", "url", "path"]] for download_obj in download_objects]
+    # minimal_download_objects = [download_obj[["target_time", "url", "path"]] for download_obj in download_objects]
 
     # # this is dodgy...
     # srs = srs_catalog.copy()
-    # hmi = download_result[0]
-    # mdi = download_result[1]
-    # sharps = download_result[2]
-    # smarps = download_result[3]
+    # hmi = download_objects[0].to_pandas()
+    # mdi = download_objects[1].to_pandas()
+    # sharps = download_objects[2].to_pandas()
+    # smarps = download_objects[3].to_pandas()
 
     # # 1. merge SRS-HMI-MDI
     # # srs = None
@@ -196,7 +206,9 @@ def process_mag(config, srs_catalog):
 
     # logger.debug(mdi_smarps.head())
 
-    return query_objects, results_objects  # , download_objects, download_result
+    # return query_objects, results_objects, download_objects, minimal_download_objects
+
+    return 0
 
 
 def get_config():
