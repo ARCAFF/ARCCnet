@@ -1,10 +1,10 @@
+import sys
 import logging
 from pathlib import Path
 from datetime import timedelta
 
 from astropy.table import QTable
 
-import arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
 from arccnet.data_generation.data_manager import DataManager
 from arccnet.data_generation.magnetograms.instruments import (
@@ -231,6 +231,7 @@ def main():
     process_mag(config, clean_catalog)
     logger.debug("Finished main")
 
+
 if __name__ == "__main__":
     main()
     # old_logger.info(f"Executing {__file__} as main program")
@@ -323,4 +324,4 @@ if __name__ == "__main__":
     #         region_detection.regiondetection_df.to_csv(
     #             Path(dv.MAG_PROCESSED_DIR) / Path("ARDetection.csv"), index=False
     #         )
-    # sys.exit()
+    sys.exit()

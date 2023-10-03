@@ -4,11 +4,8 @@ from datetime import timedelta
 
 import numpy as np
 import pandas as pd
-from pandas import DataFrame, Timedelta
+from pandas import DataFrame
 from sunpy.util.parfive_helpers import Downloader
-
-import arccnet import config
-from arccnet.catalogs.active_regions.swpc import SWPCCatalog
 
 from astropy.table import MaskedColumn, QTable
 from astropy.time import Time
@@ -56,7 +53,7 @@ class Query(QTable):
         return self[self["url"].mask == True]  # noqa
 
     @classmethod
-    def create_empty(cls, start, end, frequency: timedelta):  # , tolerance: timedelta):
+    def create_empty(cls, start, end, frequency: timedelta):
         r"""
         Create an 'empty' Query.
 
@@ -128,16 +125,16 @@ class DataManager:
 
         Parameters
         ----------
-        start_date : str
+        start_date : `str`
             Start date of data acquisition period.
 
-        end_date : str
+        end_date : `str`
             End date of data acquisition period.
 
-        frequency : timedelta
+        frequency : `timedelta`
             Observation frequency
 
-        magnetograms : list(BaseMagnetogram)
+        magnetograms : `list(BaseMagnetogram)`
             List of classes derived from BaseMagnetogram.
         """
         self._start_date = Time(start_date)
@@ -182,10 +179,10 @@ class DataManager:
 
         Parameters
         ----------
-        batch_frequency : int
+        batch_frequency : `int`
             integer number of months to batch search.
 
-        merge_tolerance : timedelta
+        merge_tolerance : `timedelta`
             the tolerance on observation time to target target time.
 
         Returns
@@ -285,13 +282,13 @@ class DataManager:
 
         Parameters
         ----------
-        query_list : list[Query]
+        query_list : `list[Query]`
             list of Query(QTable) objects
 
-        path : Path
+        path : `Path`
             download path
 
-        overwrite : bool
+        overwrite : `bool`, optional
             overwrite files on download. Default is False
 
         Returns
@@ -334,10 +331,10 @@ class DataManager:
 
         Parameters
         ----------
-        results : Result
+        results : `Result`
             Result(QTable)
 
-        downloads : np.array
+        downloads : `np.array`
             downloaded filenames
 
         """
@@ -352,7 +349,7 @@ class DataManager:
 
         results_df = QTable.to_pandas(results)
         results_df["temp_url_name"] = [Path(url).name if not pd.isna(url) else "" for url in results_df["url"]]
-        downloads_df = pd.DataFrame({"temp_path": downloads})
+        downloads_df = DataFrame({"temp_path": downloads})
         downloads_df["temp_path_name"] = downloads_df["temp_path"].apply(lambda x: Path(x).name)
         merged_df = pd.merge(results_df, downloads_df, left_on="temp_url_name", right_on="temp_path_name", how="left")
 
@@ -383,13 +380,13 @@ class DataManager:
         data_list
             list of URLs to download
 
-        path : Path
+        path : `Path`
             Path to save downloaded files.
 
-        overwrite : bool, optional
+        overwrite : `bool`, optional
             Flag to overwrite files. Default is False
 
-        max_retries : int, optional
+        max_retries : `int`, optional
             Maximum number of download retries. Default is 5.
 
         Returns
