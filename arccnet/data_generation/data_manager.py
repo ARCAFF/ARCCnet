@@ -314,7 +314,7 @@ class DataManager:
             if new_query is not None:
                 logger.debug("Downloading ...")
                 downloaded_files = self._download(
-                    column=new_query[~new_query["url"].mask]["url"].data.data, path=path, overwrite=overwrite
+                    data_list=new_query[~new_query["url"].mask]["url"].data.data, path=path, overwrite=overwrite
                 )
                 results = self._match(results, downloaded_files.data)  # should return a results object.
             else:
@@ -344,25 +344,14 @@ class DataManager:
         if "path" in results.colnames:
             results.remove_column("path")
 
-        # make empty path column
-        results["path"] = None
-
         results_df = QTable.to_pandas(results)
-        results_df["temp_url_name"] = [Path(url).name if not pd.isna(url) else "" for url in results_df["url"]]
+        results_df["temp_url_name"] = [str(Path(url).name) if not pd.isna(url) else "" for url in results_df["url"]]
         downloads_df = DataFrame({"temp_path": downloads})
-        downloads_df["temp_path_name"] = downloads_df["temp_path"].apply(lambda x: Path(x).name)
-        merged_df = pd.merge(results_df, downloads_df, left_on="temp_url_name", right_on="temp_path_name", how="left")
+        downloads_df["path"] = downloads_df["temp_path"].apply(lambda x: str(Path(x).name))
+        merged_df = pd.merge(results_df, downloads_df, left_on="temp_url_name", right_on="path", how="left")
 
-        # double check this logic...
-        merged_df.drop(columns=["temp_url_name", "temp_path_name"], inplace=True)
+        merged_df.drop(columns=["temp_url_name", "temp_path"], inplace=True)
         results = QTable.from_pandas(merged_df)
-
-        results["path"][results["path"] is None] = ""  # for masking
-        tmp_path = MaskedColumn(results["temp_path"].data.tolist())
-        tmp_path.mask = results["url"].mask
-        results.replace_column("path", tmp_path)
-        results.remove_column("temp_path")
-        results = Result(results.columns)
         return results
 
     @staticmethod

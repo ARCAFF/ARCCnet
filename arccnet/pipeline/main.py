@@ -3,9 +3,7 @@ import logging
 from pathlib import Path
 from datetime import timedelta
 
-import pandas as pd
-
-from astropy.table import QTable
+from astropy.table import QTable, join
 
 from arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
@@ -54,7 +52,7 @@ def process_srs(config):
     if srs_results_file.exists():
         srs_results = Result.read(srs_results_file, format="parquet")
 
-    srs_results = swpc.download(srs_results, path=srs_raw_files_dir)
+    srs_results = swpc.download(srs_results, path=srs_raw_files_dir, progress=True)
     srs_results.write(srs_results_file, format="parquet", overwrite=True)
 
     srs_raw_catalog = srs_results.copy()
@@ -85,10 +83,10 @@ def process_mag(config, srs_catalog):
         HMISHARPs(),
         MDISMARPs(),
     ]  # unsure if this should just be put into the config file.
-    batch_freq = 4  # move to config
     freq = timedelta(days=1)  # move to config?
 
     data_root = config["paths"]["data_root"]
+    data_root = "data"
 
     # query files
     hmi_query_file = Path(data_root) / "01_raw" / "mag" / "hmi_query.parq"
@@ -118,16 +116,22 @@ def process_mag(config, srs_catalog):
     downloads_files = [hmi_downloads_file, mdi_downloads_file, sharps_downloads_file, smarps_downloads_file]
 
     # merged files
-    Path(data_root) / "03_final" / "mag" / "srs_hmi_mdi_merged.parq"
-    Path(data_root) / "03_final" / "mag" / "hmi_sharps_merged.parq"
-    Path(data_root) / "03_final" / "mag" / "mdi_smarps_merged.parq"
+    srs_hmi_mdi_merged_file = Path(data_root) / "04_final" / "mag" / "srs_hmi_mdi_merged.parq"
+    hmi_sharps_merged_file = Path(data_root) / "04_final" / "mag" / "hmi_sharps_merged.parq"
+    mdi_smarps_merged_file = Path(data_root) / "04_final" / "mag" / "mdi_smarps_merged.parq"
+
+    hmi_query_file.parent.mkdir(exist_ok=True, parents=True)
+    hmi_results_file_raw.parent.mkdir(exist_ok=True, parents=True)
+    hmi_results_file.parent.mkdir(exist_ok=True, parents=True)
+    hmi_downloads_file.parent.mkdir(exist_ok=True, parents=True)
+    srs_hmi_mdi_merged_file.parent.mkdir(exist_ok=True, parents=True)
 
     # !TODO implement reading of files if they exist.
 
     # !TODO consider providing a custom class for each BaseMagnetogram
     dm = DataManager(
-        start_date=config["dates"]["start_date"],
-        end_date=config["dates"]["end_date"],
+        start_date=config["general"]["start_date"],
+        end_date=config["general"]["end_date"],
         frequency=freq,
         magnetograms=mag_objs,
     )
@@ -138,20 +142,27 @@ def process_mag(config, srs_catalog):
         qo.write(qf, format="parquet", overwrite=True)
 
     # problem here is that the urls aren't around forever.
-    metadata_raw, results_objects = dm.search(batch_frequency=batch_freq, merge_tolerance=timedelta(minutes=30))
+    metadata_raw, results_objects = dm.search(
+        batch_frequency=4,
+        merge_tolerance=timedelta(minutes=30),
+    )
 
     for df, rf in zip(metadata_raw, results_files_raw):
-        df.to_parquet(path=rf)
+        print(rf)
+        df.to_parquet(path=rf)  # this is a `DataFrame`
 
     for ro, rf in zip(results_objects, results_files):
+        print(rf)
         ro.write(rf, format="parquet", overwrite=True)
-        # probably want to save [Result.write(..)]
 
     download_objects = dm.download(
-        results_objects, path=Path(data_root) / "02_intermediate" / "mag" / "fits", overwrite=False, retry_missing=False
+        results_objects,
+        path=Path(data_root) / "02_intermediate" / "mag" / "fits",
+        overwrite=False,
     )
 
     for do, dfiles in zip(download_objects, downloads_files):
+        print(dfiles)
         do.write(dfiles, format="parquet", overwrite=True)
 
     # minimal Result
@@ -159,55 +170,113 @@ def process_mag(config, srs_catalog):
 
     # this is dodgy...
     srs = srs_catalog.copy()
-    hmi = download_objects[0].to_pandas()
-    mdi = download_objects[1].to_pandas()
-    sharps = download_objects[2].to_pandas()
-    smarps = download_objects[3].to_pandas()
+    hmi = download_objects[0]  # .to_pandas()
+    mdi = download_objects[1]  # .to_pandas()
+    sharps = download_objects[2]  # .to_pandas()
+    smarps = download_objects[3]  # .to_pandas()
 
     # 1. merge SRS-HMI-MDI
     # srs = None
     # hmi = None
     # mdi = None
     # utilise that time_srs and target_time_hmi are the same, e.g. generated from start,end,frequency
-    srsmdihmi = pd.merge(srs.add_suffix("_srs"), hmi.add_suffix("_hmi"), left_on="time_srs", right_on="target_time_hmi")
-    srsmdihmi = pd.merge(srsmdihmi, mdi.add_suffix("_mdi"), left_on="time_srs", right_on="target_time_mdi")
-    dropped_rows = srsmdihmi.copy()
-    # maybe change to path_srs/mdi/hmi etc.
-    srsmdihmi_dropped = srsmdihmi.dropna(subset=["url_srs"]).reset_index(drop=True)
-    srsmdihmi_dropped = srsmdihmi_dropped.dropna(subset=["url_hmi", "url_mdi"], how="all").reset_index(drop=True)
-    srsmdihmi_minimal = srsmdihmi_dropped[["path_srs", "url_hmi", "url_mdi"]]
-    logger.debug(
-        print(
-            f"len(srsmdihmi): {len(srsmdihmi)}, len(srsmdihmi_dropped): {len(srsmdihmi_dropped)}; and there are {len(dropped_rows[~dropped_rows.index.isin(srsmdihmi_dropped.index)])} dropped rows"
-        )
+    # srsmdihmi = pd.merge(srs.add_suffix("_srs"), hmi.add_suffix("_hmi"), left_on="time_srs", right_on="target_time_hmi")
+    # srsmdihmi = pd.merge(srsmdihmi, mdi.add_suffix("_mdi"), left_on="time_srs", right_on="target_time_mdi")
+    # dropped_rows = srsmdihmi.copy()
+    # # maybe change to path_srs/mdi/hmi etc.
+    # srsmdihmi_dropped = srsmdihmi.dropna(subset=["url_srs"]).reset_index(drop=True) # drop on url, not on path...
+    # srsmdihmi_dropped = srsmdihmi_dropped.dropna(subset=["url_hmi", "url_mdi"], how="all").reset_index(drop=True)
+    # srsmdihmi_minimal = srsmdihmi_dropped[["path_srs", "path_hmi", "path_mdi"]]
+    # logger.debug(
+    #     print(
+    #         f"len(srsmdihmi): {len(srsmdihmi)}, len(srsmdihmi_dropped): {len(srsmdihmi_dropped)}; and there are {len(dropped_rows[~dropped_rows.index.isin(srsmdihmi_dropped.index)])} dropped rows"
+    #     )
+    # )
+    # logger.debug(srsmdihmi_minimal.head())
+
+    # QTable.from_pandas(srsmdihmi_dropped).write(srs_hmi_mdi_merged_file, format="parquet", overwrite=True)
+
+    # There are issues with saving the QTable after doing the pandas merge (e.g. 'QUALITY_mdi','DATAVALS_mdi' go from int64 -> object)
+    # srsmdihmi[['QUALITY_mdi','DATAVALS_mdi']]
+
+    srs_renamed = srs.copy()  # Create a copy of the original table
+    for colname in srs_renamed.colnames:
+        srs_renamed.rename_column(colname, colname + "_srs")
+
+    hmi_renamed = hmi.copy()  # Create a copy of the original table
+    for colname in hmi_renamed.colnames:
+        hmi_renamed.rename_column(colname, colname + "_hmi")
+
+    mdi_renamed = mdi.copy()  # Create a copy of the original table
+    for colname in mdi_renamed.colnames:
+        mdi_renamed.rename_column(colname, colname + "_mdi")
+
+    srsmdihmi_astropy = join(
+        QTable(srs_renamed),
+        QTable(hmi_renamed),
+        keys_left="time_srs",
+        keys_right="target_time_hmi",
+        table_names=["srs", "hmi"],
     )
-    logger.debug(srsmdihmi_minimal.head())
+    srsmdihmi_astropy = join(
+        srsmdihmi_astropy,
+        QTable(mdi_renamed),
+        keys_left="time_srs",
+        keys_right="target_time_mdi",
+        table_names=["srs_hmi", "mdi"],
+    )
+
+    # Drop rows with NaN values in the 'url_srs' column
+    srsmdihmi_dropped = srsmdihmi_astropy[~srsmdihmi_astropy["url_srs"].mask]
+
+    # Drop rows where 'url_hmi' and 'url_mdi' are all NaN
+    srsmdihmi_dropped = srsmdihmi_dropped[~(srsmdihmi_dropped["url_hmi"].mask & srsmdihmi_dropped["url_mdi"].mask)]
+    srsmdihmi_dropped.write(srs_hmi_mdi_merged_file, format="parquet", overwrite=True)
 
     # 2. merge HMI-SHARPs
-    # sharps = None
-    # hmi = None
+    # hmi_sharps = pd.merge(
+    #     hmi.dropna(subset=["filename"]).reset_index(drop=True), # filename or path
+    #     sharps.dropna(subset=["filename"]).reset_index(drop=True).add_suffix("_arc"),
+    #     left_on="datetime",
+    #     right_on="datetime_arc",
+    # )
+    # QTable.from_pandas(hmi_sharps).write(hmi_sharps_merged_file, format="parquet", overwrite=True)
 
-    hmi_sharps = pd.merge(
-        hmi.dropna(subset=["filename"]).reset_index(drop=True),
-        sharps.dropna(subset=["filename"]).reset_index(drop=True).add_suffix("_arc"),
-        left_on="datetime",
-        right_on="datetime_arc",
+    # QTable instead
+    hmi_filtered = QTable(hmi.copy())
+    hmi_filtered = hmi_filtered[~hmi_filtered["filename"].mask].copy()
+
+    sharps_filtered = QTable(sharps.copy())
+    sharps_filtered = sharps_filtered[~sharps_filtered["filename"].mask].copy()
+    for colname in sharps_filtered.colnames:
+        sharps_filtered.rename_column(colname, colname + "_arc")
+
+    hmi_sharps_astropy = join(
+        hmi_filtered, sharps_filtered, keys_left="datetime", keys_right="datetime_arc", table_names=["hmi", "sharps"]
     )
-
-    logger.debug(hmi_sharps.head())
+    hmi_sharps_astropy.write(hmi_sharps_merged_file, format="parquet", overwrite=True)
 
     # 3. merge MDI-SMARPs
-    # smarps = None
-    # mdi = None
+    # mdi_smarps = pd.merge(
+    #     mdi.dropna(subset=["filename"]).reset_index(drop=True),
+    #     smarps.dropna(subset=["filename"]).reset_index(drop=True).add_suffix("_arc"),
+    #     left_on="datetime",
+    #     right_on="datetime_arc",
+    # )
+    # QTable.from_pandas(mdi_smarps).write(mdi_smarps_merged_file, format="parquet", overwrite=True)
 
-    mdi_smarps = pd.merge(
-        mdi.dropna(subset=["filename"]).reset_index(drop=True),
-        smarps.dropna(subset=["filename"]).reset_index(drop=True).add_suffix("_arc"),
-        left_on="datetime",
-        right_on="datetime_arc",
+    mdi_filtered = QTable(mdi.copy())
+    mdi_filtered = mdi_filtered[~mdi_filtered["filename"].mask].copy()
+
+    smarps_filtered = QTable(smarps.copy())
+    smarps_filtered = smarps_filtered[~smarps_filtered["filename"].mask].copy()
+    for colname in smarps_filtered.colnames:
+        smarps_filtered.rename_column(colname, colname + "_arc")
+
+    mdi_smarps_astropy = join(
+        mdi_filtered, smarps_filtered, keys_left="datetime", keys_right="datetime_arc", table_names=["mdi", "smarps"]
     )
-
-    logger.debug(mdi_smarps.head())
+    mdi_smarps_astropy.write(mdi_smarps_merged_file, format="parquet", overwrite=True)
 
     return query_objects, results_objects, download_objects, minimal_download_objects
 
