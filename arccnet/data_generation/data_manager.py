@@ -316,7 +316,7 @@ class DataManager:
                 downloaded_files = self._download(
                     data_list=new_query[~new_query["url"].mask]["url"].data.data, path=path, overwrite=overwrite
                 )
-                results = self._match(results, downloaded_files.data)  # should return a results object.
+                results = self._match(results, downloaded_files)  # should return a results object.
             else:
                 pass  # this should be fixed...
 
@@ -389,8 +389,20 @@ class DataManager:
             max_splits=1,
         )
 
+        existing_files = []
+        # if file exists, add to list.
         for url in data_list:
-            downloader.enqueue_file(url=url, path=path)
+            # Generate the full path where you want to save the file
+            file_name = Path(url).name
+            file_path = Path(path) / file_name
+
+            # Check if the file already exists
+            if not file_path.exists():
+                # If it doesn't exist, enqueue the file for downloading
+                downloader.enqueue_file(url=url, path=path)
+            else:
+                print(f"File '{file_name}' already exists. Skipping download.")
+                existing_files.append(str(file_path))
 
         results = downloader.download()
 
@@ -407,5 +419,8 @@ class DataManager:
                 logger.info("Errors resolved after retry.")
         else:
             logger.info("No errors reported by parfive")
+
+        results = np.concatenate((existing_files, results.data), axis=0)
+        results = np.sort(results, axis=0)
 
         return results
