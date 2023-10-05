@@ -141,7 +141,7 @@ glue("srs_ars_good_no", len(ars[ars.filtered == False].number))
 glue("srs_ars_good_unique_no", len(ars[ars.filtered == False].number.unique()))
 ```
 
-{term}`SRS` data is queried, downloaded using Sunpy's unified search and retrieval tool `Fido` and is parsed using the `read_srs` method.
+{term}`SRS` data is queried, downloaded using Sunpy's unified search and retrieval tool `Fido` and is parsed using the `read_srs` method, which has been updated as part of this work to handle files pre-2000.
 {numref}`fig:srs:coverage` shows the results of this processing in the form of a coverage plot of the {term}`SRS` data, of an expected {glue}`srs_expected_no` reports, {glue}`srs_missing_no` were missing,  {glue}`srs_error_no` could not be parsed, leaving {glue}`srs_good_no` reports for further processing.
 Each {term}`SRS` report can contain many {term}`ARs` and an {term}`AR` may appear in many consecutive daily reports ( up ~13 days due to solar rotation).
 The {glue}`srs_good_no` reports contain {glue}`srs_ars_tot_no` classifications across {glue}`srs_ars_tot_unique_no` unique active {term}`ARs`.
@@ -169,9 +169,9 @@ Visualisation of all parsed SRS AR data from {glue}`start_date` to {glue}`end_da
 Traces of the progression of a number of AR across the solar disk. The traces for ARs 7946, 8090 and 8238 show issues with the reported data and will be removed from the dataset.
 ```
 
-<!-- ## Summary
+## Summary
 
 ## Bibliography
 
 ```{bibliography}
-``` -->
+```

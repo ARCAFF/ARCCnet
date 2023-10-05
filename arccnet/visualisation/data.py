@@ -417,4 +417,6 @@ def plot_col_scatter_single(
         label.set_ha("center")
         label.set_rotation(40)
 
+    ax.set_xlim(start_time, end_time)
+
     return fig, ax

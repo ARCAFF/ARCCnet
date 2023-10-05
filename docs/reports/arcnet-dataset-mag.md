@@ -20,6 +20,8 @@ from myst_nb import glue
 from datetime import datetime
 from astropy.table import QTable
 from arccnet.visualisation.data import plot_hmi_mdi_availability, plot_col_scatter, plot_col_scatter_single
+import sunpy
+import sunpy.map
 
 # Load HMI and MDI data
 hmi_table = QTable.read('/Users/pjwright/Documents/work/backup/refactor/ARCCnet/data/02_intermediate/mag/hmi_results.parq').to_pandas()
@@ -38,13 +40,28 @@ glue("hmi_mdi_cdelt", cdelt[0], display=False)
 dsun = plot_col_scatter_single([mdi_table,hmi_table], column='DSUN_OBS', colors=['red','blue'])
 glue("hmi_mdi_dsun", dsun[0], display=False)
 
+# create co-temporal observations
+
+obs_date = "20110326"
+hmi = sunpy.map.Map(f'../../data/02_intermediate/mag/fits/hmi.m_720s.{obs_date}_000000_TAI.1.magnetogram.fits')
+mdi = sunpy.map.Map(f'../../data/02_intermediate/mag/fits/mdi.fd_m_96m_lev182.{obs_date}_000000_TAI.data.fits')
+
+glue("hmi_plot", hmi, display=False)
+glue("mdi_plot", mdi, display=False)
+glue("obs_date", obs_date, display=False)
 ```
 
-# Active Region Classification
+# Magnetograms
 
 ## Introduction
 
-In addition to the AR classifications, we retrieve line-of-sight magnetogram data from Michelson Doppler Imager on Solar and Heliospheric Observatory (SoHO/MDI, 1996 - 2011 {cite:t}`Scherrer1995,Domingo1995`) and the Helioseismic and Magnetic Imager on-board the Solar Dynamics Observatory (SDO/HMI, 2010 - present, {cite:t}`Scherrer2012,Pesnell2012`) once-per-day, synchronized with the validity of SRS reports at 00:00 UTC (issued at 00:30 UTC).
+In addition to the AR classifications, we retrieve line-of-sight magnetogram data once-per-day, from 1995 - 2022, synchronized with the validity of NOAA SRS reports at 00:00 UTC (issued at 00:30 UTC).
+
+## Data Sources and Observations
+
+Observations from Michelson Doppler Imager on-board the Solar and Heliospheric Observatory (SoHO/MDI; {cite:t}`Scherrer1995,Domingo1995`) are retrieved from the Joint Science Operations Center (JSOC) at Stanford University for 1996 - 2011, complemented by Helioseismic and Magnetic Imager on-board the Solar Dynamics Observatory (SDO/HMI; {cite:t}`Scherrer2012,Pesnell2012`) data between 2010 and present day.
+
+The availability of data is shown in {numref}`fig:mag:availability`, where between 2010 and 2011, there are co-temporal observations of the line-of-sight field.
 
 ```{glue:figure} hmi_mdi_availability
 :alt: "HMI-MDI Availability"
@@ -52,65 +69,76 @@ In addition to the AR classifications, we retrieve line-of-sight magnetogram dat
 HMI-MDI coverage diagram from {glue}`start_date` to {glue}`end_date`.
 ```
 
-## Data Sources and Observations
-
-Plot number of active regions as a function of time.
-
 ### Co-temporal observations
 
-To analyze the magnetic field data effectively, we need to understand the overlap and differences in observations between the MDI and HMI instruments.
+For the problems of active region classification and detection, the observed distributions of active region classes across a given solar cycle (and therefore instrument) is far from uniform, and the number of observed active regions varies across solar cycles themselves.
 
-Ultimately, both instruments have different resolution, cadences, and systematics, making their direct comparison difficult. The combination of SHARP/SMARP has tried to negate this, but cross-calibration of magnetograms is required for a homogeneous dataset (e.g. Munoz-Jaramillo et al (in revision).)
+Datasets that combine observations from multiple observatories not only allow us to probe multiple solar cycles, but play a cruicial role in increasing the number of available samples for training models. However, while improvements to instrumentation can fuel scientific advancements, for studies over the typical observatory lifespan, the varying spatial resolutions, cadences, and systematics (to name a few) make their direct comparisons challenging.
 
-While an initial version of active region classification can accept both instruments, a homogeneous dataset unlocks a vast amount of AR data.
+The expansion of the SHARP series {cite:p}`Bobra2014` to SoHO/MDI (SMARPs; {cite:t}`Bobra2021`) has tried to negate this with a tuned detection algorithm to provide similar active region cutouts (and associated parameters) across two solar cycles. Other authors have incorporated advancements in the state-of-the-art for image translation to cross-calibrate data, however, out-of-the-box these models generally prefer perceptual similarity. Importantly, progress has been made towards physically-driven approaches for instrument cross-calibration/super-resolution (e.g. Munoz-Jaramillo et al 2023 (in revision)) that takes into account understanding of the underlying physics.
 
-#### Data vs Time
+Initially, this work will utilise each instrument individually, where examples of SunPy map objects of data by HMI and MDI are shown for {glue}`obs_date` in Figures {numref}`fig:mdi:cotemporal` and {numref}`fig:hmi:cotemporal`, before expanding to utilsing cross-calibration techniques.
 
-Create a visual representation (plot) illustrating how the availability of data from both HMI and MDI evolves over time. This will help us identify periods of overlap and any gaps in data.
+```{glue:figure} hmi_plot
+:alt: "Cotemporal HMI-MDI"
+:name: "fig:mdi:cotemporal"
+MDI observation of the Sun's magnetic field at {glue}`obs_date`.
+```
 
-#### HMI vs MDI (with active region cutouts)
+```{glue:figure} mdi_plot
+:alt: "Cotemporal HMI-MDI"
+:name: "fig:hmi:cotemporal"
+HMI observation of the Sun's magnetic field at {glue}`obs_date`.
+```
 
-Include a comparative analysis of the magnetic field data obtained from HMI and MDI during their co-temporal periods. Visualizations such as side-by-side images or data comparisons can provide valuable insights into the similarities and differences between the two instruments.
+#### Instrumental/Orbital Effects on Data
 
-#### Instrumental Effects on Data
+While there are noticeable visual differences (e.g. resolution and noise properties), there are a number of subtle differences between these instruments that can be observed in the metadata, and should be accounted for. Both instruments are located at different positions in space, and at different distances from the Sun, which vary as the Earth orbits around the Sun.
+
+To demonstrate some of these instrumental and orbital differences Figure {numref}`hmi_mdifig:mag:cdelt` shows the image scale in the x-axis of the image plane as a function of time for SDO/HMI and SoHO/MDI, while Figure {numref}`fig:mag:dsun` demonstrates how the radius of the Sun varies during normal observations.
 
 ```{glue:figure} hmi_mdi_cdelt
 :alt: "HMI-MDI CDELT1"
 :name: "fig:mag:cdelt"
-CDELT1 (image scale in the x direction [arsec/pixel]) from {glue}`start_date` to {glue}`end_date` for SDO/HMI (top) and SoHO/MDI (bottom).
+CDELT1 (image scale in the x-direction [arcsec/pixel]) from {glue}`start_date` to {glue}`end_date` for SDO/HMI (top, blue) and SoHO/MDI (bottom, red) in.
 ```
 
 ```{glue:figure} hmi_mdi_dsun
 :alt: "HMI-MDI DSUN"
 :name: "fig:mag:dsun"
-DSUN_OBS (distance from instrument to sun-centre) from {glue}`start_date` to {glue}`end_date` for SDO/HMI (top) and SoHO/MDI (bottom).
+DSUN_OBS (distance from instrument to sun-centre [metres]) from {glue}`start_date` to {glue}`end_date` for SDO/HMI (blue) and SoHO/MDI (red).
 ```
 
-Discuss any instrumental factors or phenomena that might affect the quality of the data, such as changes in solar radius, which can impact the observed magnetic field measurements.
-
-### Solar Cycle Behavior and Active Regions
-
-Explain how active regions on the solar disk are identified and tracked. Additionally, create a plot using NOAA SRS-HMI-MDI merged data to visualize the number of active regions on the solar disk over time. This plot will help us understand the solar cycle behavior and its relation to active regions.
+While these can be corrected through data preparation and processing, including the reprojection of images to be as-observed from a set location along the Sun-Earth line, utilising machine learning models (such as the cross-calibration approach mentioned previously) may be necessary as due to optically distortion in MDI, even with reprojection to a common coordinate frame, perfect alignment of images is not possible between these instruments.
 
 ## Data Processing
 
-Detail the data processing steps, including how we handle data from HMI, MDI, and any cutouts (e.g., SHARP/SMARP {cite:p}`Bobra2014,Bobra2021` ). Describe the purpose and scope of the deliverable in this section.
+### Full-disk HMI/MDI
 
-### HMI Data Processing
+For this v0.1 of the dataset a preliminary data processing routine is applied to full-disk HMI and MDI to include
 
-Explain the specific data processing steps for HMI data, including any preprocessing, calibration, or data cleaning procedures.
+1. Rotation to Solar North
+2. Removal of off-disk data
 
-### MDI Data Processing
+As we progress towards v1.0, the processing pipeline will be expanded to include additional corrections e.g.
 
-Outline the data processing steps for MDI data, highlighting any differences or specific considerations compared to HMI data processing.
+* Reprojection of images to a fixed point at 1 AU along the Sun-Earth line
+* Filtering according to the hexadecimal \texttt{QUALITY} flag.
 
-### Cutouts (e.g., SHARP/SMARP)
+where currently the correct choice of reprojection is still under consideration, and the handling of conversion from hexadecimal to float needs to be clarified.
 
-If relevant, provide information on how cutout data (e.g., SHARP or SMARP data) is processed and integrated into the analysis.
+Further, as discussed, additional data processing steps may include
 
-## Source Data
+1. Instrument inter-calibration (and super-resolution
+2. Inclusion and alignment of EUV imagary
+3. Generation of Differential Emission Measure maps
+4. Magnetic Field Extrapolation
 
-## Summary
+### HMI/MDI Cutouts (SHARP/SMARP)
+
+As SHARP/SMARP are already at level 1.8, these images only need correcting for rotation. For more discussion on the generation of SHARP/SMARP data, see <https://github.com/mbobra/SHARPs>, <https://github.com/mbobra/SMARPs>.
+
+Currently these images are used as a preliminary method to extract regions around NOAA ARs.
 
 ## Bibliography
 
