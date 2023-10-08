@@ -85,6 +85,19 @@ def process_srs(config):
 
 
 def process_hmi(config):
+    """
+    Process HMI (Helioseismic and Magnetic Imager) data.
+
+    Parameters
+    ----------
+    config : `dict`
+        A dictionary containing configuration parameters.
+
+    Returns
+    -------
+    `list`
+        A list of download objects for processed HMI data.
+    """
     mag_objs = [
         HMILOSMagnetogram(),
         HMISHARPs(),
@@ -128,6 +141,20 @@ def process_hmi(config):
 
 
 def process_mdi(config):
+    """
+    Process MDI (Michelson Doppler Imager) data.
+
+    Parameters
+    ----------
+    config : `dict`
+        A dictionary containing configuration parameters.
+
+    Returns
+    -------
+    `list`
+        A list of download objects for processed MDI data.
+    """
+
     mag_objs = [
         MDILOSMagnetogram(),
         MDISMARPs(),
@@ -183,7 +210,39 @@ def _process_mag(
     merge_tolerance=timedelta(minutes=30),
     overwrite_downloads=False,
 ):
-    # !TODO implement reading of files if they exist.
+    """
+    Process magnetogram data using specified magnetogram objects.
+
+    Parameters
+    ----------
+    config : `dict`
+        A dictionary containing configuration parameters.
+    download_path : `str`
+        Path where downloaded data will be saved.
+    mag_objs : `list`
+        List of magnetogram objects to be processed.
+    query_files : `list`
+        List of query files.
+    results_files_raw : `list`
+        List of raw results files.
+    results_files : `list`
+        List of processed results files.
+    downloads_files : `list`
+        List of download files.
+    freq : `timedelta`, optional
+        Frequency of data processing (default: timedelta(days=1)).
+    batch_frequency : `int`, optional
+        Batch frequency for data processing (default: 3).
+    merge_tolerance : `timedelta`, optional
+        Merge tolerance for data processing (default: timedelta(minutes=30)).
+    overwrite_downloads : `bool`, optional
+        Whether to overwrite existing download data (default: False).
+
+    Returns
+    -------
+    `list`
+        A list of download objects for processed magnetogram data.
+    """
     # !TODO consider providing a custom class for each BaseMagnetogram
     dm = DataManager(
         start_date=config["general"]["start_date"],
@@ -240,47 +299,35 @@ def _process_mag(
 
 def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     """
-    return merged files:
-        - srs-hmi-mdi
-        - hmi-sharps
-        - mdi-sharps
+    Merge magnetogram data tables from different sources.
+
+    Parameters
+    ----------
+    config : dict
+        A dictionary containing configuration parameters.
+    srs : QTable
+        SRS (Solar Region Summary) data table.
+    hmi : QTable
+        Processed HMI (Helioseismic and Magnetic Imager) data table.
+    mdi : QTable
+        Processed MDI (Michelson Doppler Imager) data table.
+    sharps : QTable
+        SHARPs (Space-weather HMI Active Region Patches) data table.
+    smarps : QTable
+        SMARPs (Space-weather MDI Active Region Patches) data table.
+
+    Returns
+    -------
+    tuple
+        Three merged data tables: (srs_hmi_mdi, hmi_sharps, mdi_smarps).
     """
+    # !TODO move to separate functions
+
     data_root = config["paths"]["data_root"]
     srs_hmi_mdi_merged_file = Path(data_root) / "04_final" / "mag" / "srs_hmi_mdi_merged.parq"
     hmi_sharps_merged_file = Path(data_root) / "04_final" / "mag" / "hmi_sharps_merged.parq"
     mdi_smarps_merged_file = Path(data_root) / "04_final" / "mag" / "mdi_smarps_merged.parq"
     srs_hmi_mdi_merged_file.parent.mkdir(exist_ok=True, parents=True)
-
-    #     # this is dodgy...
-    #     srs = srs_catalog.copy()
-    #     hmi = download_objects[0]  # .to_pandas()
-    #     mdi = download_objects[1]  # .to_pandas()
-    #     sharps = download_objects[2]  # .to_pandas()
-    #     smarps = download_objects[3]  # .to_pandas()
-
-    #     # 1. merge SRS-HMI-MDI
-    #     # srs = None
-    #     # hmi = None
-    #     # mdi = None
-    #     # utilise that time_srs and target_time_hmi are the same, e.g. generated from start,end,frequency
-    #     # srsmdihmi = pd.merge(srs.add_suffix("_srs"), hmi.add_suffix("_hmi"), left_on="time_srs", right_on="target_time_hmi")
-    #     # srsmdihmi = pd.merge(srsmdihmi, mdi.add_suffix("_mdi"), left_on="time_srs", right_on="target_time_mdi")
-    #     # dropped_rows = srsmdihmi.copy()
-    #     # # maybe change to path_srs/mdi/hmi etc.
-    #     # srsmdihmi_dropped = srsmdihmi.dropna(subset=["url_srs"]).reset_index(drop=True) # drop on url, not on path...
-    #     # srsmdihmi_dropped = srsmdihmi_dropped.dropna(subset=["url_hmi", "url_mdi"], how="all").reset_index(drop=True)
-    #     # srsmdihmi_minimal = srsmdihmi_dropped[["path_srs", "path_hmi", "path_mdi"]]
-    #     # logger.debug(
-    #     #     print(
-    #     #         f"len(srsmdihmi): {len(srsmdihmi)}, len(srsmdihmi_dropped): {len(srsmdihmi_dropped)}; and there are {len(dropped_rows[~dropped_rows.index.isin(srsmdihmi_dropped.index)])} dropped rows"
-    #     #     )
-    #     # )
-    #     # logger.debug(srsmdihmi_minimal.head())
-
-    #     # QTable.from_pandas(srsmdihmi_dropped).write(srs_hmi_mdi_merged_file, format="parquet", overwrite=True)
-
-    #     # There are issues with saving the QTable after doing the pandas merge (e.g. 'QUALITY_mdi','DATAVALS_mdi' go from int64 -> object)
-    #     # srsmdihmi[['QUALITY_mdi','DATAVALS_mdi']]
 
     # There must be a better way to rename columns
     srs_renamed = srs.copy()  # Create a copy of the original table
