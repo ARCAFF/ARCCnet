@@ -192,8 +192,9 @@ class MagnetogramProcessor:
             1. Load and rotate
             2. Set off-disk data to 0
             # !TODO
-            3. Normalise radius to a fixed value
-            4. Project to a certain location in space
+            3. Set NaN values to 0
+            4. Normalise radius to a fixed value
+            5. Project to a certain location in space
 
         Parameters
         ----------
