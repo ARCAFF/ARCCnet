@@ -95,9 +95,9 @@ HMI-MDI coverage diagram from {glue}`start_date` to {glue}`end_date`.
 
 ### Co-temporal observations
 
-For the problems of active region classification and detection, the observed distributions of active region classes across a given solar cycle (and therefore instrument) is not uniform, and the number of observed active regions varies across solar cycles themselves.
+For the problems of active region classification and detection, the observed distributions of active region classes across a given solar cycle (and therefore instrument) are not uniform, and the number of observed active regions varies across solar cycles themselves.
 
-Datasets that combine observations from multiple observatories not only allow us to probe multiple solar cycles, but play a cruicial role in increasing the number of available samples for training machine learning models. However, while improvements to instrumentation can fuel scientific advancements, for studies over the typical observatory lifespan, the varying spatial resolutions, cadences, and systematics (to name a few) make their direct comparisons challenging.
+Datasets that combine observations from multiple observatories allow us to understand dynamics across solar cycles and play a cruicial role in increasing the number of available samples for training machine learning models. However, while improvements to instrumentation can fuel scientific advancements, for studies over the typical observatory lifespan, the varying spatial resolutions, cadences, and systematics (to name a few) make their direct comparisons challenging.
 
 The expansion of the SHARP series {cite:p}`Bobra2014` to SoHO/MDI (SMARPs; {cite:t}`Bobra2021`) has tried to negate this with a tuned detection algorithm to provide similar active region cutouts (and associated parameters) across two solar cycles. Other authors have incorporated advancements in the state-of-the-art for image translation to cross-calibrate data, however, out-of-the-box, these models generally prefer perceptual similarity. Importantly, progress has been made towards physically-driven approaches for instrument cross-calibration/super-resolution (e.g. Munoz-Jaramillo et al 2023 (in revision)) that takes into account knowledge of the underlying physics.
 
@@ -144,11 +144,8 @@ For this v0.1 of the dataset a preliminary data processing routine is applied to
 1. Rotation to Solar North
 2. Removal (and zero) off-disk data
 
-as shown in Figure ??
-
-...
-...
-...
+as shown below
+<!-- placeholder for processing figure -->
 
 As we progress towards v1.0, the processing pipeline will be expanded to include additional corrections e.g.
 
