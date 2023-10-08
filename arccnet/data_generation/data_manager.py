@@ -346,11 +346,11 @@ class DataManager:
 
         results_df = QTable.to_pandas(results)
         results_df["temp_url_name"] = [str(Path(url).name) if not pd.isna(url) else "" for url in results_df["url"]]
-        downloads_df = DataFrame({"temp_path": downloads})
-        downloads_df["path"] = downloads_df["temp_path"].apply(lambda x: str(Path(x).name))
-        merged_df = pd.merge(results_df, downloads_df, left_on="temp_url_name", right_on="path", how="left")
+        downloads_df = DataFrame({"path": downloads})
+        downloads_df["temp_path_name"] = downloads_df["path"].apply(lambda x: str(Path(x).name))
+        merged_df = pd.merge(results_df, downloads_df, left_on="temp_url_name", right_on="temp_path_name", how="left")
 
-        merged_df.drop(columns=["temp_url_name", "temp_path"], inplace=True)
+        merged_df.drop(columns=["temp_url_name", "temp_path_name"], inplace=True)
         results = QTable.from_pandas(merged_df)
         return results
 
@@ -397,13 +397,13 @@ class DataManager:
             file_path = Path(path) / file_name
 
             # Check if the file already exists
-            if not file_path.exists():
+            if file_path.exists() and not overwrite:
+                existing_files.append(str(file_path))
+            else:
                 # If it doesn't exist, enqueue the file for downloading
                 downloader.enqueue_file(url=url, path=path)
-            else:
-                print(f"File '{file_name}' already exists. Skipping download.")
-                existing_files.append(str(file_path))
 
+        print(f"{len(existing_files)} files of {len(data_list)} already exist. overwrite is {overwrite}.")
         results = downloader.download()
 
         if len(results.errors) != 0:
