@@ -18,33 +18,41 @@ jupytext:
 
 from myst_nb import glue
 from datetime import datetime
+from pathlib import Path
 from astropy.table import QTable
-from arccnet.visualisation.data import plot_hmi_mdi_availability, plot_col_scatter, plot_col_scatter_single
 import sunpy
 import sunpy.map
+from arccnet import config
+from arccnet.visualisation.data import (
+    plot_hmi_mdi_availability,
+    plot_col_scatter,
+    plot_col_scatter_single,
+)
 
 # Load HMI and MDI data
-hmi_table = QTable.read('/Users/pjwright/Documents/work/backup/refactor/ARCCnet/data/02_intermediate/mag/hmi_results.parq').to_pandas()
-mdi_table = QTable.read('/Users/pjwright/Documents/work/backup/refactor/ARCCnet/data/02_intermediate/mag/mdi_results.parq').to_pandas()
-start_date = datetime(1995,1,1)
+hmi_table = QTable.read(Path(config["paths"]["data_root"]) / "02_intermediate" / "mag" / "hmi_results.parq").to_pandas()
+mdi_table = QTable.read(Path(config["paths"]["data_root"]) / "02_intermediate" / "mag" / "mdi_results.parq").to_pandas()
+
+# set the date range regardless of what has been requested.
+start_date = datetime(1995, 1, 1)
 end_date = datetime.now()
 mag_availability = plot_hmi_mdi_availability(hmi_table, mdi_table, start_date, end_date)
 
 glue("hmi_mdi_availability", mag_availability[0], display=False)
-glue("start_date", start_date.strftime('%d-%h-%Y'), display=False)
-glue("end_date", end_date.strftime('%d-%h-%Y'), display=False)
+glue("start_date", start_date.strftime("%d-%h-%Y"), display=False)
+glue("end_date", end_date.strftime("%d-%h-%Y"), display=False)
 
-cdelt = plot_col_scatter([mdi_table,hmi_table], column='CDELT1', colors=['red','blue'])
+cdelt = plot_col_scatter([mdi_table, hmi_table], column="CDELT1", colors=["red", "blue"])
 glue("hmi_mdi_cdelt", cdelt[0], display=False)
 
-dsun = plot_col_scatter_single([mdi_table,hmi_table], column='DSUN_OBS', colors=['red','blue'])
+dsun = plot_col_scatter_single([mdi_table, hmi_table], column="DSUN_OBS", colors=["red", "blue"])
 glue("hmi_mdi_dsun", dsun[0], display=False)
 
 # create co-temporal observations
-
+# !TODO tidy this up when we have processed data by picking a random date.
 obs_date = "20110326"
-hmi = sunpy.map.Map(f'../../data/02_intermediate/mag/fits/hmi.m_720s.{obs_date}_000000_TAI.1.magnetogram.fits')
-mdi = sunpy.map.Map(f'../../data/02_intermediate/mag/fits/mdi.fd_m_96m_lev182.{obs_date}_000000_TAI.data.fits')
+hmi = sunpy.map.Map(f"../../data/02_intermediate/mag/fits/hmi.m_720s.{obs_date}_000000_TAI.1.magnetogram.fits")
+mdi = sunpy.map.Map(f"../../data/02_intermediate/mag/fits/mdi.fd_m_96m_lev182.{obs_date}_000000_TAI.data.fits")
 
 glue("hmi_plot", hmi, display=False)
 glue("mdi_plot", mdi, display=False)
@@ -144,8 +152,7 @@ For this v0.1 of the dataset a preliminary data processing routine is applied to
 1. Rotation to Solar North
 2. Removal (and zero) off-disk data
 
-as shown below
-<!-- placeholder for processing figure -->
+as shown below [placeholder for processing figure]
 
 As we progress towards v1.0, the processing pipeline will be expanded to include additional corrections e.g.
 

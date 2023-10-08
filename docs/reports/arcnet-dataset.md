@@ -106,16 +106,18 @@ None
 :tags: [hide-cell, remove-input, remove-output]
 from myst_nb import glue
 import datetime
+from pathlib import Path
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog
 from arccnet.visualisation.data import plot_srs_coverage, plot_srs_map, plot_filtered_srs_trace
-DATA_START_TIME = datetime.datetime(1996,1,1)
-DATA_END_TIME = datetime.datetime(2023,1,1)
-pcat = ClassificationCatalog.read('../../data/03_processed/noaa_srs/srs_processed_catalog.parq')
+from arccnet import config
+start_date = config["general"]["start_date"]
+end_date = config["general"]["end_date"]
+pcat = ClassificationCatalog.read(Path(config["paths"]["data_dir_processed"]) / "noaa_srs" / "srs_processed_catalog.parq")
 pcat_df = pcat.to_pandas()
 srs_coverage_fig, srs_coverage_ax = plot_srs_coverage(pcat)
 glue("srs_coverage_fig", srs_coverage_fig, display=False)
-glue("start_date", str(DATA_START_TIME), display=False)
-glue("end_date", str(DATA_END_TIME), display=False)
+glue("start_date", str(start_date), display=False)
+glue("end_date", str(end_date), display=False)
 glue("srs_expected_no", len(pcat_df.time.unique()))
 glue("srs_missing_no", pcat_df.url.isnull().sum())
 glue("srs_error_no",  len(pcat_df[pcat_df.loaded_successfully == False].path.unique()) - 1)
