@@ -338,7 +338,7 @@ class DataManager:
             downloaded filenames
 
         """
-        logger.info("Downloads to query or new data")
+        logger.info("match downloads to query")
         results = QTable(results)
 
         if "path" in results.colnames:
@@ -403,7 +403,7 @@ class DataManager:
                 # If it doesn't exist, enqueue the file for downloading
                 downloader.enqueue_file(url=url, path=path)
 
-        print(f"{len(existing_files)} files of {len(data_list)} already exist. overwrite is {overwrite}.")
+        print(f"{len(existing_files)}/{len(data_list)} files already exist. overwrite is {overwrite}.")
         results = downloader.download()
 
         if len(results.errors) != 0:
