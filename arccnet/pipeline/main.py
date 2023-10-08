@@ -69,65 +69,118 @@ def process_srs(config):
     srs_processed_catalog = filter_srs(srs_processed_catalog)
     srs_processed_catalog.write(srs_processed_catalog_file, format="parquet", overwrite=True)
 
-    srs_clean_catalog = QTable(srs_processed_catalog)[srs_processed_catalog["filtered"] == False]  # noqa
+    srs_clean_catalog = QTable(srs_processed_catalog)[srs_processed_catalog["filtered"] is False]  # noqa
     srs_clean_catalog.write(srs_clean_catalog_file, format="parquet", overwrite=True)
 
-    return srs_query, srs_results, srs_raw_catalog, srs_processed_catalog, srs_clean_catalog
+    return (
+        srs_query,
+        srs_results,
+        srs_raw_catalog,
+        srs_processed_catalog,
+        srs_clean_catalog,
+    )
 
 
-def process_mag(config, srs_catalog):
-    # provide list
+def process_hmi(config):
     mag_objs = [
         HMILOSMagnetogram(),
-        MDILOSMagnetogram(),
         HMISHARPs(),
-        MDISMARPs(),
-    ]  # unsure if this should just be put into the config file.
-    freq = timedelta(days=1)  # move to config?
+    ]
 
     data_root = config["paths"]["data_root"]
-    data_root = "data"
+    download_path = Path(data_root) / "02_intermediate" / "mag" / "fits"
 
     # query files
     hmi_query_file = Path(data_root) / "01_raw" / "mag" / "hmi_query.parq"
-    mdi_query_file = Path(data_root) / "01_raw" / "mag" / "mdi_query.parq"
     sharps_query_file = Path(data_root) / "01_raw" / "mag" / "sharps_query.parq"
-    smarps_query_file = Path(data_root) / "01_raw" / "mag" / "smarps_query.parq"
-    query_files = [hmi_query_file, mdi_query_file, sharps_query_file, smarps_query_file]
-
     # results files
     hmi_results_file_raw = Path(data_root) / "01_raw" / "mag" / "hmi_results.parq"
-    mdi_results_file_raw = Path(data_root) / "01_raw" / "mag" / "mdi_results.parq"
     sharps_results_file_raw = Path(data_root) / "01_raw" / "mag" / "sharps_results.parq"
-    smarps_results_file_raw = Path(data_root) / "01_raw" / "mag" / "smarps_results.parq"
-    results_files_raw = [hmi_results_file_raw, mdi_results_file_raw, sharps_results_file_raw, smarps_results_file_raw]
-
     hmi_results_file = Path(data_root) / "02_intermediate" / "mag" / "hmi_results.parq"
-    mdi_results_file = Path(data_root) / "02_intermediate" / "mag" / "mdi_results.parq"
     sharps_results_file = Path(data_root) / "02_intermediate" / "mag" / "sharps_results.parq"
-    smarps_results_file = Path(data_root) / "02_intermediate" / "mag" / "smarps_results.parq"
-    results_files = [hmi_results_file, mdi_results_file, sharps_results_file, smarps_results_file]
-
     # save the downloads files in 02_intermediate as they do not link to processed data
     hmi_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "hmi_downloads.parq"
-    mdi_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "mdi_downloads.parq"
     sharps_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "sharps_downloads.parq"
-    smarps_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "smarps_downloads.parq"
-    downloads_files = [hmi_downloads_file, mdi_downloads_file, sharps_downloads_file, smarps_downloads_file]
-
-    # merged files
-    srs_hmi_mdi_merged_file = Path(data_root) / "04_final" / "mag" / "srs_hmi_mdi_merged.parq"
-    hmi_sharps_merged_file = Path(data_root) / "04_final" / "mag" / "hmi_sharps_merged.parq"
-    mdi_smarps_merged_file = Path(data_root) / "04_final" / "mag" / "mdi_smarps_merged.parq"
 
     hmi_query_file.parent.mkdir(exist_ok=True, parents=True)
     hmi_results_file_raw.parent.mkdir(exist_ok=True, parents=True)
     hmi_results_file.parent.mkdir(exist_ok=True, parents=True)
     hmi_downloads_file.parent.mkdir(exist_ok=True, parents=True)
-    srs_hmi_mdi_merged_file.parent.mkdir(exist_ok=True, parents=True)
 
+    download_objects = _process_mag(
+        config=config,
+        download_path=download_path,
+        mag_objs=mag_objs,
+        query_files=[hmi_query_file, sharps_query_file],
+        results_files_raw=[hmi_results_file_raw, sharps_results_file_raw],
+        results_files=[hmi_results_file, sharps_results_file],
+        downloads_files=[hmi_downloads_file, sharps_downloads_file],
+        freq=timedelta(days=1),
+        batch_frequency=3,
+        merge_tolerance=timedelta(minutes=30),
+        overwrite=False,
+    )
+
+    return download_objects
+
+
+def process_mdi(config):
+    mag_objs = [
+        MDILOSMagnetogram(),
+        MDISMARPs(),
+    ]
+
+    data_root = config["paths"]["data_root"]
+    download_path = Path(data_root) / "02_intermediate" / "mag" / "fits"
+
+    # query files
+    mdi_query_file = Path(data_root) / "01_raw" / "mag" / "mdi_query.parq"
+    smarps_query_file = Path(data_root) / "01_raw" / "mag" / "smarps_query.parq"
+    # results files
+    mdi_results_file_raw = Path(data_root) / "01_raw" / "mag" / "mdi_results.parq"
+    smarps_results_file_raw = Path(data_root) / "01_raw" / "mag" / "smarps_results.parq"
+    mdi_results_file = Path(data_root) / "02_intermediate" / "mag" / "mdi_results.parq"
+    smarps_results_file = Path(data_root) / "02_intermediate" / "mag" / "smarps_results.parq"
+    # save the downloads files in 02_intermediate as they do not link to processed data
+    mdi_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "mdi_downloads.parq"
+    smarps_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "smarps_downloads.parq"
+
+    mdi_query_file.parent.mkdir(exist_ok=True, parents=True)
+    mdi_results_file_raw.parent.mkdir(exist_ok=True, parents=True)
+    mdi_results_file.parent.mkdir(exist_ok=True, parents=True)
+    mdi_downloads_file.parent.mkdir(exist_ok=True, parents=True)
+
+    download_objects = _process_mag(
+        config=config,
+        download_path=download_path,
+        mag_objs=mag_objs,
+        query_files=[mdi_query_file, smarps_query_file],
+        results_files_raw=[mdi_results_file_raw, smarps_results_file_raw],
+        results_files=[mdi_results_file, smarps_results_file],
+        downloads_files=[mdi_downloads_file, smarps_downloads_file],
+        freq=timedelta(days=1),
+        batch_frequency=3,
+        merge_tolerance=timedelta(minutes=30),
+        overwrite=False,
+    )
+
+    return download_objects
+
+
+def _process_mag(
+    config,
+    download_path,
+    mag_objs,
+    query_files,
+    results_files_raw,
+    results_files,
+    downloads_files,
+    freq=timedelta(days=1),
+    batch_frequency=3,
+    merge_tolerance=timedelta(minutes=30),
+    overwrite=False,
+):
     # !TODO implement reading of files if they exist.
-
     # !TODO consider providing a custom class for each BaseMagnetogram
     dm = DataManager(
         start_date=config["general"]["start_date"],
@@ -143,8 +196,8 @@ def process_mag(config, srs_catalog):
 
     # problem here is that the urls aren't around forever.
     metadata_raw, results_objects = dm.search(
-        batch_frequency=4,
-        merge_tolerance=timedelta(minutes=30),
+        batch_frequency=batch_frequency,
+        merge_tolerance=merge_tolerance,
     )
 
     for df, rf in zip(metadata_raw, results_files_raw):
@@ -157,48 +210,64 @@ def process_mag(config, srs_catalog):
 
     download_objects = dm.download(
         results_objects,
-        path=Path(data_root) / "02_intermediate" / "mag" / "fits",
-        overwrite=False,
+        path=download_path,
+        overwrite=overwrite,
     )
 
     for do, dfiles in zip(download_objects, downloads_files):
         print(dfiles)
         do.write(dfiles, format="parquet", overwrite=True)
 
-    # minimal Result
-    minimal_download_objects = [download_obj[["target_time", "url", "path"]] for download_obj in download_objects]
+    # !TODO implement processing of magnetogram
 
-    # this is dodgy...
-    srs = srs_catalog.copy()
-    hmi = download_objects[0]  # .to_pandas()
-    mdi = download_objects[1]  # .to_pandas()
-    sharps = download_objects[2]  # .to_pandas()
-    smarps = download_objects[3]  # .to_pandas()
+    return download_objects
 
-    # 1. merge SRS-HMI-MDI
-    # srs = None
-    # hmi = None
-    # mdi = None
-    # utilise that time_srs and target_time_hmi are the same, e.g. generated from start,end,frequency
-    # srsmdihmi = pd.merge(srs.add_suffix("_srs"), hmi.add_suffix("_hmi"), left_on="time_srs", right_on="target_time_hmi")
-    # srsmdihmi = pd.merge(srsmdihmi, mdi.add_suffix("_mdi"), left_on="time_srs", right_on="target_time_mdi")
-    # dropped_rows = srsmdihmi.copy()
-    # # maybe change to path_srs/mdi/hmi etc.
-    # srsmdihmi_dropped = srsmdihmi.dropna(subset=["url_srs"]).reset_index(drop=True) # drop on url, not on path...
-    # srsmdihmi_dropped = srsmdihmi_dropped.dropna(subset=["url_hmi", "url_mdi"], how="all").reset_index(drop=True)
-    # srsmdihmi_minimal = srsmdihmi_dropped[["path_srs", "path_hmi", "path_mdi"]]
-    # logger.debug(
-    #     print(
-    #         f"len(srsmdihmi): {len(srsmdihmi)}, len(srsmdihmi_dropped): {len(srsmdihmi_dropped)}; and there are {len(dropped_rows[~dropped_rows.index.isin(srsmdihmi_dropped.index)])} dropped rows"
-    #     )
-    # )
-    # logger.debug(srsmdihmi_minimal.head())
 
-    # QTable.from_pandas(srsmdihmi_dropped).write(srs_hmi_mdi_merged_file, format="parquet", overwrite=True)
+def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
+    """
+    return merged files:
+        - srs-hmi-mdi
+        - hmi-sharps
+        - mdi-sharps
+    """
+    data_root = config["paths"]["data_root"]
+    srs_hmi_mdi_merged_file = Path(data_root) / "04_final" / "mag" / "srs_hmi_mdi_merged.parq"
+    hmi_sharps_merged_file = Path(data_root) / "04_final" / "mag" / "hmi_sharps_merged.parq"
+    mdi_smarps_merged_file = Path(data_root) / "04_final" / "mag" / "mdi_smarps_merged.parq"
+    srs_hmi_mdi_merged_file.parent.mkdir(exist_ok=True, parents=True)
 
-    # There are issues with saving the QTable after doing the pandas merge (e.g. 'QUALITY_mdi','DATAVALS_mdi' go from int64 -> object)
-    # srsmdihmi[['QUALITY_mdi','DATAVALS_mdi']]
+    #     # this is dodgy...
+    #     srs = srs_catalog.copy()
+    #     hmi = download_objects[0]  # .to_pandas()
+    #     mdi = download_objects[1]  # .to_pandas()
+    #     sharps = download_objects[2]  # .to_pandas()
+    #     smarps = download_objects[3]  # .to_pandas()
 
+    #     # 1. merge SRS-HMI-MDI
+    #     # srs = None
+    #     # hmi = None
+    #     # mdi = None
+    #     # utilise that time_srs and target_time_hmi are the same, e.g. generated from start,end,frequency
+    #     # srsmdihmi = pd.merge(srs.add_suffix("_srs"), hmi.add_suffix("_hmi"), left_on="time_srs", right_on="target_time_hmi")
+    #     # srsmdihmi = pd.merge(srsmdihmi, mdi.add_suffix("_mdi"), left_on="time_srs", right_on="target_time_mdi")
+    #     # dropped_rows = srsmdihmi.copy()
+    #     # # maybe change to path_srs/mdi/hmi etc.
+    #     # srsmdihmi_dropped = srsmdihmi.dropna(subset=["url_srs"]).reset_index(drop=True) # drop on url, not on path...
+    #     # srsmdihmi_dropped = srsmdihmi_dropped.dropna(subset=["url_hmi", "url_mdi"], how="all").reset_index(drop=True)
+    #     # srsmdihmi_minimal = srsmdihmi_dropped[["path_srs", "path_hmi", "path_mdi"]]
+    #     # logger.debug(
+    #     #     print(
+    #     #         f"len(srsmdihmi): {len(srsmdihmi)}, len(srsmdihmi_dropped): {len(srsmdihmi_dropped)}; and there are {len(dropped_rows[~dropped_rows.index.isin(srsmdihmi_dropped.index)])} dropped rows"
+    #     #     )
+    #     # )
+    #     # logger.debug(srsmdihmi_minimal.head())
+
+    #     # QTable.from_pandas(srsmdihmi_dropped).write(srs_hmi_mdi_merged_file, format="parquet", overwrite=True)
+
+    #     # There are issues with saving the QTable after doing the pandas merge (e.g. 'QUALITY_mdi','DATAVALS_mdi' go from int64 -> object)
+    #     # srsmdihmi[['QUALITY_mdi','DATAVALS_mdi']]
+
+    # There must be a better way to rename columns
     srs_renamed = srs.copy()  # Create a copy of the original table
     for colname in srs_renamed.colnames:
         srs_renamed.rename_column(colname, colname + "_srs")
@@ -252,7 +321,11 @@ def process_mag(config, srs_catalog):
         sharps_filtered.rename_column(colname, colname + "_arc")
 
     hmi_sharps_astropy = join(
-        hmi_filtered, sharps_filtered, keys_left="datetime", keys_right="datetime_arc", table_names=["hmi", "sharps"]
+        hmi_filtered,
+        sharps_filtered,
+        keys_left="datetime",
+        keys_right="datetime_arc",
+        table_names=["hmi", "sharps"],
     )
     hmi_sharps_astropy.write(hmi_sharps_merged_file, format="parquet", overwrite=True)
 
@@ -274,11 +347,15 @@ def process_mag(config, srs_catalog):
         smarps_filtered.rename_column(colname, colname + "_arc")
 
     mdi_smarps_astropy = join(
-        mdi_filtered, smarps_filtered, keys_left="datetime", keys_right="datetime_arc", table_names=["mdi", "smarps"]
+        mdi_filtered,
+        smarps_filtered,
+        keys_left="datetime",
+        keys_right="datetime_arc",
+        table_names=["mdi", "smarps"],
     )
     mdi_smarps_astropy.write(mdi_smarps_merged_file, format="parquet", overwrite=True)
 
-    return query_objects, results_objects, download_objects, minimal_download_objects
+    return srsmdihmi_dropped, hmi_sharps_astropy, mdi_smarps_astropy
 
 
 def main():
@@ -286,8 +363,12 @@ def main():
     root_logger.setLevel("DEBUG")
 
     logger.debug("Starting main")
-    query, results, raw_catalog, processed_catalog, clean_catalog = process_srs(config)
-    process_mag(config, clean_catalog)
+    _, _, _, _, clean_catalog = process_srs(config)
+    hmi_download_obj, sharps_download_obj = process_hmi(config)
+    mdi_download_obj, smarps_download_obj = process_mdi(config)
+    _ = merge_mag_tables(
+        config, clean_catalog, hmi_download_obj, mdi_download_obj, sharps_download_obj, smarps_download_obj
+    )
     logger.debug("Finished main")
 
 
