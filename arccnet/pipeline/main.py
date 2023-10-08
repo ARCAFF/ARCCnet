@@ -69,7 +69,7 @@ def process_srs(config):
     srs_processed_catalog = filter_srs(srs_processed_catalog)
     srs_processed_catalog.write(srs_processed_catalog_file, format="parquet", overwrite=True)
 
-    srs_clean_catalog = QTable(srs_processed_catalog)[srs_processed_catalog["filtered"] is False]  # noqa
+    srs_clean_catalog = QTable(srs_processed_catalog)[srs_processed_catalog["filtered"] == False]  # noqa
     srs_clean_catalog.write(srs_clean_catalog_file, format="parquet", overwrite=True)
 
     return (
@@ -118,7 +118,7 @@ def process_hmi(config):
         freq=timedelta(days=1),
         batch_frequency=3,
         merge_tolerance=timedelta(minutes=30),
-        overwrite=False,
+        overwrite_downloads=False,
     )
 
     return download_objects
@@ -161,7 +161,7 @@ def process_mdi(config):
         freq=timedelta(days=1),
         batch_frequency=3,
         merge_tolerance=timedelta(minutes=30),
-        overwrite=False,
+        overwrite_downloads=False,
     )
 
     return download_objects
@@ -178,7 +178,7 @@ def _process_mag(
     freq=timedelta(days=1),
     batch_frequency=3,
     merge_tolerance=timedelta(minutes=30),
-    overwrite=False,
+    overwrite_downloads=False,
 ):
     # !TODO implement reading of files if they exist.
     # !TODO consider providing a custom class for each BaseMagnetogram
@@ -211,7 +211,7 @@ def _process_mag(
     download_objects = dm.download(
         results_objects,
         path=download_path,
-        overwrite=overwrite,
+        overwrite=overwrite_downloads,
     )
 
     for do, dfiles in zip(download_objects, downloads_files):
@@ -280,38 +280,31 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     for colname in mdi_renamed.colnames:
         mdi_renamed.rename_column(colname, colname + "_mdi")
 
-    srsmdihmi_astropy = join(
+    srsmdihmi_table = join(
         QTable(srs_renamed),
         QTable(hmi_renamed),
         keys_left="time_srs",
         keys_right="target_time_hmi",
         table_names=["srs", "hmi"],
     )
-    srsmdihmi_astropy = join(
-        srsmdihmi_astropy,
+    srsmdihmi_table = join(
+        srsmdihmi_table,
         QTable(mdi_renamed),
         keys_left="time_srs",
         keys_right="target_time_mdi",
         table_names=["srs_hmi", "mdi"],
     )
 
+    print(srsmdihmi_table["url_srs"])
+
     # Drop rows with NaN values in the 'url_srs' column
-    srsmdihmi_dropped = srsmdihmi_astropy[~srsmdihmi_astropy["url_srs"].mask]
+    srsmdihmi_dropped = srsmdihmi_table[~srsmdihmi_table["url_srs"].mask]
 
     # Drop rows where 'url_hmi' and 'url_mdi' are all NaN
     srsmdihmi_dropped = srsmdihmi_dropped[~(srsmdihmi_dropped["url_hmi"].mask & srsmdihmi_dropped["url_mdi"].mask)]
     srsmdihmi_dropped.write(srs_hmi_mdi_merged_file, format="parquet", overwrite=True)
 
     # 2. merge HMI-SHARPs
-    # hmi_sharps = pd.merge(
-    #     hmi.dropna(subset=["filename"]).reset_index(drop=True), # filename or path
-    #     sharps.dropna(subset=["filename"]).reset_index(drop=True).add_suffix("_arc"),
-    #     left_on="datetime",
-    #     right_on="datetime_arc",
-    # )
-    # QTable.from_pandas(hmi_sharps).write(hmi_sharps_merged_file, format="parquet", overwrite=True)
-
-    # QTable instead
     hmi_filtered = QTable(hmi.copy())
     hmi_filtered = hmi_filtered[~hmi_filtered["filename"].mask].copy()
 
@@ -320,24 +313,16 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     for colname in sharps_filtered.colnames:
         sharps_filtered.rename_column(colname, colname + "_arc")
 
-    hmi_sharps_astropy = join(
+    hmi_sharps_table = join(
         hmi_filtered,
         sharps_filtered,
         keys_left="datetime",
         keys_right="datetime_arc",
         table_names=["hmi", "sharps"],
     )
-    hmi_sharps_astropy.write(hmi_sharps_merged_file, format="parquet", overwrite=True)
+    hmi_sharps_table.write(hmi_sharps_merged_file, format="parquet", overwrite=True)
 
     # 3. merge MDI-SMARPs
-    # mdi_smarps = pd.merge(
-    #     mdi.dropna(subset=["filename"]).reset_index(drop=True),
-    #     smarps.dropna(subset=["filename"]).reset_index(drop=True).add_suffix("_arc"),
-    #     left_on="datetime",
-    #     right_on="datetime_arc",
-    # )
-    # QTable.from_pandas(mdi_smarps).write(mdi_smarps_merged_file, format="parquet", overwrite=True)
-
     mdi_filtered = QTable(mdi.copy())
     mdi_filtered = mdi_filtered[~mdi_filtered["filename"].mask].copy()
 
@@ -346,16 +331,16 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     for colname in smarps_filtered.colnames:
         smarps_filtered.rename_column(colname, colname + "_arc")
 
-    mdi_smarps_astropy = join(
+    mdi_smarps_table = join(
         mdi_filtered,
         smarps_filtered,
         keys_left="datetime",
         keys_right="datetime_arc",
         table_names=["mdi", "smarps"],
     )
-    mdi_smarps_astropy.write(mdi_smarps_merged_file, format="parquet", overwrite=True)
+    mdi_smarps_table.write(mdi_smarps_merged_file, format="parquet", overwrite=True)
 
-    return srsmdihmi_dropped, hmi_sharps_astropy, mdi_smarps_astropy
+    return srsmdihmi_dropped, hmi_sharps_table, mdi_smarps_table
 
 
 def main():
@@ -367,7 +352,12 @@ def main():
     hmi_download_obj, sharps_download_obj = process_hmi(config)
     mdi_download_obj, smarps_download_obj = process_mdi(config)
     _ = merge_mag_tables(
-        config, clean_catalog, hmi_download_obj, mdi_download_obj, sharps_download_obj, smarps_download_obj
+        config,
+        srs=clean_catalog,
+        hmi=hmi_download_obj,
+        mdi=mdi_download_obj,
+        sharps=sharps_download_obj,
+        smarps=smarps_download_obj,
     )
     logger.debug("Finished main")
 
