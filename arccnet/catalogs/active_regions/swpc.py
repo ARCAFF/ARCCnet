@@ -133,6 +133,8 @@ class ClassificationCatalog(QTable):
             raise ValueError(
                 f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns"
             )
+        self["url"] = MaskedColumn(self["url"])
+        self["path"] = MaskedColumn(self["path"])
 
     @classmethod
     def read(cls, *args, **kwargs) -> ClassificationCatalog:
