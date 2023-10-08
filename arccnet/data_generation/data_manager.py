@@ -310,7 +310,6 @@ class DataManager:
                 new_query = QTable(query)
 
             # !TODO a way of retrying missing would be good, but JSOC URLs are temporary.
-
             if new_query is not None:
                 logger.debug("Downloading ...")
                 downloaded_files = self._download(
