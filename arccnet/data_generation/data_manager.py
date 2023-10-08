@@ -309,7 +309,7 @@ class DataManager:
                 logger.debug(f"Full download with overwrite: (overwrite = {overwrite})")
                 new_query = QTable(query)
 
-            # a way of retrying missing would be good, but JSOC URLs are temporary.
+            # !TODO a way of retrying missing would be good, but JSOC URLs are temporary.
 
             if new_query is not None:
                 logger.debug("Downloading ...")
@@ -318,7 +318,7 @@ class DataManager:
                 )
                 results = self._match(results, downloaded_files)  # should return a results object.
             else:
-                pass  # this should be fixed...
+                raise NotImplementedError("new_query is none.")
 
             downloads.append(Result(results))
 

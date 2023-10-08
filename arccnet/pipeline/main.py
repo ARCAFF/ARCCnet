@@ -3,11 +3,14 @@ import logging
 from pathlib import Path
 from datetime import timedelta
 
+import pandas as pd
+
 from astropy.table import QTable, join
 
 from arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
 from arccnet.data_generation.data_manager import DataManager
+from arccnet.data_generation.data_manager import Query as MagQuery
 from arccnet.data_generation.magnetograms.instruments import (
     HMILOSMagnetogram,
     HMISHARPs,
@@ -191,22 +194,35 @@ def _process_mag(
 
     query_objects = dm.query_objects
 
-    for qo, qf in zip(query_objects, query_files):
-        qo.write(qf, format="parquet", overwrite=True)
+    # read raw_results and results_objects if all exist.
+    all_files_exist = all(file.exists() for file in results_files_raw + results_files)
+    if all_files_exist:
+        logger.debug("loading results_files")
+        metadata_raw = []
+        results_objects = []
+        for raw_file, file in zip(results_files_raw, results_files):
+            logger.info(f"{str(raw_file)}, {str(file)}")
+            metadata_raw.append(pd.read_parquet(raw_file))
+            results_objects.append(MagQuery(QTable.read(file, format="parquet")))
+    else:
+        # only save the query object if we're not loading the results_files
+        for qo, qf in zip(query_objects, query_files):
+            qo.write(qf, format="parquet", overwrite=True)
 
-    # problem here is that the urls aren't around forever.
-    metadata_raw, results_objects = dm.search(
-        batch_frequency=batch_frequency,
-        merge_tolerance=merge_tolerance,
-    )
+        logger.debug("performing search")
+        # problem here is that the urls aren't around forever.
+        metadata_raw, results_objects = dm.search(
+            batch_frequency=batch_frequency,
+            merge_tolerance=merge_tolerance,
+        )
 
-    for df, rf in zip(metadata_raw, results_files_raw):
-        print(rf)
-        df.to_parquet(path=rf)  # this is a `DataFrame`
+        for df, rf in zip(metadata_raw, results_files_raw):
+            print(rf)
+            df.to_parquet(path=rf)  # this is a `DataFrame`
 
-    for ro, rf in zip(results_objects, results_files):
-        print(rf)
-        ro.write(rf, format="parquet", overwrite=True)
+        for ro, rf in zip(results_objects, results_files):
+            print(rf)
+            ro.write(rf, format="parquet", overwrite=True)
 
     download_objects = dm.download(
         results_objects,
@@ -215,7 +231,6 @@ def _process_mag(
     )
 
     for do, dfiles in zip(download_objects, downloads_files):
-        print(dfiles)
         do.write(dfiles, format="parquet", overwrite=True)
 
     # !TODO implement processing of magnetogram
