@@ -56,10 +56,18 @@ t = QTable.read(srs_hmi_mdi_merged_file)
 first_row = t[~t['path_mdi'].mask & ~t['path_hmi'].mask][0]
 hmi = sunpy.map.Map(first_row['path_hmi'])
 mdi = sunpy.map.Map(first_row['path_mdi'])
-obs_date = first_row['target_time_hmi'].to_datetime().strftime("%Y-%m-%d")
-
+obs_date_time = first_row['target_time_hmi']
+obs_date = obs_date_time.to_datetime().strftime("%Y-%m-%d")
 mag, _ = plot_maps(mdi, hmi)
+
+hmi_processed = QTable.read(Path(config["paths"]["data_root"]) / "04_final" / "mag" / "hmi_processed.parq")
+mdi_processed = QTable.read(Path(config["paths"]["data_root"]) / "04_final" / "mag" / "mdi_processed.parq")
+processed_hmi_file = sunpy.map.Map(hmi_processed[hmi_processed['target_time'] == obs_date_time]['processed_path'].data.data[0])
+processed_mdi_file = sunpy.map.Map(mdi_processed[mdi_processed['target_time'] == obs_date_time]['processed_path'].data.data[0])
+mag_processed, _ = plot_maps(processed_mdi_file, processed_hmi_file)
+
 glue("two_plots", mag, display=False)
+glue("two_plots_processed", mag_processed, display=False)
 glue("hmi_plot", hmi, display=False)
 glue("mdi_plot", mdi, display=False)
 glue("obs_date", obs_date, display=False)
@@ -148,17 +156,22 @@ While these can be corrected through data preparation and processing, including 
 
 ### Full-disk HMI/MDI
 
-For this v0.1 of the dataset a preliminary data processing routine is applied to full-disk HMI and MDI to include
+For this v0.1 of the dataset a preliminary data processing routine is applied to full-disk HMI and MDI (as shown below) to include
 
 1. Rotation to Solar North
 2. Removal (and zero) off-disk data
 
-as shown below [placeholder for processing figure]
+
+```{glue:figure} two_plots_processed
+:alt: "Processed Cotemporal HMI-MDI"
+:name: "fig:hmi:cotemporalmagprocess"
+MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`.
+```
 
 As we progress towards v1.0, the processing pipeline will be expanded to include additional corrections e.g.
 
 * Reprojection of images to a fixed point at 1 AU along the Sun-Earth line
-* Filtering according to the hexadecimal \texttt{QUALITY} flag.
+* Filtering according to the hexadecimal `QUALITY` flag.
 
 where currently the correct choice of reprojection is still under consideration, and the handling of conversion from hexadecimal to float needs to be clarified. Additional data processing steps may include
 

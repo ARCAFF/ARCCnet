@@ -231,10 +231,6 @@ class DataManager:
 
             merged_time = merged_time.dropna()  # can be NaT in the datetime column
 
-            logger.debug(
-                f"len(meta) {len(meta)}; len(meta_datetime), {len(meta_datetime)}; len(merged_time), {len(merged_time)}"
-            )
-
             # for now, ensure that there are no duplicates of the same "datetime" in the df
             # this would happen if two `target_time` share a single `meta[datetime]`
             if len(merged_time["datetime"].dropna().unique()) != len(merged_time["datetime"].dropna()):
@@ -253,8 +249,6 @@ class DataManager:
             for col in int64_columns:
                 new_df[col] = matched_rows[col].astype("Int64")
 
-            logger.debug(f"len(merged_time) {len(merged_time)}; len(new_df), {len(new_df)}")
-
             # merged_time <- this is the times that match between the query and output
             # new_df / matched_rows are the rows in the output at the same time as the query
             merged_df = pd.merge(merged_time, new_df, on="datetime", how="left")
@@ -266,8 +260,6 @@ class DataManager:
                 merged_df = pd.merge(pd_query["target_time"], merged_df, on="target_time", how="left")
             else:
                 raise NotImplementedError("pd_query.url is not empty")
-
-            logger.debug(f"len(merged_df) {len(merged_df)}")
 
             # !TODO Replace NaN values in the "url" column with masked values or change this...
             # remove columns ?

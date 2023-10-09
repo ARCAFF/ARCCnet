@@ -11,6 +11,7 @@ from arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
 from arccnet.data_generation.data_manager import DataManager
 from arccnet.data_generation.data_manager import Query as MagQuery
+from arccnet.data_generation.mag_processing import MagnetogramProcessor
 from arccnet.data_generation.magnetograms.instruments import (
     HMILOSMagnetogram,
     HMISHARPs,
@@ -105,6 +106,7 @@ def process_hmi(config):
 
     data_root = config["paths"]["data_root"]
     download_path = Path(data_root) / "02_intermediate" / "mag" / "fits"
+    processed_path = Path(data_root) / "04_final" / "mag" / "fits"
 
     # query files
     hmi_query_file = Path(data_root) / "01_raw" / "mag" / "hmi_query.parq"
@@ -117,7 +119,10 @@ def process_hmi(config):
     # save the downloads files in 02_intermediate as they do not link to processed data
     hmi_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "hmi_downloads.parq"
     sharps_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "sharps_downloads.parq"
+    hmi_processed_file = Path(data_root) / "04_final" / "mag" / "hmi_processed.parq"
 
+    download_path.mkdir(exist_ok=True, parents=True)
+    processed_path.mkdir(exist_ok=True, parents=True)
     hmi_query_file.parent.mkdir(exist_ok=True, parents=True)
     hmi_results_file_raw.parent.mkdir(exist_ok=True, parents=True)
     hmi_results_file.parent.mkdir(exist_ok=True, parents=True)
@@ -137,7 +142,11 @@ def process_hmi(config):
         overwrite_downloads=False,
     )
 
-    return download_objects
+    processed_data = MagnetogramProcessor(download_objects[0], save_path=processed_path, column_name="path")
+    processed_table = processed_data.process(use_multiprocessing=True, overwrite=False)
+    processed_table.write(hmi_processed_file, format="parquet", overwrite=True)
+
+    return [processed_table, download_objects[1]]
 
 
 def process_mdi(config):
@@ -162,6 +171,7 @@ def process_mdi(config):
 
     data_root = config["paths"]["data_root"]
     download_path = Path(data_root) / "02_intermediate" / "mag" / "fits"
+    processed_path = Path(data_root) / "04_final" / "mag" / "fits"
 
     # query files
     mdi_query_file = Path(data_root) / "01_raw" / "mag" / "mdi_query.parq"
@@ -174,7 +184,10 @@ def process_mdi(config):
     # save the downloads files in 02_intermediate as they do not link to processed data
     mdi_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "mdi_downloads.parq"
     smarps_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "smarps_downloads.parq"
+    mdi_processed_file = Path(data_root) / "04_final" / "mag" / "mdi_processed.parq"
 
+    download_path.mkdir(exist_ok=True, parents=True)
+    processed_path.mkdir(exist_ok=True, parents=True)
     mdi_query_file.parent.mkdir(exist_ok=True, parents=True)
     mdi_results_file_raw.parent.mkdir(exist_ok=True, parents=True)
     mdi_results_file.parent.mkdir(exist_ok=True, parents=True)
@@ -194,7 +207,11 @@ def process_mdi(config):
         overwrite_downloads=False,
     )
 
-    return download_objects
+    processed_data = MagnetogramProcessor(download_objects[0], save_path=processed_path, column_name="path")
+    processed_table = processed_data.process(use_multiprocessing=True, overwrite=False)
+    processed_table.write(mdi_processed_file, format="parquet", overwrite=True)
+
+    return [processed_table, download_objects[1]]
 
 
 def _process_mag(
@@ -292,8 +309,6 @@ def _process_mag(
     for do, dfiles in zip(download_objects, downloads_files):
         do.write(dfiles, format="parquet", overwrite=True)
 
-    # !TODO implement processing of magnetogram
-
     return download_objects
 
 
@@ -356,8 +371,6 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
         keys_right="target_time_mdi",
         table_names=["srs_hmi", "mdi"],
     )
-
-    print(srsmdihmi_table["url_srs"])
 
     # Drop rows with NaN values in the 'url_srs' column
     srsmdihmi_dropped = srsmdihmi_table[~srsmdihmi_table["url_srs"].mask]

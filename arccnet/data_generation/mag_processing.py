@@ -11,8 +11,10 @@ from tqdm import tqdm
 
 import astropy.units as u
 from astropy.coordinates import SkyCoord
+from astropy.table import MaskedColumn, QTable
 
 from arccnet import config
+from arccnet.data_generation.data_manager import Result as MagResult
 from arccnet.data_generation.utils.data_logger import logger
 from arccnet.data_generation.utils.utils import is_point_far_from_point, save_compressed_map
 
@@ -30,114 +32,94 @@ class MagnetogramProcessor:
 
     def __init__(
         self,
-        csv_in_file: Path = Path(config["paths"]["mag_intermediate_hmimdi_data_csv"]),
-        csv_out_file: Path = Path(config["paths"]["mag_intermediate_hmimdi_processed_data_csv"]),
-        columns: list[str] = None,
-        processed_data_dir: Path = Path(config["paths"]["mag_intermediate_data_dir"]),
-        process_data: bool = True,
-        use_multiprocessing: bool = False,
+        table: QTable,
+        save_path: Path,
+        column_name: str,
     ) -> None:
-        """
-        Reads data paths, processes and saves the data.
-        """
-        logger.info("Instantiated `MagnetogramProcessor`")
-        if columns is None:
-            columns = ["download_path_hmi", "download_path_mdi"]
-        self.processed_data_dir = processed_data_dir
-        self.paths, self.loaded_csv = self._read_columns(columns=columns, csv_file=csv_in_file)
+        logger.debug("Instantiated `MagnetogramProcessor`")
 
-        if process_data:
-            self.processed_paths = self.process_data(
-                use_multiprocessing=use_multiprocessing,
-                paths=self.paths,
-                save_path=self.processed_data_dir,
-            )
+        self._table = QTable(table)
+        if not save_path.exists():
+            save_path.mkdir(parents=True)
+        self._save_path = save_path
+        self._column_name = column_name
 
-            # Map processed paths to original DataFrame using Path.name
-            processed_path_mapping = {path.name: path for path in self.processed_paths}
-            for column in columns:
-                self.loaded_csv[f"processed_{column}"] = self.loaded_csv.apply(
-                    lambda row: processed_path_mapping.get(Path(row[column]).name, np.nan)
-                    if pd.notna(row[column])
-                    else np.nan,
-                    axis=1,
-                )
+        # need to fix these for QTable
+        file_list = pd.Series(self._table[~self._table[self._column_name].mask][self._column_name]).dropna().unique()
+        paths = [Path(path) if isinstance(path, str) else np.nan for path in file_list]
 
-            # should probably allow to csv to be a value
-            self.loaded_csv.to_csv(csv_out_file, index=False)
+        # check if paths exist
+        existing_paths = [path for path in paths if path.exists()]  # check if the raw files exist
+        if len(existing_paths) < len(paths):
+            missing_paths = [str(path) for path in paths if path not in existing_paths]
+            logger.warn(f"The following paths do not exist: {', '.join(missing_paths)}")
 
-    def _read_columns(
-        self,
-        columns: list[str] = ["download_path_hmi", "download_path_mdi"],
-        csv_file=Path(config["paths"]["mag_intermediate_hmimdi_data_csv"]),
-    ):
-        """
-        Read and prepare data paths from CSV file.
+        self.paths = paths
 
-        Parameters
-        ----------
-        url_columns: list[str]
-            list of column names (str).
+    @property
+    def table(self):
+        return self._table
 
-        csv_file: Path
-            location of the csv file to read.
+    @property
+    def save_path(self):
+        return self._save_path
 
-        Returns
-        -------
-        paths: list[Path]
-            List of data file paths.
-        """
+    @property
+    def column_name(self):
+        return self._column_name
 
-        if csv_file.exists():
-            loaded_data = pd.read_csv(csv_file)
-            file_list = [column for col in columns for column in loaded_data[col].dropna().unique()]
-            paths = [Path(path) if isinstance(path, str) else np.nan for path in file_list]
-
-            existing_paths = [path for path in paths if path.exists()]  # check if the raw files exist
-            if len(existing_paths) < len(paths):
-                missing_paths = [str(path) for path in paths if path not in existing_paths]
-                raise FileNotFoundError(f"The following paths do not exist: {', '.join(missing_paths)}")
-        else:
-            raise FileNotFoundError(f"{csv_file} does not exist.")
-
-        return paths, loaded_data
-
-    def process_data(self, use_multiprocessing: bool = True, paths=None, save_path=None):
+    def process(
+        self, use_multiprocessing: bool = True, merge_col_prefix: str = "processed_", overwrite: bool = True
+    ) -> dict:
         """
         Process data using multiprocessing.
         """
-        # if paths is None:
-        #     paths = self.paths
-
-        if save_path is None:
-            base_directory_path = self.processed_data_dir
-        else:
-            base_directory_path = save_path
-
-        if not base_directory_path.exists():
-            base_directory_path.mkdir(parents=True)
 
         processed_paths = []  # list of processed filepaths
 
-        logger.info(f"processing of {len(paths)} paths with multiprocessing = {use_multiprocessing}")
+        logger.info(f"processing of {len(self.paths)} paths with multiprocessing = {use_multiprocessing}")
         if use_multiprocessing:
             # Use tqdm to create a progress bar for multiprocessing
             with multiprocessing.Pool() as pool:
                 for processed_path in tqdm(
                     pool.imap_unordered(
-                        self._multiprocess_and_save_data_wrapper, [(path, base_directory_path) for path in paths]
+                        self._multiprocess_and_save_data_wrapper,
+                        [(path, self.save_path, overwrite) for path in self.paths],
                     ),
-                    total=len(paths),
+                    total=len(self.paths),
                     desc="Processing",
                 ):
                     processed_paths.append(processed_path)
                     # pass
         else:
             for path in tqdm(self.paths, desc="Processing"):
-                processed_path = self._process_and_save_data(path, base_directory_path)
+                processed_path = self._process_and_save_data(path, self.save_path, overwrite)
                 processed_paths.append(processed_path)
 
-        return processed_paths
+        self._processed_path_mapping = {path.name: path for path in processed_paths}
+
+        merged_table = self._add_processed_paths(self._processed_path_mapping, col_prefix=merge_col_prefix)
+        return merged_table
+
+    def _add_processed_paths(self, filename_mapping, col_prefix):
+        new_table = self._table.copy()
+        new_table["processed_path"] = None
+        # Create a masked version of the 'processed_path' column with the desired mask
+        masked_processed_path = MaskedColumn(
+            new_table[col_prefix + self._column_name], mask=(new_table[col_prefix + self._column_name] is None)
+        )
+
+        # Update 'processed_path' directly within the masked column
+        for i, path in enumerate(new_table[self._column_name]):
+            if not new_table[self._column_name].mask[i]:
+                filename = Path(path).name
+                if filename in filename_mapping:
+                    masked_processed_path[i] = filename_mapping[filename]
+
+        # Replace the 'processed_path' column with the masked version
+        new_table[col_prefix + self._column_name] = masked_processed_path.astype(str)
+
+        return MagResult(new_table)
 
     def _multiprocess_and_save_data_wrapper(self, args):
         """
@@ -158,12 +140,12 @@ class MagnetogramProcessor:
 
         See Also:
         --------
-        _process_and_save_data, _process_data
+        _process_and_save_data, process
         """
-        file, output_dir = args
-        return self._process_and_save_data(file, output_dir)
+        file, output_dir, overwrite = args
+        return self._process_and_save_data(file, output_dir, overwrite)
 
-    def _process_and_save_data(self, file: Path, output_dir: Path) -> Path:
+    def _process_and_save_data(self, file: Path, output_dir: Path, overwrite: bool) -> Path:
         """
         Process data and save compressed map.
 
@@ -180,8 +162,11 @@ class MagnetogramProcessor:
         None
         """
         output_file = output_dir / file.name  # !TODO prefix the file.name?
-        processed_data = self._process_datum(file)
-        save_compressed_map(processed_data, path=output_file, overwrite=True)
+
+        if not output_file.exists() or overwrite:
+            processed_data = self._process_datum(file)
+            save_compressed_map(processed_data, path=output_file, overwrite=True)
+
         return output_file
 
     def _process_datum(self, file) -> sunpy.map.Map:
@@ -191,8 +176,8 @@ class MagnetogramProcessor:
         Processing Steps:
             1. Load and rotate
             2. Set off-disk data to 0
-            # !TODO
             3. Set NaN values to 0
+            # !TODO
             4. Normalise radius to a fixed value
             5. Project to a certain location in space
 
@@ -216,8 +201,10 @@ class MagnetogramProcessor:
         # 2. set data off-disk to 0 (np.nan would be ideal, but deep learning)
         rotated_map.data[~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(rotated_map))] = 0.0
         # !TODO understand why this isn't working correctly with MDI (leaves a white ring around the disk)
-        # 3. !TODO normalise radius to fixed value
-        # 4. !TODO project to a certain location in space
+        # 3. set nan values to 0
+        rotated_map.data[np.isnan(rotated_map.data)] = 0.0
+        # 4. !TODO normalise radius to fixed value
+        # 5. !TODO project to a certain location in space
         return rotated_map
 
     def _rotate_datum(self, amap: sunpy.map.Map) -> sunpy.map.Map:
