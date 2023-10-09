@@ -420,3 +420,15 @@ def plot_col_scatter_single(
     ax.set_xlim(start_time, end_time)
 
     return fig, ax
+
+
+def plot_maps(map_one, map_two):
+    fig = plt.figure(figsize=(10, 4))
+
+    ax1 = fig.add_subplot(1, 2, 1, projection=map_one)
+    map_one.plot(cmap="hmimag")
+
+    ax2 = fig.add_subplot(1, 2, 2, projection=map_two)
+    map_two.plot(cmap="hmimag")
+
+    return fig, [ax1, ax2]

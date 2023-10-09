@@ -27,6 +27,7 @@ from arccnet.visualisation.data import (
     plot_hmi_mdi_availability,
     plot_col_scatter,
     plot_col_scatter_single,
+    plot_maps,
 )
 
 # Load HMI and MDI data
@@ -50,10 +51,15 @@ glue("hmi_mdi_dsun", dsun[0], display=False)
 
 # create co-temporal observations
 # !TODO tidy this up when we have processed data by picking a random date.
-obs_date = "20110326"
-hmi = sunpy.map.Map(f"../../data/02_intermediate/mag/fits/hmi.m_720s.{obs_date}_000000_TAI.1.magnetogram.fits")
-mdi = sunpy.map.Map(f"../../data/02_intermediate/mag/fits/mdi.fd_m_96m_lev182.{obs_date}_000000_TAI.data.fits")
+srs_hmi_mdi_merged_file = Path(config["paths"]["data_root"]) / "04_final" / "mag" / "srs_hmi_mdi_merged.parq"
+t = QTable.read(srs_hmi_mdi_merged_file)
+first_row = t[~t['path_mdi'].mask & ~t['path_hmi'].mask][0]
+hmi = sunpy.map.Map(first_row['path_hmi'])
+mdi = sunpy.map.Map(first_row['path_mdi'])
+obs_date = first_row['target_time_hmi'].to_datetime().strftime("%Y-%m-%d")
 
+mag, _ = plot_maps(mdi, hmi)
+glue("two_plots", mag, display=False)
 glue("hmi_plot", hmi, display=False)
 glue("mdi_plot", mdi, display=False)
 glue("obs_date", obs_date, display=False)
@@ -109,19 +115,14 @@ Datasets that combine observations from multiple observatories allow us to under
 
 The expansion of the SHARP series {cite:p}`Bobra2014` to SoHO/MDI (SMARPs; {cite:t}`Bobra2021`) has tried to negate this with a tuned detection algorithm to provide similar active region cutouts (and associated parameters) across two solar cycles. Other authors have incorporated advancements in the state-of-the-art for image translation to cross-calibrate data, however, out-of-the-box, these models generally prefer perceptual similarity. Importantly, progress has been made towards physically-driven approaches for instrument cross-calibration/super-resolution (e.g. Munoz-Jaramillo et al 2023 (in revision)) that takes into account knowledge of the underlying physics.
 
-Initially, we will utilise each instrument individually, before expanding to cross-calibration techniques. Examples of co-temporal data (for {glue}`obs_date`) is shown below with SunPy map objects in Figures {numref}`fig:mdi:cotemporal` and {numref}`fig:hmi:cotemporal`.
+Initially, we will utilise each instrument individually, before expanding to cross-calibration techniques. Examples of co-temporal data (for {glue}`obs_date`) is shown below with SunPy map objects in Figure {numref}`fig:mdi:cotemporalmag`.
 
-```{glue:figure} hmi_plot
+```{glue:figure} two_plots
 :alt: "Cotemporal HMI-MDI"
-:name: "fig:mdi:cotemporal"
-MDI observation of the Sun's magnetic field at {glue}`obs_date`.
+:name: "fig:hmi:cotemporalmag"
+MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`.
 ```
 
-```{glue:figure} mdi_plot
-:alt: "Cotemporal HMI-MDI"
-:name: "fig:hmi:cotemporal"
-HMI observation of the Sun's magnetic field at {glue}`obs_date`.
-```
 
 #### Instrumental/Orbital Effects on Data
 
