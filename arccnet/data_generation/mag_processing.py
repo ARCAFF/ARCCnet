@@ -77,7 +77,9 @@ class MagnetogramProcessor:
 
         processed_paths = []  # list of processed filepaths
 
-        logger.info(f"processing of {len(self.paths)} paths with multiprocessing = {use_multiprocessing}")
+        logger.info(
+            f"processing of {len(self.paths)} paths (multiprocessing = {use_multiprocessing}, overwrite = {overwrite})"
+        )
         if use_multiprocessing:
             # Use tqdm to create a progress bar for multiprocessing
             with multiprocessing.Pool() as pool:

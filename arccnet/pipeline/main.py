@@ -24,7 +24,7 @@ logger = get_logger(__name__, logging.DEBUG)
 
 
 def process_srs(config):
-    logger.info(f"Processing SRS with config: {config}")
+    logger.info(f"Processing SRS with config: {config}")  # should print_config()
     swpc = SWPCCatalog()
 
     data_dir_raw = Path(config["paths"]["data_dir_raw"])
@@ -99,6 +99,8 @@ def process_hmi(config):
     `list`
         A list of download objects for processed HMI data.
     """
+    logger.info("Processing HMI/SHARPs")
+
     mag_objs = [
         HMILOSMagnetogram(),
         HMISHARPs(),
@@ -144,6 +146,7 @@ def process_hmi(config):
 
     processed_data = MagnetogramProcessor(download_objects[0], save_path=processed_path, column_name="path")
     processed_table = processed_data.process(use_multiprocessing=True, overwrite=False)
+    logger.debug(f"Writing {hmi_processed_file}")
     processed_table.write(hmi_processed_file, format="parquet", overwrite=True)
 
     return [processed_table, download_objects[1]]
@@ -163,6 +166,7 @@ def process_mdi(config):
     `list`
         A list of download objects for processed MDI data.
     """
+    logger.info("Processing MDI/SMARPs")
 
     mag_objs = [
         MDILOSMagnetogram(),
@@ -209,6 +213,7 @@ def process_mdi(config):
 
     processed_data = MagnetogramProcessor(download_objects[0], save_path=processed_path, column_name="path")
     processed_table = processed_data.process(use_multiprocessing=True, overwrite=False)
+    logger.debug(f"Writing {mdi_processed_file}")
     processed_table.write(mdi_processed_file, format="parquet", overwrite=True)
 
     return [processed_table, download_objects[1]]
@@ -273,16 +278,17 @@ def _process_mag(
     # read raw_results and results_objects if all exist.
     all_files_exist = all(file.exists() for file in results_files_raw + results_files)
     if all_files_exist:
-        logger.debug("loading results_files")
+        logger.debug("Loading results files")
         metadata_raw = []
         results_objects = []
         for raw_file, file in zip(results_files_raw, results_files):
-            logger.info(f"{str(raw_file)}, {str(file)}")
+            logger.debug(f"reading {str(file)}")
             metadata_raw.append(pd.read_parquet(raw_file))
             results_objects.append(MagQuery(QTable.read(file, format="parquet")))
     else:
         # only save the query object if we're not loading the results_files
         for qo, qf in zip(query_objects, query_files):
+            logger.debug(f"Writing {qf}")
             qo.write(qf, format="parquet", overwrite=True)
 
         logger.debug("performing search")
@@ -292,12 +298,12 @@ def _process_mag(
             merge_tolerance=merge_tolerance,
         )
 
-        for df, rf in zip(metadata_raw, results_files_raw):
-            print(rf)
-            df.to_parquet(path=rf)  # this is a `DataFrame`
+        for df, rfr in zip(metadata_raw, results_files_raw):
+            logger.debug(f"Writing {rfr}")
+            df.to_parquet(path=rfr)  # this is a `DataFrame`
 
         for ro, rf in zip(results_objects, results_files):
-            print(rf)
+            logger.debug(f"Writing {rf}")
             ro.write(rf, format="parquet", overwrite=True)
 
     download_objects = dm.download(
@@ -307,6 +313,7 @@ def _process_mag(
     )
 
     for do, dfiles in zip(download_objects, downloads_files):
+        logger.debug(f"Writing {dfiles}")
         do.write(dfiles, format="parquet", overwrite=True)
 
     return download_objects
@@ -337,6 +344,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
         Three merged data tables: (srs_hmi_mdi, hmi_sharps, mdi_smarps).
     """
     # !TODO move to separate functions
+    logger.info("Merging magnetogram tables")
 
     data_root = config["paths"]["data_root"]
     srs_hmi_mdi_merged_file = Path(data_root) / "04_final" / "mag" / "srs_hmi_mdi_merged.parq"
@@ -377,6 +385,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
 
     # Drop rows where 'url_hmi' and 'url_mdi' are all NaN
     srsmdihmi_dropped = srsmdihmi_dropped[~(srsmdihmi_dropped["url_hmi"].mask & srsmdihmi_dropped["url_mdi"].mask)]
+    logger.debug(f"Writing {srs_hmi_mdi_merged_file}")
     srsmdihmi_dropped.write(srs_hmi_mdi_merged_file, format="parquet", overwrite=True)
 
     # 2. merge HMI-SHARPs
@@ -395,6 +404,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
         keys_right="datetime_arc",
         table_names=["hmi", "sharps"],
     )
+    logger.debug(f"Writing {hmi_sharps_merged_file}")
     hmi_sharps_table.write(hmi_sharps_merged_file, format="parquet", overwrite=True)
 
     # 3. merge MDI-SMARPs
@@ -413,6 +423,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
         keys_right="datetime_arc",
         table_names=["mdi", "smarps"],
     )
+    logger.debug(f"Writing {mdi_smarps_merged_file}")
     mdi_smarps_table.write(mdi_smarps_merged_file, format="parquet", overwrite=True)
 
     return srsmdihmi_dropped, hmi_sharps_table, mdi_smarps_table
@@ -426,7 +437,7 @@ def main():
     _, _, _, _, clean_catalog = process_srs(config)
     hmi_download_obj, sharps_download_obj = process_hmi(config)
     mdi_download_obj, smarps_download_obj = process_mdi(config)
-    _ = merge_mag_tables(
+    srs_mdi_hmi, hmi_sharps, mdi_smarps = merge_mag_tables(
         config,
         srs=clean_catalog,
         hmi=hmi_download_obj,

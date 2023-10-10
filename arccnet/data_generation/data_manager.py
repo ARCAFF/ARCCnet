@@ -298,12 +298,11 @@ class DataManager:
             results = query.copy()
 
             if overwrite is True or "path" not in query.colnames:
-                logger.debug(f"Full download with overwrite: (overwrite = {overwrite})")
+                logger.debug(f"Full download (overwrite = {overwrite})")
                 new_query = QTable(query)
 
             # !TODO a way of retrying missing would be good, but JSOC URLs are temporary.
             if new_query is not None:
-                logger.debug("Downloading ...")
                 downloaded_files = self._download(
                     data_list=new_query[~new_query["url"].mask]["url"].data.data, path=path, overwrite=overwrite
                 )
@@ -329,7 +328,6 @@ class DataManager:
             downloaded filenames
 
         """
-        logger.info("match downloads to query")
         results = QTable(results)
 
         if "path" in results.colnames:
@@ -394,7 +392,7 @@ class DataManager:
                 # If it doesn't exist, enqueue the file for downloading
                 downloader.enqueue_file(url=url, path=path)
 
-        print(f"{len(existing_files)}/{len(data_list)} files already exist. overwrite is {overwrite}.")
+        logger.debug(f"{len(existing_files)}/{len(data_list)} files already exist (overwrite = {overwrite})")
         results = downloader.download()
 
         if len(results.errors) != 0:
