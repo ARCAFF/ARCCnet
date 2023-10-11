@@ -5,19 +5,21 @@ from datetime import timedelta
 
 import pandas as pd
 
+import astropy.units as u
 from astropy.table import QTable, join
 
 from arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
 from arccnet.data_generation.data_manager import DataManager
 from arccnet.data_generation.data_manager import Query as MagQuery
-from arccnet.data_generation.mag_processing import MagnetogramProcessor
+from arccnet.data_generation.mag_processing import MagnetogramProcessor, RegionExtractor
 from arccnet.data_generation.magnetograms.instruments import (
     HMILOSMagnetogram,
     HMISHARPs,
     MDILOSMagnetogram,
     MDISMARPs,
 )
+from arccnet.data_generation.region_detection import RegionDetection
 from arccnet.data_generation.utils.data_logger import get_logger
 
 logger = get_logger(__name__, logging.DEBUG)
@@ -359,6 +361,8 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
         keys_right="target_time",
         table_names=["catalog", "image"],
     )
+    # attempting to remove the object
+    catalog_mdi.replace_column("path_catalog", [str(pc) for pc in catalog_mdi["path_catalog"]])
 
     catalog_hmi = join(
         QTable(srs),
@@ -367,6 +371,8 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
         keys_right="target_time",
         table_names=["catalog", "image"],
     )
+    # attempting to remove the object
+    catalog_hmi.replace_column("path_catalog", [str(pc) for pc in catalog_hmi["path_catalog"]])
 
     # There must be a better way to rename columns
     srs_renamed = srs.copy()  # Create a copy of the original table
@@ -445,6 +451,51 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     return catalog_hmi, catalog_mdi, srsmdihmi_dropped, hmi_sharps_table, mdi_smarps_table
 
 
+def region_extraction(config, srs_hmi, srs_mdi):
+    data_root = config["paths"]["data_root"]
+    data_plot_path = Path(data_root) / "04_final" / "mag" / "region_extraction" / "fits"
+    summary_plot_path = Path(data_root) / "04_final" / "mag" / "region_extraction" / "summary"
+
+    data_plot_path.mkdir(exist_ok=True, parents=True)
+    summary_plot_path.mkdir(exist_ok=True, parents=True)
+
+    hmi = RegionExtractor(srs_hmi).extract_regions(
+        cutout_size=(
+            int(config["magnetograms.cutouts"]["x_extent"]) * u.pix,
+            int(config["magnetograms.cutouts"]["y_extent"]) * u.pix,
+        ),
+        data_path=data_plot_path,
+        summary_plot_path=summary_plot_path,
+        qs_random_attempts=10,
+    )
+    mdi = RegionExtractor(srs_mdi).extract_regions(
+        cutout_size=(
+            int(config["magnetograms.cutouts"]["x_extent"]) / 2 * u.pix,
+            int(config["magnetograms.cutouts"]["y_extent"]) / 2 * u.pix,
+        ),
+        data_path=data_plot_path,
+        summary_plot_path=summary_plot_path,
+        qs_random_attempts=10,
+    )
+
+    # save?
+    return hmi, mdi
+
+
+def region_detection(config, hmi_sharps, mdi_smarps):
+    data_root = config["paths"]["data_root"]
+    region_detection_path = Path(data_root) / "04_final" / "mag" / "region_detection"
+    region_detection_path.mkdir(exist_ok=True, parents=True)
+
+    hmidetection = RegionDetection(table=hmi_sharps)
+    hmi_sharps_detection_table, hmi_sharps_detection_bboxes = hmidetection.get_bboxes()
+
+    mdidetection = RegionDetection(table=mdi_smarps)
+    mdi_smarps_detection_table, mdi_smarps_detection_bboxes = mdidetection.get_bboxes()
+
+    return mdi_smarps_detection_table, hmi_sharps_detection_table
+
+
 def main():
     root_logger = logging.getLogger()
     root_logger.setLevel("DEBUG")
@@ -461,99 +512,17 @@ def main():
         sharps=sharps_download_obj,
         smarps=smarps_download_obj,
     )
+
+    srs_hmi_cutouts, srs_mdi_cutouts = region_extraction(config, srs_hmi, srs_mdi)
+    srs_hmi_cutouts_ar, srs_hmi_cutouts_qs = srs_hmi_cutouts
+    srs_mdi_cutouts_ar, srs_mdi_cutouts_qs = srs_mdi_cutouts
+    # need to convert the Path column to string to save.
+
+    mdi_smarps_detection_table, hmi_sharps_detection_table = region_detection(config, hmi_sharps, mdi_smarps)
+
     logger.debug("Finished main")
 
 
 if __name__ == "__main__":
     main()
-    # old_logger.info(f"Executing {__file__} as main program")
-
-    # data_download = False
-    # mag_process = False
-    # region_extraction = True
-    # region_detection = True
-
-    # if data_download:
-    #     data_manager = DataManager(
-    #         start_date=dv.DATA_START_TIME,
-    #         end_date=dv.DATA_END_TIME,
-    #         merge_tolerance=pd.Timedelta("30m"),
-    #         download_fits=True,
-    #         overwrite_fits=False,
-    #         save_to_csv=True,
-    #     )
-
-    # if mag_process:
-    #     mag_processor = MagnetogramProcessor(
-    #         csv_in_file=Path(dv.MAG_INTERMEDIATE_HMIMDI_DATA_CSV),
-    #         csv_out_file=Path(dv.MAG_INTERMEDIATE_HMIMDI_PROCESSED_DATA_CSV),
-    #         columns=["download_path_hmi", "download_path_mdi"],
-    #         processed_data_dir=Path(dv.MAG_INTERMEDIATE_DATA_DIR),
-    #         process_data=True,
-    #         use_multiprocessing=True,
-    #     )
-
-    # # Build 03_processed directory
-    # paths_03 = [
-    #     Path(dv.MAG_PROCESSED_FITS_DIR),
-    #     Path(dv.MAG_PROCESSED_QSSUMMARYPLOTS_DIR),
-    #     Path(dv.MAG_PROCESSED_QSFITS_DIR),
-    # ]
-    # for path in paths_03:
-    #     if not path.exists():
-    #         path.mkdir(parents=True)
-
-    # if region_extraction:
-    #     region_extractor = RegionExtractor(
-    #         dataframe=Path(dv.MAG_INTERMEDIATE_HMIMDI_PROCESSED_DATA_CSV),
-    #         out_fnames=["mdi", "hmi"],
-    #         datetimes=["datetime_mdi", "datetime_hmi"],
-    #         data_cols=["processed_download_path_mdi", "processed_download_path_hmi"],
-    #         # new_cols=["cutout_mdi", "cutout_hmi"],
-    #         cutout_sizes=[
-    #             (int(dv.X_EXTENT / 4), int(dv.Y_EXTENT / 4)),
-    #             (int(dv.X_EXTENT), int(dv.Y_EXTENT)),
-    #         ],
-    #         common_datetime_col="datetime_srs",
-    #         num_random_attempts=10,
-    #     )
-
-    #     # Save the AR Classification dataset
-    #     region_extractor.activeregion_classification_df.to_csv(
-    #         Path(dv.MAG_PROCESSED_DIR) / Path("ARExtraction.csv"), index=False
-    #     )
-    #     # Drop SRS-related rows (minus "datetime_srs")
-    #     region_extractor.quietsun_df.drop(
-    #         columns=[
-    #             "ID",
-    #             "Number",
-    #             "Carrington Longitude",
-    #             "Area",
-    #             "Z",
-    #             "Longitudinal Extent",
-    #             "Number of Sunspots",
-    #             "Mag Type",
-    #             "Latitude",
-    #             "Longitude",
-    #             "filepath_srs",
-    #             "filename_srs",
-    #             "loaded_successfully_srs",
-    #             "catalog_created_on_srs",
-    #         ]
-    #     ).to_csv(Path(dv.MAG_PROCESSED_DIR) / Path("QSExtraction.csv"), index=False)
-
-    # if region_detection:
-    #     hs_match = pd.read_csv(dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV)
-
-    #     # need to alter the original code, but change the download_path to processed data
-    #     hs_match["download_path"] = hs_match["download_path"].str.replace("01_raw", "02_intermediate")
-    #     with tempfile.TemporaryDirectory() as tmpdirname:
-    #         # save the temporary change to the data
-    #         filepath = Path(tmpdirname) / Path("temp.csv")
-    #         hs_match.to_csv(filepath)
-    #         region_detection = RegionDetection(filepath)
-
-    #         region_detection.regiondetection_df.to_csv(
-    #             Path(dv.MAG_PROCESSED_DIR) / Path("ARDetection.csv"), index=False
-    #         )
     sys.exit()
