@@ -309,7 +309,7 @@ class ARClassification(QTable):
         "latitude": u.deg,
         "longitude": u.deg,
         "path_catalog": str,
-        "path_image": str,
+        "processed_path_image": str,
     }
 
     def __init__(self, *args, **kwargs):
@@ -350,22 +350,28 @@ class RegionExtractor:
         self,
         table: QTable,
     ) -> None:
-        self._table = ARClassification(table[~table["path_image"].mask])
+        self._table = ARClassification(table[~table["processed_path_image"].mask])
 
     def extract_regions(self, cutout_size, summary_plot_path, qs_random_attempts=10, qs_max_iter=20):
         result_table = QTable(ARClassification.augment_table(self._table))
         table_by_target_time = result_table.group_by("time")
 
         qs_table = result_table[:0][
-            "time", "path_image_cutout", "dim_image_cutout", "longitude", "latitude", "path_image", "sum_ondisk_nans"
+            "time",
+            "path_image_cutout",
+            "dim_image_cutout",
+            "longitude",
+            "latitude",
+            "processed_path_image",
+            "sum_ondisk_nans",
         ].copy()
 
         # iterate through groups
         for tbtt in table_by_target_time.groups:
-            if len(np.unique(tbtt["path_image"])) != 1:
+            if len(np.unique(tbtt["processed_path_image"])) != 1:
                 raise ValueError("len(hmi_file) is not 1")
 
-            hmi_file = tbtt["path_image"][0]
+            hmi_file = tbtt["processed_path_image"][0]
 
             hmi_map = sunpy.map.Map(hmi_file)
             time_catalog = tbtt["time"][0].to_datetime()
@@ -412,7 +418,7 @@ class RegionExtractor:
                         "dim_image_cutout": qsreg.shape * u.pix,
                         "longitude": qsreg.longitude * u.deg,
                         "latitude": qsreg.latitude * u.deg,
-                        "path_image": hmi_file,
+                        "processed_path_image": hmi_file,
                         "sum_ondisk_nans": on_disk_nans.sum(),
                     }
                     qs_table.add_row(new_row)
