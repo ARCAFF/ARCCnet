@@ -352,7 +352,7 @@ class RegionExtractor:
     ) -> None:
         self._table = ARClassification(table[~table["processed_path_image"].mask])
 
-    def extract_regions(self, cutout_size, summary_plot_path, qs_random_attempts=10, qs_max_iter=20):
+    def extract_regions(self, cutout_size, data_path, summary_plot_path, qs_random_attempts=10, qs_max_iter=20):
         result_table = QTable(ARClassification.augment_table(self._table))
         table_by_target_time = result_table.group_by("time")
 
@@ -369,20 +369,20 @@ class RegionExtractor:
         # iterate through groups
         for tbtt in table_by_target_time.groups:
             if len(np.unique(tbtt["processed_path_image"])) != 1:
-                raise ValueError("len(hmi_file) is not 1")
+                raise ValueError("len(image_file) is not 1")
 
-            hmi_file = tbtt["processed_path_image"][0]
+            image_file = tbtt["processed_path_image"][0]
+            image_map = sunpy.map.Map(image_file)
 
-            hmi_map = sunpy.map.Map(hmi_file)
             time_catalog = tbtt["time"][0].to_datetime()
 
             # set nan values in the map to zero
             # workaround for issues seen in processing
-            data = hmi_map.data
+            data = image_map.data
             on_disk_nans = np.isnan(data)
             if on_disk_nans.sum() > 0:
                 logger.warning(
-                    f"There are {on_disk_nans.sum()} on-disk nans in this {hmi_map.date} {hmi_map.instrument} map"
+                    f"There are {on_disk_nans.sum()} on-disk nans in this {image_map.date} {image_map.instrument.replace(' ', '_')} map"
                 )
                 indices = np.where(on_disk_nans)
                 data[indices] = 0.0
@@ -390,7 +390,7 @@ class RegionExtractor:
             regions = []
 
             # add active regions to regions list
-            active_regions = self._activeregion_extraction(tbtt, hmi_map, cutout_size)
+            active_regions = self._activeregion_extraction(tbtt, image_map, cutout_size, path=data_path)
             regions.extend(active_regions)
             # ... update the table
             for r, reg in zip(tbtt, regions):
@@ -403,11 +403,12 @@ class RegionExtractor:
             # if quiet_sun, attempt to extract `num_random_attempts` regions and append
             if qs_random_attempts > 0:
                 quiet_regions = self._quietsun_extraction(
-                    hmi_map=hmi_map,
+                    sunpy_map=image_map,
                     cutout_size=cutout_size,
                     num_random_attempts=qs_random_attempts,
                     max_iter=qs_max_iter,
                     existing_regions=regions,
+                    path=data_path,
                 )
                 regions.extend(quiet_regions)
                 for qsreg in quiet_regions:
@@ -418,19 +419,19 @@ class RegionExtractor:
                         "dim_image_cutout": qsreg.shape * u.pix,
                         "longitude": qsreg.longitude * u.deg,
                         "latitude": qsreg.latitude * u.deg,
-                        "processed_path_image": hmi_file,
+                        "processed_path_image": image_file,
                         "sum_ondisk_nans": on_disk_nans.sum(),
                     }
                     qs_table.add_row(new_row)
 
             # pass regions to plotting
-            self.summary_plots(regions, hmi_map, cutout_size[1], summary_plot_path)
+            self.summary_plots(regions, image_map, cutout_size[1], summary_plot_path)
 
         return tbtt, qs_table
 
-    def _activeregion_extraction(self, group, hmi_map, cutout_size) -> list[ARBox]:
+    def _activeregion_extraction(self, group, sunpy_map, cutout_size, path) -> list[ARBox]:
         """
-        given a table `group` that share the same `hmi_map`, return ARBox objects with a determined cutout_size
+        given a table `group` that share the same `sunpy_map`, return ARBox objects with a determined cutout_size
         """
         ar_objs = []
         xsize, ysize = cutout_size
@@ -440,18 +441,19 @@ class RegionExtractor:
             iterate through group, extracting active regions from lat/lon into image pixels
             """
             top_right, bottom_left, ar_pos_pixels = extract_region_lonlat(
-                hmi_map,
+                sunpy_map,
                 row["latitude"],
                 row["longitude"],
                 xsize=xsize,
                 ysize=ysize,
             )
 
-            hmi_smap = hmi_map.submap(bottom_left, top_right=top_right)
+            hmi_smap = sunpy_map.submap(bottom_left, top_right=top_right)
 
+            config["paths"]["mag_processed_qsfits_dir"]
             output_filename = (
-                Path(config["paths"]["mag_processed_qsfits_dir"])
-                / f"{hmi_map.date.to_datetime().strftime('%d-%h-%Y_%H-%M-%S')}_AR_{hmi_map.instrument}.fits"
+                Path(path)
+                / f"{sunpy_map.date.to_datetime().strftime('%d-%h-%Y_%H-%M-%S')}_AR_{sunpy_map.instrument.replace(' ', '_')}.fits"
             )
 
             save_compressed_map(hmi_smap, path=output_filename, overwrite=True)
@@ -472,7 +474,13 @@ class RegionExtractor:
         return ar_objs
 
     def _quietsun_extraction(
-        self, hmi_map, cutout_size, num_random_attempts, max_iter, existing_regions
+        self,
+        sunpy_map: sunpy.map.Map,
+        cutout_size: tuple[u.pix, u.pix],
+        num_random_attempts: int,
+        max_iter: int,
+        existing_regions: list[Union[ARBox, QSBox]],
+        path: Path,
     ) -> list[QSBox]:
         """
         extract regions of `cutout_size`, at locations not covered by `existing_regions`
@@ -490,8 +498,8 @@ class RegionExtractor:
             qs_center_hproj = SkyCoord(
                 random.uniform(-1000, 1000) * u.arcsec,
                 random.uniform(-1000, 1000) * u.arcsec,
-                frame=hmi_map.coordinate_frame,
-            ).to_pixel(hmi_map.wcs)
+                frame=sunpy_map.coordinate_frame,
+            ).to_pixel(sunpy_map.wcs)
 
             # check ar_pos_hproj is far enough from other vals
             candidates = list(
@@ -507,12 +515,12 @@ class RegionExtractor:
             if all(candidates):
                 # generate the submap
                 bottom_left, top_right = pixel_to_bboxcoords(xsize, ysize, qs_center_hproj * u.pix)
-                qs_submap = hmi_map.submap(bottom_left, top_right=top_right)
+                qs_submap = sunpy_map.submap(bottom_left, top_right=top_right)
 
                 # save to file
                 output_filename = (
-                    Path(config["paths"]["mag_processed_qsfits_dir"])
-                    / f"{hmi_map.date.to_datetime().strftime('%d-%h-%Y_%H-%M-%S')}_QS_{hmi_map.instrument}.fits"
+                    Path(path)
+                    / f"{sunpy_map.date.to_datetime().strftime('%d-%h-%Y_%H-%M-%S')}_QS_{sunpy_map.instrument.replace(' ', '_')}.fits"
                 )
 
                 # create QS BBox object
@@ -544,15 +552,15 @@ class RegionExtractor:
 
     @u.quantity_input
     def summary_plots(
-        self, regions: list[Union[ARBox, QSBox]], hmi_map: sunpy.map.Map, ysize: u.pix, summary_plot_path: Path
+        self, regions: list[Union[ARBox, QSBox]], sunpy_map: sunpy.map.Map, ysize: u.pix, summary_plot_path: Path
     ) -> None:
-        fig = plt.figure(figsize=(8, 8))
+        fig = plt.figure(figsize=(5, 5))
 
         # there may be an issue with this cmap and vmin/max (different gray values as background)
-        ax = fig.add_subplot(projection=hmi_map)
-        hmi_map.plot_settings["norm"].vmin = -1499
-        hmi_map.plot_settings["norm"].vmax = 1499
-        hmi_map.plot(axes=ax, cmap="hmimag")
+        ax = fig.add_subplot(projection=sunpy_map)
+        sunpy_map.plot_settings["norm"].vmin = -1499
+        sunpy_map.plot_settings["norm"].vmax = 1499
+        sunpy_map.plot(axes=ax, cmap="hmimag")
 
         text_objects = []
 
@@ -565,7 +573,7 @@ class RegionExtractor:
                 raise ValueError("Unsupported box type")
 
             # deal with boxes off the edge
-            hmi_map.draw_quadrangle(
+            sunpy_map.draw_quadrangle(
                 box_info.bottom_left,
                 axes=ax,
                 top_right=box_info.top_right,
@@ -584,7 +592,7 @@ class RegionExtractor:
 
         output_filename = (
             summary_plot_path
-            / f"{hmi_map.date.to_datetime().strftime('%d-%h-%Y_%H-%M-%S')}_QS_{hmi_map.instrument}.fits"
+            / f"{sunpy_map.date.to_datetime().strftime('%d-%h-%Y_%H-%M-%S')}_{sunpy_map.instrument}.png"
         )
 
         plt.savefig(
