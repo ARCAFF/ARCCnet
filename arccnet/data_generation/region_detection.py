@@ -1,12 +1,14 @@
 from pathlib import Path
 from dataclasses import dataclass
 
-import pandas as pd
+import numpy as np
 import sunpy.map
-from pandas import DataFrame
 from tqdm import tqdm
 
-from arccnet import config
+import astropy.units as u
+from astropy.table import MaskedColumn, QTable
+from astropy.time import Time
+
 from arccnet.data_generation.utils.data_logger import logger
 
 __all__ = ["RegionDetection", "DetectionBox"]
@@ -20,8 +22,54 @@ class DetectionBox:
     top_right_coord_px: tuple[float, float]
 
 
+class RD(QTable):
+    r"""
+    Result object defines both the result and download status.
+
+    The value of the 'path' is used to encode if the corresponding file was downloaded or not.
+
+    Notes
+    -----
+    Under the hood uses QTable and Masked columns to define if a file was downloaded or not
+
+    """
+    required_column_types = {
+        "target_time": Time,
+        "path": str,  # probably want processed_path
+        "path_arc": str,
+    }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not set(self.colnames).issuperset(set(self.required_column_types.keys())):
+            raise ValueError(
+                f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns"
+            )
+
+    @classmethod
+    def augment_table(cls, base_table):
+        if not isinstance(base_table, cls):
+            raise ValueError("base_table must be an instance of RD")
+
+        # Check if additional columns already exist
+        existing_columns = set(base_table.colnames).intersection(["top_right", "bottom_left"])
+        if existing_columns:
+            raise ValueError(f"Columns {existing_columns} already exist in base_table.")
+
+        # Create a copy of the base table
+        new_table = cls(base_table)
+
+        # Add the new columns to the table
+        length = len(base_table)
+        # Create masked columns with specified values as masks
+        new_table["top_right_region"] = MaskedColumn(data=[(0, 0)] * length * u.pix, mask=[(True, True)] * length)
+        new_table["bottom_left_region"] = MaskedColumn(data=[(0, 0)] * length * u.pix, mask=[(True, True)] * length)
+
+        return new_table
+
+
 class RegionDetection:
-    def __init__(self, filename: Path = None):
+    def __init__(self, table: QTable):
         """
         Initialize a RegionDetection instance
 
@@ -31,68 +79,51 @@ class RegionDetection:
             Path to the input CSV file. If no path is provided,
             this defaults to HMI-SHARPs: dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV.
         """
-        full_disk_path_column = "download_path"
-        cutout_path_column = "download_path_arc"
 
-        if filename is None:
-            filename = config["paths"]["mag_intermediate_hmisharps_data_csv"]
-
-        self.loaded_data = pd.read_csv(filename)
-
-        self.bboxes = self.get_bboxes(self.loaded_data, full_disk_path_column, cutout_path_column)
-        self.regiondetection_df = self.update_loaded_data(
-            self.loaded_data, full_disk_path_column, cutout_path_column, self.bboxes
-        )
+        self._loaded_data = RD(table)
+        self._result_table = QTable(RD.augment_table(self._loaded_data))
+        self._col_group = "path"
+        self._col_cutout = "path_arc"
 
     def get_bboxes(
         self,
-        df: DataFrame,
-        col_group: str,
-        col_cutout: str,
     ) -> list[DetectionBox]:
         """
         Extract detection boxes from the input DataFrame.
-
-        Parameters
-        ----------
-        df : `DataFrame`
-            Input DataFrame
-
-        col_group : `str`
-            Column name for group
-
-        col_cutout : `str`
-            Column name for cutout URLs
 
         Returns
         -------
         `list[DetectionBox]`
             List of DetectionBox instances
         """
-        grouped_data = df.groupby(col_group)
+        grouped_data = QTable(self._loaded_data).group_by(self._col_group)
+
         bboxes = []
-        for fulldisk_path, group in tqdm(grouped_data, total=len(grouped_data), desc="Processing"):
+        for group in tqdm(grouped_data.groups, total=len(grouped_data.groups), desc="Processing"):
+            fulldisk_path = group["path"][0]
             fulldisk_map = sunpy.map.Map(Path(fulldisk_path))
 
-            for _, row in group.iterrows():
-                cutout_map = sunpy.map.Map(row[col_cutout])
+            for row in group:
+                cutout_map = sunpy.map.Map(row[self._col_cutout])
 
                 # rotate with missing, the value to use for pixels in the output map that are beyond the extent of the input map,
                 # set to zero. the default is `np.nan`
                 cutout_map = cutout_map.rotate(missing=0)
-                bl_transformed = cutout_map.bottom_left_coord.transform_to(fulldisk_map.coordinate_frame).to_pixel(
-                    fulldisk_map.wcs
+                bl_transformed = (
+                    cutout_map.bottom_left_coord.transform_to(fulldisk_map.coordinate_frame).to_pixel(fulldisk_map.wcs)
+                    * u.pix
                 )
-                tr_transformed = cutout_map.top_right_coord.transform_to(fulldisk_map.coordinate_frame).to_pixel(
-                    fulldisk_map.wcs
+                tr_transformed = (
+                    cutout_map.top_right_coord.transform_to(fulldisk_map.coordinate_frame).to_pixel(fulldisk_map.wcs)
+                    * u.pix
                 )
 
                 bboxes.append(
                     DetectionBox(
                         fulldisk_path=Path(fulldisk_path),
-                        bottom_left_coord_px=(bl_transformed[0].item(), bl_transformed[1].item()),
-                        top_right_coord_px=(tr_transformed[0].item(), tr_transformed[1].item()),
-                        cutout_path=Path(row[col_cutout]),
+                        cutout_path=Path(row[self._col_cutout]),
+                        bottom_left_coord_px=bl_transformed,
+                        top_right_coord_px=tr_transformed,
                     )
                 )
 
@@ -100,59 +131,41 @@ class RegionDetection:
 
         del fulldisk_map
 
-        return bboxes
+        return self.update_loaded_data(bboxes), bboxes
 
     def update_loaded_data(
         self,
-        df: DataFrame,
-        col_group: str,
-        col_cutout: str,
         bboxes: list[DetectionBox],
-    ) -> DataFrame:
+    ) -> QTable:
         """
-        Update the loaded DataFrame with detection box information.
+        Update the loaded QTable with detection box information.
 
         Parameters
         ----------
-        df : `DataFrame`
-            Input DataFrame
-
-        col_group : `str`
-            Column name for the group
-
-        col_cutout : `str`
-            Column name for cutout
-
         bboxes : `list[DetectionBox]`
             List of DetectionBox instances
 
         Returns
         -------
-        `DataFrame`
-            Updated DataFrame with coordinates
+        `QTable`
+            Updated QTable with coordinates
         """
-        updated_df = df.copy()
+        updated_table = self._result_table.copy()  # Assuming self._loaded_data is a QTable
 
-        for bbox in bboxes:  # Assuming self.df contains the list of DetectionBox instances
-            # Find rows in self.loaded_data that match the fulldisk_path
-            matching_row = updated_df[
-                (updated_df[col_group].apply(lambda x: Path(x)) == bbox.fulldisk_path)
-                & (updated_df[col_cutout].apply(lambda x: Path(x)) == bbox.cutout_path)
-            ]
+        for bbox in bboxes:
+            # Find rows in self._loaded_data that match the fulldisk_path and cutout_path
+            matching_rows = np.where(
+                (updated_table[self._col_group] == str(bbox.fulldisk_path))
+                & (updated_table[self._col_cutout] == str(bbox.cutout_path))
+            )
 
-            if len(matching_row) == 1:
-                # Check if the columns exist in the DataFrame and add them if needed
-                coord_cols = ["bottom_left_coord_px", "top_right_coord_px"]
-                for col in coord_cols:
-                    if col not in updated_df.columns:
-                        updated_df[col] = None
-                        logger.info(f"Column '{col}' added")
-
-                updated_df.at[matching_row.index[0], coord_cols[0]] = bbox.bottom_left_coord_px
-                updated_df.at[matching_row.index[0], coord_cols[1]] = bbox.top_right_coord_px
+            if len(matching_rows[0]) == 1:
+                # Update the masked columns directly using the row index
+                updated_table[matching_rows[0][0]]["top_right_region"] = bbox.top_right_coord_px
+                updated_table[matching_rows[0][0]]["bottom_left_region"] = bbox.bottom_left_coord_px
             else:
-                logger.warn(
-                    f"{len(matching_row)} rows matched with {bbox.fulldisk_path.name} and {bbox.cutout_path.name} "
-                )
+                logger.warn(f"{len(matching_rows)} rows matched with {bbox.fulldisk_path} and {bbox.cutout_path}")
 
-        return updated_df
+            print("---->")
+
+        return RD(updated_table)
