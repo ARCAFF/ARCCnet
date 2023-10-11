@@ -352,6 +352,22 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     mdi_smarps_merged_file = Path(data_root) / "04_final" / "mag" / "mdi_smarps_merged.parq"
     srs_hmi_mdi_merged_file.parent.mkdir(exist_ok=True, parents=True)
 
+    catalog_mdi = join(
+        QTable(srs),
+        QTable(mdi),
+        keys_left="time",
+        keys_right="target_time",
+        table_names=["catalog", "image"],
+    )
+
+    catalog_hmi = join(
+        QTable(srs),
+        QTable(hmi),
+        keys_left="time",
+        keys_right="target_time",
+        table_names=["catalog", "image"],
+    )
+
     # There must be a better way to rename columns
     srs_renamed = srs.copy()  # Create a copy of the original table
     for colname in srs_renamed.colnames:
@@ -426,7 +442,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     logger.debug(f"Writing {mdi_smarps_merged_file}")
     mdi_smarps_table.write(mdi_smarps_merged_file, format="parquet", overwrite=True)
 
-    return srsmdihmi_dropped, hmi_sharps_table, mdi_smarps_table
+    return catalog_hmi, catalog_mdi, srsmdihmi_dropped, hmi_sharps_table, mdi_smarps_table
 
 
 def main():
@@ -437,7 +453,7 @@ def main():
     _, _, _, _, clean_catalog = process_srs(config)
     hmi_download_obj, sharps_download_obj = process_hmi(config)
     mdi_download_obj, smarps_download_obj = process_mdi(config)
-    srs_mdi_hmi, hmi_sharps, mdi_smarps = merge_mag_tables(
+    srs_hmi, srs_mdi, srs_mdi_hmi, hmi_sharps, mdi_smarps = merge_mag_tables(
         config,
         srs=clean_catalog,
         hmi=hmi_download_obj,
