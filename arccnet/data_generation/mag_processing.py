@@ -427,7 +427,7 @@ class RegionExtractor:
             # pass regions to plotting
             self.summary_plots(regions, image_map, cutout_size[1], summary_plot_path)
 
-        return tbtt, qs_table
+        return table_by_target_time, qs_table
 
     def _activeregion_extraction(self, group, sunpy_map, cutout_size, path) -> list[ARBox]:
         """
