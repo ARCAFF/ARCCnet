@@ -12,10 +12,9 @@ from tqdm import tqdm
 
 import astropy.units as u
 from astropy.coordinates import SkyCoord
-from astropy.table import MaskedColumn, QTable
+from astropy.table import MaskedColumn, QTable, vstack
 from astropy.time import Time
 
-from arccnet import config
 from arccnet.data_generation.data_manager import Result as MagResult
 from arccnet.data_generation.utils.data_logger import logger
 from arccnet.data_generation.utils.utils import is_point_far_from_point, save_compressed_map
@@ -107,21 +106,25 @@ class MagnetogramProcessor:
 
     def _add_processed_paths(self, filename_mapping, col_prefix):
         new_table = self._table.copy()
-        new_table["processed_path"] = None
+        # new_table["processed_path"] = None
+        length = len(new_table)
+        new_table["temp_processed_path"] = MaskedColumn(data=[Path()] * length, mask=[True] * length)
         # Create a masked version of the 'processed_path' column with the desired mask
-        masked_processed_path = MaskedColumn(
-            new_table[col_prefix + self._column_name], mask=(new_table[col_prefix + self._column_name] is None)
-        )
+        # masked_processed_path = MaskedColumn(
+        #     new_table[col_prefix + self._column_name], mask=(new_table[col_prefix + self._column_name] is None)
+        # )
 
         # Update 'processed_path' directly within the masked column
         for i, path in enumerate(new_table[self._column_name]):
             if not new_table[self._column_name].mask[i]:
                 filename = Path(path).name
                 if filename in filename_mapping:
-                    masked_processed_path[i] = filename_mapping[filename]
+                    new_table["temp_processed_path"][i] = filename_mapping[filename]
+                    # masked_processed_path[i] = filename_mapping[filename]
 
         # Replace the 'processed_path' column with the masked version
-        new_table[col_prefix + self._column_name] = masked_processed_path.astype(str)
+        new_table[col_prefix + self._column_name] = new_table["temp_processed_path"].astype(str)
+        new_table.remove_column("temp_processed_path")
 
         return MagResult(new_table)
 
@@ -205,8 +208,6 @@ class MagnetogramProcessor:
         # 2. set data off-disk to 0 (np.nan would be ideal, but deep learning)
         rotated_map.data[~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(rotated_map))] = 0.0
         # !TODO understand why this isn't working correctly with MDI (leaves a white ring around the disk)
-        # 3. set nan values to 0
-        rotated_map.data[np.isnan(rotated_map.data)] = 0.0
         # 4. !TODO normalise radius to fixed value
         # 5. !TODO project to a certain location in space
         return rotated_map
@@ -308,7 +309,6 @@ class ARClassification(QTable):
         "number": int,
         "latitude": u.deg,
         "longitude": u.deg,
-        "path_catalog": str,
         "processed_path_image": str,
     }
 
@@ -340,6 +340,8 @@ class ARClassification(QTable):
         new_table["path_image_cutout"] = MaskedColumn(data=[Path()] * length, mask=[True] * length)
         new_table["dim_image_cutout"] = MaskedColumn(data=[(0, 0)] * length * u.pix, mask=[(True, True)] * length)
         new_table["sum_ondisk_nans"] = MaskedColumn(data=[-1] * length, dtype=np.int64, mask=[True] * length)
+        new_table["quicklook_path"] = MaskedColumn(data=[Path()] * length, mask=[True] * length)
+        new_table["region_type"] = MaskedColumn(data=["XX"] * length, mask=[True] * length)
 
         return new_table
 
@@ -350,7 +352,7 @@ class RegionExtractor:
         self,
         table: QTable,
     ) -> None:
-        self._table = ARClassification(table[~table["processed_path_image"].mask])
+        self._table = ARClassification(table[~table["processed_path_image"].mask])  # this doesn't deal with the None...
 
     def extract_regions(self, cutout_size, data_path, summary_plot_path, qs_random_attempts=10, qs_max_iter=20):
         result_table = QTable(ARClassification.augment_table(self._table))
@@ -358,22 +360,33 @@ class RegionExtractor:
 
         qs_table = result_table[:0][
             "time",
+            "number",
             "path_image_cutout",
+            "top_right_cutout",
+            "bottom_left_cutout",
             "dim_image_cutout",
             "longitude",
             "latitude",
             "processed_path_image",
             "sum_ondisk_nans",
+            "quicklook_path",
+            "region_type",
         ].copy()
 
         # iterate through groups
-        for tbtt in table_by_target_time.groups:
+        for tbtt in tqdm(table_by_target_time.groups):
             if len(np.unique(tbtt["processed_path_image"])) != 1:
                 raise ValueError("len(image_file) is not 1")
 
+            if tbtt["processed_path_image"][0] == "None":  # I hate QTable
+                continue
+
             image_file = tbtt["processed_path_image"][0]
             image_map = sunpy.map.Map(image_file)
-
+            quicklook_filename = (
+                summary_plot_path
+                / f"{image_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{image_map.instrument.replace(' ', '_')}.png"
+            )
             time_catalog = tbtt["time"][0].to_datetime()
 
             # set nan values in the map to zero
@@ -399,6 +412,8 @@ class RegionExtractor:
                 r["sum_ondisk_nans"] = on_disk_nans.sum()
                 r["dim_image_cutout"] = reg.shape
                 r["path_image_cutout"] = reg.filepath
+                r["quicklook_path"] = quicklook_filename
+                r["region_type"] = "AR"
 
             # if quiet_sun, attempt to extract `num_random_attempts` regions and append
             if qs_random_attempts > 0:
@@ -415,19 +430,39 @@ class RegionExtractor:
                     # update dataframe
                     new_row = {
                         "time": Time(time_catalog),
+                        "number": qsreg.identifier,
                         "path_image_cutout": qsreg.filepath,
+                        "top_right_cutout": qsreg.top_right,
+                        "bottom_left_cutout": qsreg.bottom_left,
                         "dim_image_cutout": qsreg.shape * u.pix,
                         "longitude": qsreg.longitude * u.deg,
                         "latitude": qsreg.latitude * u.deg,
                         "processed_path_image": image_file,
                         "sum_ondisk_nans": on_disk_nans.sum(),
+                        "quicklook_path": quicklook_filename,
+                        "region_type": "QS",
                     }
                     qs_table.add_row(new_row)
 
             # pass regions to plotting
-            self.summary_plots(regions, image_map, cutout_size[1], summary_plot_path)
+            self.summary_plots(regions, image_map, cutout_size[1], summary_plot_path, quicklook_filename)
 
-        return table_by_target_time, qs_table
+            del image_map
+
+        # not sure about this, but want to convert to strings, not leave as objects
+        # Add a region_type, vstack, and sort by time.
+        ttt = ARClassification(table_by_target_time)
+        ttt.replace_column("path_image_cutout", [str(p) for p in ttt["path_image_cutout"]])
+        ttt.replace_column("quicklook_path", [str(p) for p in ttt["quicklook_path"]])
+
+        qst = ARClassification(qs_table)
+        qst.replace_column("path_image_cutout", [str(p) for p in qst["path_image_cutout"]])
+        qst.replace_column("quicklook_path", [str(p) for p in qst["quicklook_path"]])
+
+        all_regions = ARClassification(vstack([QTable(ttt), QTable(qst)]))
+        all_regions.sort("time")
+
+        return ttt, qst, all_regions
 
     def _activeregion_extraction(self, group, sunpy_map, cutout_size, path) -> list[ARBox]:
         """
@@ -435,7 +470,6 @@ class RegionExtractor:
         """
         ar_objs = []
         xsize, ysize = cutout_size
-        logger.info(len(group))
         for row in group:
             """
             iterate through group, extracting active regions from lat/lon into image pixels
@@ -450,10 +484,9 @@ class RegionExtractor:
 
             hmi_smap = sunpy_map.submap(bottom_left, top_right=top_right)
 
-            config["paths"]["mag_processed_qsfits_dir"]
             output_filename = (
-                Path(path)
-                / f"{sunpy_map.date.to_datetime().strftime('%d-%h-%Y_%H-%M-%S')}_AR_{sunpy_map.instrument.replace(' ', '_')}.fits"
+                path
+                / f"{sunpy_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_AR-{row['number']}_{sunpy_map.instrument.replace(' ', '_')}.fits"
             )
 
             save_compressed_map(hmi_smap, path=output_filename, overwrite=True)
@@ -519,8 +552,8 @@ class RegionExtractor:
 
                 # save to file
                 output_filename = (
-                    Path(path)
-                    / f"{sunpy_map.date.to_datetime().strftime('%d-%h-%Y_%H-%M-%S')}_QS_{sunpy_map.instrument.replace(' ', '_')}.fits"
+                    path
+                    / f"{sunpy_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_QS-{qs_df_len}_{sunpy_map.instrument.replace(' ', '_')}.fits"
                 )
 
                 # create QS BBox object
@@ -530,12 +563,13 @@ class RegionExtractor:
                     bottom_left=bottom_left,
                     shape=qs_submap.data.shape,
                     ar_pos_pixels=qs_center_hproj,
-                    identifier=None,
+                    identifier=qs_df_len,
                     filepath=output_filename,
                 )
 
                 # only keep those with the center on disk
                 if qs_region.center is np.nan:
+                    iterations += 1
                     continue
 
                 save_compressed_map(qs_submap, path=output_filename, overwrite=True)
@@ -552,7 +586,12 @@ class RegionExtractor:
 
     @u.quantity_input
     def summary_plots(
-        self, regions: list[Union[ARBox, QSBox]], sunpy_map: sunpy.map.Map, ysize: u.pix, summary_plot_path: Path
+        self,
+        regions: list[Union[ARBox, QSBox]],
+        sunpy_map: sunpy.map.Map,
+        ysize: u.pix,
+        summary_plot_path: Path,
+        output_filename: Path,
     ) -> None:
         fig = plt.figure(figsize=(5, 5))
 
@@ -590,11 +629,6 @@ class RegionExtractor:
 
             text_objects.append(text)
 
-        output_filename = (
-            summary_plot_path
-            / f"{sunpy_map.date.to_datetime().strftime('%d-%h-%Y_%H-%M-%S')}_{sunpy_map.instrument}.png"
-        )
-
         plt.savefig(
             output_filename,
             dpi=300,
@@ -603,6 +637,8 @@ class RegionExtractor:
 
         for text in text_objects:
             text.remove()
+
+        return 0
 
 
 @u.quantity_input
