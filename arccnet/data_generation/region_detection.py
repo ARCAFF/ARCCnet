@@ -69,21 +69,27 @@ class RD(QTable):
 
 
 class RegionDetection:
-    def __init__(self, table: QTable):
+    def __init__(self, table: QTable, col_group_path="path", col_cutout_path="path_arc"):
         """
         Initialize a RegionDetection instance
 
         Parameters
         ----------
-        filename : Path, optional
-            Path to the input CSV file. If no path is provided,
-            this defaults to HMI-SHARPs: dv.MAG_INTERMEDIATE_HMISHARPS_DATA_CSV.
+        table : `QTable`
+            QTable object with col_group and col_cutout
+
+        col_group_path : `str`
+            column in `table` to group data by e.g full-disk data that maps to multiple cutouts
+
+        col_cutout_path : `str`
+            column in `table` for the cutout paths.
+
         """
 
         self._loaded_data = RD(table)
         self._result_table = QTable(RD.augment_table(self._loaded_data))
-        self._col_group = "path"
-        self._col_cutout = "path_arc"
+        self._col_group = col_group_path
+        self._col_cutout = col_cutout_path
 
     def get_bboxes(
         self,
@@ -165,7 +171,5 @@ class RegionDetection:
                 updated_table[matching_rows[0][0]]["bottom_left_region"] = bbox.bottom_left_coord_px
             else:
                 logger.warn(f"{len(matching_rows)} rows matched with {bbox.fulldisk_path} and {bbox.cutout_path}")
-
-            print("---->")
 
         return RD(updated_table)
