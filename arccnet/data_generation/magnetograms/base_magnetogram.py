@@ -3,7 +3,6 @@ import urllib
 import datetime
 import http.client
 from abc import ABC, abstractmethod
-from pathlib import Path
 
 import drms
 import pandas as pd
@@ -81,19 +80,6 @@ class BaseMagnetogram(ABC):
         -------
         str:
             Name of the data segment
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def metadata_save_location(self) -> str:
-        """
-        Get the directory path for saving metadata.
-
-        Returns
-        -------
-        str:
-            The directory path for saving metadata
         """
         pass
 
@@ -306,41 +292,6 @@ class BaseMagnetogram(ABC):
         r_urls = export_response.urls.copy()
         return r_urls
 
-    def _save_metadata_to_csv(self, keys: pd.DataFrame, filepath: str = None, **kwargs) -> None:
-        """
-        Save metadata to a CSV file.
-
-        This method saves the metadata DataFrame to a CSV file.
-
-        Parameters
-        ----------
-        keys : pd.DataFrame
-            A DataFrame containing metadata keys.
-
-        filepath : `str`, optional
-            Filepath for saving the CSV file. If not provided, the default location is used
-            (refer to `metadata_save_location` attribute).
-
-        **kwargs
-            Additional keyword arguments to pass to pandas DataFrame's `to_csv` function.
-
-        Returns
-        -------
-        None
-        """
-        if filepath is None:
-            filepath = self.metadata_save_location
-
-        file = Path(filepath)
-        logger.info(f"The metadata for {self._type} has been saved to {file}")
-
-        # !TODO make a utility function here
-        directory_path = file.parent
-        if not directory_path.exists():
-            directory_path.mkdir(parents=True)
-
-        keys.to_csv(file, **kwargs)
-
     def _add_extracted_columns_to_df(
         self, df: pd.DataFrame, df_colname: str = "record"
     ) -> tuple[pd.DataFrame, list[str], list[str]]:
@@ -396,7 +347,6 @@ class BaseMagnetogram(ABC):
         start_date: datetime.datetime,
         end_date: datetime.datetime,
         batch_frequency: int = 3,
-        to_csv: bool = False,
         dynamic_columns=["url"],
     ) -> pd.DataFrame:
         """
@@ -416,9 +366,6 @@ class BaseMagnetogram(ABC):
         batch_frequency : `int`, optional
             The frequency for each batch.
             Default is 3 (3 months), empirically determined based on the density of files seen in SHARPs queries.
-
-        to_csv : bool, optional
-            Whether to save the fetched metadata to a CSV file. Defaults to False.
 
         dynamic_columns : list[str]
             Columns that will be different with each request. This is used for dropping duplicates.
@@ -444,8 +391,6 @@ class BaseMagnetogram(ABC):
 
         Duplicate rows are checked and logged as warnings if found.
 
-        If `to_csv` is True, the fetched metadata is saved to a CSV file using the `_save_metadata_to_csv` method.
-
         See Also
         --------
         fetch_metadata_batch
@@ -462,7 +407,7 @@ class BaseMagnetogram(ABC):
             if batch_end > end_date:
                 batch_end = end_date
 
-            metadata_batch = self.fetch_metadata_batch(batch_start, batch_end, to_csv=False)
+            metadata_batch = self.fetch_metadata_batch(batch_start, batch_end)
 
             if metadata_batch is not None:  # Check if the batch is not empty or None
                 all_metadata.append(metadata_batch)
@@ -482,9 +427,6 @@ class BaseMagnetogram(ABC):
         columns_to_check = [col for col in combined_metadata.columns if col not in dynamic_columns]
         combined_metadata = combined_metadata.drop_duplicates(subset=columns_to_check).reset_index(drop=True)
 
-        if to_csv:
-            self._save_metadata_to_csv(combined_metadata)
-
         logger.debug(combined_metadata.shape)
         return combined_metadata
 
@@ -492,7 +434,6 @@ class BaseMagnetogram(ABC):
         self,
         start_date: datetime.datetime,
         end_date: datetime.datetime,
-        to_csv: bool = False,
     ) -> pd.DataFrame:
         """
         Fetch metadata batch from JSOC.
@@ -508,8 +449,6 @@ class BaseMagnetogram(ABC):
         end_date : datetime.datetime
             The end datetime for the desired time range of observations.
 
-        to_csv : `bool`, optional
-            Whether to save the fetched metadata to a CSV file. Defaults to True.
 
         Returns
         -------
@@ -530,11 +469,9 @@ class BaseMagnetogram(ABC):
 
         Duplicate rows are checked and logged as warnings if found.
 
-        If `to_csv` is True, the fetched metadata is saved to a CSV file using the `_save_metadata_to_csv` method.
-
         See Also
         --------
-        generate_drms_query, _query_jsoc, _add_magnetogram_urls, _data_export_request, _add_extracted_columns_to_df, _save_metadata_to_csv
+        generate_drms_query, _query_jsoc, _add_magnetogram_urls, _data_export_request, _add_extracted_columns_to_df
         """
 
         query = self.generate_drms_query(start_date, end_date)
@@ -583,9 +520,6 @@ class BaseMagnetogram(ABC):
             keys_merged = pd.concat([keys_merged, datetime_df], axis=1)
         else:
             raise ValueError("Column 'datetime' already exists in the DataFrame.")
-
-        if to_csv:
-            self._save_metadata_to_csv(keys_merged)
 
         return keys_merged
 

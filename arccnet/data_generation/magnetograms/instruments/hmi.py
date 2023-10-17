@@ -2,7 +2,6 @@ import datetime
 
 import pandas as pd
 
-from arccnet import config
 from arccnet.data_generation.magnetograms.base_magnetogram import BaseMagnetogram
 from arccnet.data_generation.magnetograms.utils import datetime_to_jsoc
 
@@ -137,18 +136,6 @@ class HMILOSMagnetogram(BaseMagnetogram):
         """
         return "magnetogram"
 
-    @property
-    def metadata_save_location(self) -> str:
-        """
-        Get the HMI directory path for saving metadata.
-
-        Returns
-        -------
-        str
-            The HMI directory path for saving metadata.
-        """
-        return config["paths"]["hmi_mag_raw_csv"]
-
 
 class HMIBMagnetogram(HMILOSMagnetogram):
     def __init__(self):
@@ -194,18 +181,6 @@ class HMIContinuum(HMILOSMagnetogram):
             The name of the HMI data segment.
         """
         return "continuum"
-
-    @property
-    def metadata_save_location(self) -> str:
-        """
-        Get the HMI directory path for saving metadata.
-
-        Returns
-        -------
-        str
-            The HMI directory path for saving metadata.
-        """
-        return config["paths"]["hmi_ic_raw_csv"]
 
 
 class HMISHARPs(HMILOSMagnetogram):
@@ -311,18 +286,6 @@ class HMISHARPs(HMILOSMagnetogram):
             The name of the HMI data segment.
         """
         return "bitmap"
-
-    @property
-    def metadata_save_location(self) -> str:
-        """
-        Get the HMI directory path for saving metadata.
-
-        Returns
-        -------
-        str
-            The HMI directory path for saving metadata.
-        """
-        return config["paths"]["hmi_sharps_raw_csv"]
 
 
 class HMIMagnetogramNRT(HMILOSMagnetogram):
