@@ -3,16 +3,14 @@ import logging
 from pathlib import Path
 from datetime import timedelta
 
-import pandas as pd
-
 import astropy.units as u
-from astropy.table import QTable, join
+from astropy.table import QTable, join, vstack
 
 from arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
 from arccnet.data_generation.data_manager import DataManager
 from arccnet.data_generation.data_manager import Query as MagQuery
-from arccnet.data_generation.mag_processing import MagnetogramProcessor, RegionExtractor
+from arccnet.data_generation.mag_processing import ARClassification, MagnetogramProcessor, RegionExtractor
 from arccnet.data_generation.magnetograms.instruments import (
     HMILOSMagnetogram,
     HMISHARPs,
@@ -110,7 +108,7 @@ def process_hmi(config):
 
     data_root = config["paths"]["data_root"]
     download_path = Path(data_root) / "02_intermediate" / "mag" / "fits"
-    processed_path = Path(data_root) / "04_final" / "mag" / "fits"
+    processed_path = Path(data_root) / "03_processed" / "mag" / "fits"
 
     # query files
     hmi_query_file = Path(data_root) / "01_raw" / "mag" / "hmi_query.parq"
@@ -123,7 +121,7 @@ def process_hmi(config):
     # save the downloads files in 02_intermediate as they do not link to processed data
     hmi_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "hmi_downloads.parq"
     sharps_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "sharps_downloads.parq"
-    hmi_processed_file = Path(data_root) / "04_final" / "mag" / "hmi_processed.parq"
+    hmi_processed_file = Path(data_root) / "03_processed" / "mag" / "hmi_processed.parq"
 
     download_path.mkdir(exist_ok=True, parents=True)
     processed_path.mkdir(exist_ok=True, parents=True)
@@ -137,7 +135,7 @@ def process_hmi(config):
         download_path=download_path,
         mag_objs=mag_objs,
         query_files=[hmi_query_file, sharps_query_file],
-        results_files_raw=[hmi_results_file_raw, sharps_results_file_raw],
+        results_files_empty=[hmi_results_file_raw, sharps_results_file_raw],
         results_files=[hmi_results_file, sharps_results_file],
         downloads_files=[hmi_downloads_file, sharps_downloads_file],
         freq=timedelta(days=1),
@@ -147,7 +145,7 @@ def process_hmi(config):
     )
 
     processed_data = MagnetogramProcessor(download_objects[0], save_path=processed_path, column_name="path")
-    processed_table = processed_data.process(use_multiprocessing=True, overwrite=False)
+    processed_table = processed_data.process(use_multiprocessing=False, overwrite=False)
     logger.debug(f"Writing {hmi_processed_file}")
     processed_table.write(hmi_processed_file, format="parquet", overwrite=True)
 
@@ -177,7 +175,7 @@ def process_mdi(config):
 
     data_root = config["paths"]["data_root"]
     download_path = Path(data_root) / "02_intermediate" / "mag" / "fits"
-    processed_path = Path(data_root) / "04_final" / "mag" / "fits"
+    processed_path = Path(data_root) / "03_processed" / "mag" / "fits"
 
     # query files
     mdi_query_file = Path(data_root) / "01_raw" / "mag" / "mdi_query.parq"
@@ -190,7 +188,7 @@ def process_mdi(config):
     # save the downloads files in 02_intermediate as they do not link to processed data
     mdi_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "mdi_downloads.parq"
     smarps_downloads_file = Path(data_root) / "02_intermediate" / "mag" / "smarps_downloads.parq"
-    mdi_processed_file = Path(data_root) / "04_final" / "mag" / "mdi_processed.parq"
+    mdi_processed_file = Path(data_root) / "03_processed" / "mag" / "mdi_processed.parq"
 
     download_path.mkdir(exist_ok=True, parents=True)
     processed_path.mkdir(exist_ok=True, parents=True)
@@ -204,17 +202,17 @@ def process_mdi(config):
         download_path=download_path,
         mag_objs=mag_objs,
         query_files=[mdi_query_file, smarps_query_file],
-        results_files_raw=[mdi_results_file_raw, smarps_results_file_raw],
+        results_files_empty=[mdi_results_file_raw, smarps_results_file_raw],
         results_files=[mdi_results_file, smarps_results_file],
         downloads_files=[mdi_downloads_file, smarps_downloads_file],
         freq=timedelta(days=1),
-        batch_frequency=3,
+        batch_frequency=4,
         merge_tolerance=timedelta(minutes=30),
         overwrite_downloads=False,
     )
 
     processed_data = MagnetogramProcessor(download_objects[0], save_path=processed_path, column_name="path")
-    processed_table = processed_data.process(use_multiprocessing=True, overwrite=False)
+    processed_table = processed_data.process(use_multiprocessing=False, overwrite=False)
     logger.debug(f"Writing {mdi_processed_file}")
     processed_table.write(mdi_processed_file, format="parquet", overwrite=True)
 
@@ -226,7 +224,7 @@ def _process_mag(
     download_path,
     mag_objs,
     query_files,
-    results_files_raw,
+    results_files_empty,
     results_files,
     downloads_files,
     freq=timedelta(days=1),
@@ -247,8 +245,8 @@ def _process_mag(
         List of magnetogram objects to be processed.
     query_files : `list`
         List of query files.
-    results_files_raw : `list`
-        List of raw results files.
+    results_files_empty : `list`
+        List of empty results files.
     results_files : `list`
         List of processed results files.
     downloads_files : `list`
@@ -277,15 +275,13 @@ def _process_mag(
 
     query_objects = dm.query_objects
 
-    # read raw_results and results_objects if all exist.
-    all_files_exist = all(file.exists() for file in results_files_raw + results_files)
+    # read empty_results and results_objects if all exist.
+    all_files_exist = all(file.exists() for file in results_files)
     if all_files_exist:
         logger.debug("Loading results files")
-        metadata_raw = []
         results_objects = []
-        for raw_file, file in zip(results_files_raw, results_files):
-            logger.debug(f"reading {str(file)}")
-            metadata_raw.append(pd.read_parquet(raw_file))
+        for file in results_files:
+            logger.debug(f"... reading {str(file)}")
             results_objects.append(MagQuery(QTable.read(file, format="parquet")))
     else:
         # only save the query object if we're not loading the results_files
@@ -295,15 +291,17 @@ def _process_mag(
 
         logger.debug("performing search")
         # problem here is that the urls aren't around forever.
-        metadata_raw, results_objects = dm.search(
+        metadata_empty_search, results_objects = dm.search(
             batch_frequency=batch_frequency,
             merge_tolerance=merge_tolerance,
         )
 
-        for df, rfr in zip(metadata_raw, results_files_raw):
+        # write the empty search (a `DataFrame`) to parquet
+        for df, rfr in zip(metadata_empty_search, results_files_empty):
             logger.debug(f"Writing {rfr}")
-            df.to_parquet(path=rfr)  # this is a `DataFrame`
+            df.to_parquet(path=rfr)
 
+        # write the results (with urls) to a parquet file
         for ro, rf in zip(results_objects, results_files):
             logger.debug(f"Writing {rf}")
             ro.write(rf, format="parquet", overwrite=True)
@@ -314,6 +312,7 @@ def _process_mag(
         overwrite=overwrite_downloads,
     )
 
+    # write the table (with downloaded file paths) to a parquet file
     for do, dfiles in zip(download_objects, downloads_files):
         logger.debug(f"Writing {dfiles}")
         do.write(dfiles, format="parquet", overwrite=True)
@@ -349,9 +348,11 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     logger.info("Merging magnetogram tables")
 
     data_root = config["paths"]["data_root"]
-    srs_hmi_mdi_merged_file = Path(data_root) / "04_final" / "mag" / "srs_hmi_mdi_merged.parq"
-    hmi_sharps_merged_file = Path(data_root) / "04_final" / "mag" / "hmi_sharps_merged.parq"
-    mdi_smarps_merged_file = Path(data_root) / "04_final" / "mag" / "mdi_smarps_merged.parq"
+    srs_hmi_merged_file = Path(data_root) / "03_processed" / "mag" / "srs_hmi_merged.parq"
+    srs_mdi_merged_file = Path(data_root) / "03_processed" / "mag" / "srs_mdi_merged.parq"
+    srs_hmi_mdi_merged_file = Path(data_root) / "03_processed" / "mag" / "srs_hmi_mdi_merged.parq"
+    hmi_sharps_merged_file = Path(data_root) / "03_processed" / "mag" / "hmi_sharps_merged.parq"
+    mdi_smarps_merged_file = Path(data_root) / "03_processed" / "mag" / "mdi_smarps_merged.parq"
     srs_hmi_mdi_merged_file.parent.mkdir(exist_ok=True, parents=True)
 
     catalog_mdi = join(
@@ -363,6 +364,8 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     )
     # attempting to remove the object
     catalog_mdi.replace_column("path_catalog", [str(pc) for pc in catalog_mdi["path_catalog"]])
+    catalog_mdi.rename_column("processed_path", "processed_path_image")
+    catalog_mdi.write(srs_mdi_merged_file, format="parquet", overwrite=True)
 
     catalog_hmi = join(
         QTable(srs),
@@ -373,6 +376,8 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     )
     # attempting to remove the object
     catalog_hmi.replace_column("path_catalog", [str(pc) for pc in catalog_hmi["path_catalog"]])
+    catalog_hmi.rename_column("processed_path", "processed_path_image")
+    catalog_hmi.write(srs_hmi_merged_file, format="parquet", overwrite=True)
 
     # There must be a better way to rename columns
     srs_renamed = srs.copy()  # Create a copy of the original table
@@ -402,20 +407,21 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
         table_names=["srs_hmi", "mdi"],
     )
 
-    # Drop rows with NaN values in the 'url_srs' column
-    srsmdihmi_dropped = srsmdihmi_table[~srsmdihmi_table["url_srs"].mask]
+    # # Drop rows with NaN values in the 'url_srs' column
+    # srsmdihmi_dropped = srsmdihmi_table[~srsmdihmi_table["url_srs"].mask]
 
-    # Drop rows where 'url_hmi' and 'url_mdi' are all NaN
-    srsmdihmi_dropped = srsmdihmi_dropped[~(srsmdihmi_dropped["url_hmi"].mask & srsmdihmi_dropped["url_mdi"].mask)]
-    logger.debug(f"Writing {srs_hmi_mdi_merged_file}")
-    srsmdihmi_dropped.write(srs_hmi_mdi_merged_file, format="parquet", overwrite=True)
+    # # Drop rows where 'url_hmi' and 'url_mdi' are all NaN
+    # srsmdihmi_dropped = srsmdihmi_dropped[~(srsmdihmi_dropped["url_hmi"].mask & srsmdihmi_dropped["url_mdi"].mask)]
+    # logger.debug(f"Writing {srs_hmi_mdi_merged_file}")
+    # srsmdihmi_dropped.write(srs_hmi_mdi_merged_file, format="parquet", overwrite=True)
 
     # 2. merge HMI-SHARPs
+    #    drop the columns with no datetime to do the join
     hmi_filtered = QTable(hmi.copy())
-    hmi_filtered = hmi_filtered[~hmi_filtered["filename"].mask].copy()
+    hmi_filtered = hmi_filtered[~hmi_filtered["datetime"].mask].copy()
 
     sharps_filtered = QTable(sharps.copy())
-    sharps_filtered = sharps_filtered[~sharps_filtered["filename"].mask].copy()
+    sharps_filtered = sharps_filtered[~sharps_filtered["datetime"].mask].copy()
     for colname in sharps_filtered.colnames:
         sharps_filtered.rename_column(colname, colname + "_arc")
 
@@ -431,10 +437,10 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
 
     # 3. merge MDI-SMARPs
     mdi_filtered = QTable(mdi.copy())
-    mdi_filtered = mdi_filtered[~mdi_filtered["filename"].mask].copy()
+    mdi_filtered = mdi_filtered[~mdi_filtered["datetime"].mask].copy()
 
     smarps_filtered = QTable(smarps.copy())
-    smarps_filtered = smarps_filtered[~smarps_filtered["filename"].mask].copy()
+    smarps_filtered = smarps_filtered[~smarps_filtered["datetime"].mask].copy()
     for colname in smarps_filtered.colnames:
         smarps_filtered.rename_column(colname, colname + "_arc")
 
@@ -448,43 +454,74 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     logger.debug(f"Writing {mdi_smarps_merged_file}")
     mdi_smarps_table.write(mdi_smarps_merged_file, format="parquet", overwrite=True)
 
-    return catalog_hmi, catalog_mdi, srsmdihmi_dropped, hmi_sharps_table, mdi_smarps_table
+    return catalog_hmi, catalog_mdi, hmi_sharps_table, mdi_smarps_table
 
 
 def region_extraction(config, srs_hmi, srs_mdi):
+    logger.info("Generating `Region Extraction` dataset")
     data_root = config["paths"]["data_root"]
+
+    intermediate_files = Path(data_root) / "02_intermediate" / "mag" / "region_extraction"
     data_plot_path = Path(data_root) / "04_final" / "mag" / "region_extraction" / "fits"
-    summary_plot_path = Path(data_root) / "04_final" / "mag" / "region_extraction" / "summary"
+    summary_plot_path = Path(data_root) / "04_final" / "mag" / "region_extraction" / "quicklook"
+    classification_file = Path(data_root) / "04_final" / "mag" / "region_extraction" / "region_classification.parq"
 
     data_plot_path.mkdir(exist_ok=True, parents=True)
     summary_plot_path.mkdir(exist_ok=True, parents=True)
+    intermediate_files.mkdir(exist_ok=True, parents=True)
 
-    hmi = RegionExtractor(srs_hmi).extract_regions(
-        cutout_size=(
-            int(config["magnetograms.cutouts"]["x_extent"]) * u.pix,
-            int(config["magnetograms.cutouts"]["y_extent"]) * u.pix,
-        ),
-        data_path=data_plot_path,
-        summary_plot_path=summary_plot_path,
-        qs_random_attempts=10,
-    )
-    mdi = RegionExtractor(srs_mdi).extract_regions(
-        cutout_size=(
-            int(config["magnetograms.cutouts"]["x_extent"]) / 2 * u.pix,
-            int(config["magnetograms.cutouts"]["y_extent"]) / 2 * u.pix,
-        ),
-        data_path=data_plot_path,
-        summary_plot_path=summary_plot_path,
-        qs_random_attempts=10,
-    )
+    hmi_file = intermediate_files / "hmi_region_extraction.parq"
+    if hmi_file.exists():
+        hmi_table = QTable.read(hmi_file)
+    else:
+        hmi = RegionExtractor(srs_hmi)
+        hmi = hmi.extract_regions(
+            cutout_size=(
+                int(config["magnetograms.cutouts"]["x_extent"]) * u.pix,
+                int(config["magnetograms.cutouts"]["y_extent"]) * u.pix,
+            ),
+            data_path=data_plot_path,
+            summary_plot_path=summary_plot_path,
+            qs_random_attempts=10,
+        )
+        hmi_table = hmi[2]
+        logger.debug(f"writing {hmi_file}")
+        hmi_table.write(hmi_file, format="parquet", overwrite=True)
 
-    # save?
-    return hmi, mdi
+    mdi_file = intermediate_files / "mdi_region_extraction.parq"
+    if mdi_file.exists():
+        mdi_table = QTable.read(mdi_file)
+    else:
+        mdi = RegionExtractor(srs_mdi)
+        mdi = mdi.extract_regions(
+            cutout_size=(
+                int(config["magnetograms.cutouts"]["x_extent"]) / 4 * u.pix,
+                int(config["magnetograms.cutouts"]["y_extent"]) / 4 * u.pix,
+            ),
+            data_path=data_plot_path,
+            summary_plot_path=summary_plot_path,
+            qs_random_attempts=10,
+        )
+        mdi_table = mdi[2]
+        logger.debug(f"writing {mdi_file}")
+        mdi_table.write(mdi_file, format="parquet", overwrite=True)
+
+    ar_classification_hmi_mdi = ARClassification(vstack([QTable(hmi_table), QTable(mdi_table)]))
+    ar_classification_hmi_mdi.sort("time")
+
+    logger.debug(f"writing {classification_file}")
+    ar_classification_hmi_mdi.write(classification_file, format="paruet", overwrite=True)
+
+    # one merged catalogue file with both MDI/HMI each task classification and detection
+    return ar_classification_hmi_mdi
 
 
 def region_detection(config, hmi_sharps, mdi_smarps):
+    logger.info("Generating `Region Detection` dataset")
     data_root = config["paths"]["data_root"]
+    region_detection_path_intermediate = Path(data_root) / "02_intermediate" / "mag" / "region_detection"
     region_detection_path = Path(data_root) / "04_final" / "mag" / "region_detection"
+    region_detection_path_intermediate.mkdir(exist_ok=True, parents=True)
     region_detection_path.mkdir(exist_ok=True, parents=True)
 
     hmidetection = RegionDetection(table=hmi_sharps)
@@ -493,7 +530,50 @@ def region_detection(config, hmi_sharps, mdi_smarps):
     mdidetection = RegionDetection(table=mdi_smarps)
     mdi_smarps_detection_table, mdi_smarps_detection_bboxes = mdidetection.get_bboxes()
 
-    return mdi_smarps_detection_table, hmi_sharps_detection_table
+    hmi_sharps_detection_table.write(
+        region_detection_path_intermediate / "hmi_ar_detection.parq", format="parquet", overwrite=True
+    )
+    mdi_smarps_detection_table.write(
+        region_detection_path_intermediate / "mdi_ar_detection.parq", format="parquet", overwrite=True
+    )
+    logger.debug(
+        f"writing {region_detection_path_intermediate / 'hmi_ar_detection.parq'}, {region_detection_path_intermediate / 'mdi_ar_detection.parq'}"
+    )
+
+    column_subset = [
+        "target_time",
+        "datetime",
+        "record",
+        "filename",
+        "url",
+        "record_T_REC",
+        "path",
+        "processed_path",
+        "target_time_arc",
+        "datetime_arc",
+        "filename_arc",
+        "url_arc",
+        "record_HARPNUM_arc",
+        "record_T_REC_arc",
+        "path_arc",
+        "top_right_region",
+        "bottom_left_region",
+    ]
+
+    # subset of columns
+    hmi_sharps_detection_table_subset = hmi_sharps_detection_table[column_subset]
+    mdi_smarps_detection_table_subset = mdi_smarps_detection_table[column_subset]
+
+    ar_detection = vstack(
+        QTable(mdi_smarps_detection_table_subset),
+        QTable(hmi_sharps_detection_table_subset),
+    )
+    ar_detection.sort("target_time")
+
+    ar_detection.write(region_detection_path / "region_detection.parq", format="parquet", overwrite=True)
+    logger.debug(f"writing {region_detection_path / 'region_detection.parq'}")
+
+    return ar_detection
 
 
 def main():
@@ -504,7 +584,13 @@ def main():
     _, _, _, _, clean_catalog = process_srs(config)
     hmi_download_obj, sharps_download_obj = process_hmi(config)
     mdi_download_obj, smarps_download_obj = process_mdi(config)
-    srs_hmi, srs_mdi, srs_mdi_hmi, hmi_sharps, mdi_smarps = merge_mag_tables(
+
+    # generate:
+    #   SRS-HMI: merge SRS with HMI
+    #   SRS-MDI: merge SRS with MDI
+    #   HMI-SHARPS: merge HMI and SHARPs (null datetime dropped before merge)
+    #   MDI-SMARPS: merge HMI and SHARPs (null datetime dropped before merge)
+    srs_hmi, srs_mdi, hmi_sharps, mdi_smarps = merge_mag_tables(
         config,
         srs=clean_catalog,
         hmi=hmi_download_obj,
@@ -513,12 +599,11 @@ def main():
         smarps=smarps_download_obj,
     )
 
-    srs_hmi_cutouts, srs_mdi_cutouts = region_extraction(config, srs_hmi, srs_mdi)
-    srs_hmi_cutouts_ar, srs_hmi_cutouts_qs = srs_hmi_cutouts
-    srs_mdi_cutouts_ar, srs_mdi_cutouts_qs = srs_mdi_cutouts
-    # need to convert the Path column to string to save.
+    # extract AR/QS regions from HMI and MDI
+    region_extraction(config, srs_hmi, srs_mdi)
 
-    mdi_smarps_detection_table, hmi_sharps_detection_table = region_detection(config, hmi_sharps, mdi_smarps)
+    # bounding box locations of cutouts (in pixel space) on the full-disk images
+    region_detection(config, hmi_sharps, mdi_smarps)
 
     logger.debug("Finished main")
 
