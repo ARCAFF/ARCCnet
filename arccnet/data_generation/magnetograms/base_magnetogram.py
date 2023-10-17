@@ -260,6 +260,7 @@ class BaseMagnetogram(ABC):
                         logger.warning(
                             f"\t ... Exception: '{e}' raised. Retrying in {retry_delay} seconds: retry {retries} of {max_retries}."
                         )
+                        time.sleep(retry_delay)
                         retries += 1
                 elif isinstance(e, urllib.error.HTTPError) and e.code == 504:
                     logger.info(f"\t ... HTTP Error 504: waiting {drms_export_delay} seconds before trying again.")
