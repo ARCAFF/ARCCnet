@@ -19,7 +19,7 @@ class MDILOSMagnetogram(BaseMagnetogram):
         str:
             JSOC Query string
         """
-        # Line-of-sight magnetic field from 30-second observations in full-disc mode,
+        # Line-of-sight magnetic field from 30-second observations in full-disk mode,
         # sampled either once in a minute or averaged over five consecutive minute samples.
         # Whether the data are form a single observation or an average of five is given by
         # the value of the keyword INTERVAL, the length of the sampling interval in seconds.
