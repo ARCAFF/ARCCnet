@@ -394,9 +394,6 @@ class RegionExtractor:
             data = image_map.data
             on_disk_nans = np.isnan(data)
             if on_disk_nans.sum() > 0:
-                logger.warning(
-                    f"There are {on_disk_nans.sum()} on-disk nans in this {image_map.date} {image_map.instrument.replace(' ', '_')} map"
-                )
                 indices = np.where(on_disk_nans)
                 data[indices] = 0.0
 
