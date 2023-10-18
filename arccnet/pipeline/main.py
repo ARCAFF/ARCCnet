@@ -10,7 +10,7 @@ from arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
 from arccnet.data_generation.data_manager import DataManager
 from arccnet.data_generation.data_manager import Query as MagQuery
-from arccnet.data_generation.mag_processing import ARClassification, MagnetogramProcessor, RegionExtractor
+from arccnet.data_generation.mag_processing import MagnetogramProcessor, RegionExtractor
 from arccnet.data_generation.magnetograms.instruments import (
     HMILOSMagnetogram,
     HMISHARPs,
@@ -407,13 +407,13 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
         table_names=["srs_hmi", "mdi"],
     )
 
-    # # Drop rows with NaN values in the 'url_srs' column
-    # srsmdihmi_dropped = srsmdihmi_table[~srsmdihmi_table["url_srs"].mask]
+    # Drop rows with NaN values in the 'url_srs' column
+    srsmdihmi_dropped = srsmdihmi_table[~srsmdihmi_table["url_srs"].mask]
 
-    # # Drop rows where 'url_hmi' and 'url_mdi' are all NaN
-    # srsmdihmi_dropped = srsmdihmi_dropped[~(srsmdihmi_dropped["url_hmi"].mask & srsmdihmi_dropped["url_mdi"].mask)]
-    # logger.debug(f"Writing {srs_hmi_mdi_merged_file}")
-    # srsmdihmi_dropped.write(srs_hmi_mdi_merged_file, format="parquet", overwrite=True)
+    # Drop rows where 'url_hmi' and 'url_mdi' are all NaN
+    srsmdihmi_dropped = srsmdihmi_dropped[~(srsmdihmi_dropped["url_hmi"].mask & srsmdihmi_dropped["url_mdi"].mask)]
+    logger.debug(f"Writing {srs_hmi_mdi_merged_file}")
+    srsmdihmi_dropped.write(srs_hmi_mdi_merged_file, format="parquet", overwrite=True)
 
     # 2. merge HMI-SHARPs
     #    drop the columns with no datetime to do the join
@@ -470,16 +470,23 @@ def region_extraction(config, srs_hmi, srs_mdi):
     summary_plot_path.mkdir(exist_ok=True, parents=True)
     intermediate_files.mkdir(exist_ok=True, parents=True)
 
+    mdi_cutout = (
+        int(config["magnetograms.cutouts"]["x_extent"]) / 4 * u.pix,
+        int(config["magnetograms.cutouts"]["y_extent"]) / 4 * u.pix,
+    )
+
+    hmi_cutout = (
+        int(config["magnetograms.cutouts"]["x_extent"]) * u.pix,
+        int(config["magnetograms.cutouts"]["y_extent"]) * u.pix,
+    )
+
     hmi_file = intermediate_files / "hmi_region_extraction.parq"
     if hmi_file.exists():
         hmi_table = QTable.read(hmi_file)
     else:
         hmi = RegionExtractor(srs_hmi)
         hmi = hmi.extract_regions(
-            cutout_size=(
-                int(config["magnetograms.cutouts"]["x_extent"]) * u.pix,
-                int(config["magnetograms.cutouts"]["y_extent"]) * u.pix,
-            ),
+            cutout_size=hmi_cutout,
             data_path=data_plot_path,
             summary_plot_path=summary_plot_path,
             qs_random_attempts=10,
@@ -494,10 +501,7 @@ def region_extraction(config, srs_hmi, srs_mdi):
     else:
         mdi = RegionExtractor(srs_mdi)
         mdi = mdi.extract_regions(
-            cutout_size=(
-                int(config["magnetograms.cutouts"]["x_extent"]) / 4 * u.pix,
-                int(config["magnetograms.cutouts"]["y_extent"]) / 4 * u.pix,
-            ),
+            cutout_size=mdi_cutout,
             data_path=data_plot_path,
             summary_plot_path=summary_plot_path,
             qs_random_attempts=10,
@@ -506,12 +510,33 @@ def region_extraction(config, srs_hmi, srs_mdi):
         logger.debug(f"writing {mdi_file}")
         mdi_table.write(mdi_file, format="parquet", overwrite=True)
 
-    ar_classification_hmi_mdi = ARClassification(vstack([QTable(hmi_table), QTable(mdi_table)]))
-    ar_classification_hmi_mdi.sort("time")
+    column_subset = [
+        "time",
+        "region_type",
+        "number",
+        "latitude",
+        "longitude",
+        "processed_path_image",
+        "top_right_cutout",
+        "bottom_left_cutout",
+        "path_image_cutout",
+        "dim_image_cutout",
+        "sum_ondisk_nans",
+        "quicklook_path",
+    ]
+
+    ar_classification_hmi_mdi = join(
+        hmi_table[column_subset],
+        mdi_table[column_subset],
+        join_type="outer",  # keep all columns
+        keys=["time", "number"],
+        table_names=["hmi", "mdi"],
+    )
 
     logger.debug(f"writing {classification_file}")
-    ar_classification_hmi_mdi.write(classification_file, format="paruet", overwrite=True)
+    ar_classification_hmi_mdi.write(classification_file, format="parquet", overwrite=True)
 
+    # filter: hmi/mdi cutout size...
     # one merged catalogue file with both MDI/HMI each task classification and detection
     return ar_classification_hmi_mdi
 
@@ -543,17 +568,11 @@ def region_detection(config, hmi_sharps, mdi_smarps):
     column_subset = [
         "target_time",
         "datetime",
-        "record",
-        "filename",
-        "url",
-        "record_T_REC",
+        "instrument",
         "path",
         "processed_path",
         "target_time_arc",
         "datetime_arc",
-        "filename_arc",
-        "url_arc",
-        "record_HARPNUM_arc",
         "record_T_REC_arc",
         "path_arc",
         "top_right_region",
@@ -561,12 +580,21 @@ def region_detection(config, hmi_sharps, mdi_smarps):
     ]
 
     # subset of columns
-    hmi_sharps_detection_table_subset = hmi_sharps_detection_table[column_subset]
-    mdi_smarps_detection_table_subset = mdi_smarps_detection_table[column_subset]
+    hmi_sharps_detection_table["instrument"] = "HMI"
+    hmi_column_subset = column_subset + ["record_HARPNUM_arc"]
+    hmi_sharps_detection_table_subset = hmi_sharps_detection_table[hmi_column_subset]
+    # hmi_sharps_detection_table_subset.write(region_detection_path / "hmi_sharps_detection_table_subset.parq", format="parquet", overwrite=True)
 
+    mdi_smarps_detection_table["instrument"] = "MDI"
+    mdi_column_subset = column_subset + ["record_TARPNUM_arc"]
+    mdi_smarps_detection_table_subset = mdi_smarps_detection_table[mdi_column_subset]
+
+    # !TODO probably want to add an instrument column or something...
     ar_detection = vstack(
-        QTable(mdi_smarps_detection_table_subset),
-        QTable(hmi_sharps_detection_table_subset),
+        [
+            QTable(mdi_smarps_detection_table_subset),
+            QTable(hmi_sharps_detection_table_subset),
+        ]
     )
     ar_detection.sort("target_time")
 
