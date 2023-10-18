@@ -133,8 +133,7 @@ class BaseMagnetogram(ABC):
         """
         keys, segs = self._drms_client.query(
             query,
-            key="**ALL**",  # the needed columns vary
-            # key=["T_REC", "T_OBS", "DATE-OBS", "DATAMEDN"], # "**ALL**",  # drms.const.all = '**ALL**'
+            key="**ALL**",  # the needed columns vary, **ALL** returns all available keys
             seg=self.segment_column_name,
         )
         return keys, segs
@@ -187,7 +186,7 @@ class BaseMagnetogram(ABC):
 
     def _data_export_request_with_retry(
         self, query: str, max_retries=5, retry_delay=60, drms_export_delay=60, **kwargs
-    ) -> None:
+    ) -> pd.DataFrame:
         """
         Submit a data export request with retries and return the URLs.
 
@@ -227,21 +226,17 @@ class BaseMagnetogram(ABC):
                 # 2. drms.exceptions.DrmsExportError
                 # The latter occurs after the former due to the request still pending
                 if isinstance(e, http.client.RemoteDisconnected):
-                    if retries <= max_retries:
-                        logger.warning(
-                            f"\t ... Exception: '{e}' raised. Retrying in {retry_delay} seconds: retry {retries} of {max_retries}."
-                        )
-                        time.sleep(retry_delay)
-                        retries += 1
-                    else:
-                        logger.error(f"All {retries} retries failed. Raising DataExportRequestError.")
-                        raise DataExportRequestError("Failed to export data after multiple retries")
+                    logger.warning(
+                        f"\t ... Exception: '{e}' raised. Retrying in {retry_delay} seconds: retry {retries} of {max_retries}."
+                    )
+                    time.sleep(retry_delay)
+                    retries += 1
                 elif isinstance(e, drms.exceptions.DrmsExportError):
                     if "pending export requests" in str(e):
                         logger.info(
                             f"\t ... waiting {drms_export_delay} seconds for pending export requests to complete."
                         )
-                        time.sleep(drms_export_delay)  # Wait for 60 seconds before checking again
+                        time.sleep(drms_export_delay)
                     else:
                         logger.warning(
                             f"\t ... Exception: '{e}' raised. Retrying in {retry_delay} seconds: retry {retries} of {max_retries}."
