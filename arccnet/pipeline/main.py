@@ -3,8 +3,10 @@ import logging
 from pathlib import Path
 from datetime import timedelta
 
+import numpy as np
+
 import astropy.units as u
-from astropy.table import QTable, join, vstack
+from astropy.table import MaskedColumn, QTable, join, vstack
 
 from arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
@@ -114,8 +116,8 @@ def process_hmi(config):
     hmi_query_file = Path(data_root) / "01_raw" / "mag" / "hmi_query.parq"
     sharps_query_file = Path(data_root) / "01_raw" / "mag" / "sharps_query.parq"
     # results files
-    hmi_results_file_raw = Path(data_root) / "01_raw" / "mag" / "hmi_results.parq"
-    sharps_results_file_raw = Path(data_root) / "01_raw" / "mag" / "sharps_results.parq"
+    hmi_results_file_raw = Path(data_root) / "01_raw" / "mag" / "hmi_results_empty.parq"
+    sharps_results_file_raw = Path(data_root) / "01_raw" / "mag" / "sharps_results_empty.parq"
     hmi_results_file = Path(data_root) / "02_intermediate" / "mag" / "hmi_results.parq"
     sharps_results_file = Path(data_root) / "02_intermediate" / "mag" / "sharps_results.parq"
     # save the downloads files in 02_intermediate as they do not link to processed data
@@ -181,8 +183,8 @@ def process_mdi(config):
     mdi_query_file = Path(data_root) / "01_raw" / "mag" / "mdi_query.parq"
     smarps_query_file = Path(data_root) / "01_raw" / "mag" / "smarps_query.parq"
     # results files
-    mdi_results_file_raw = Path(data_root) / "01_raw" / "mag" / "mdi_results.parq"
-    smarps_results_file_raw = Path(data_root) / "01_raw" / "mag" / "smarps_results.parq"
+    mdi_results_file_raw = Path(data_root) / "01_raw" / "mag" / "mdi_results_empty.parq"
+    smarps_results_file_raw = Path(data_root) / "01_raw" / "mag" / "smarps_results_empty.parq"
     mdi_results_file = Path(data_root) / "02_intermediate" / "mag" / "mdi_results.parq"
     smarps_results_file = Path(data_root) / "02_intermediate" / "mag" / "smarps_results.parq"
     # save the downloads files in 02_intermediate as they do not link to processed data
@@ -514,6 +516,12 @@ def region_extraction(config, srs_hmi, srs_mdi):
         "time",
         "region_type",
         "number",
+        "carrington_longitude",
+        "area",
+        "mcintosh_class",
+        "longitudinal_extent",
+        "number_of_sunspots",
+        "magnetic_class",
         "latitude",
         "longitude",
         "processed_path_image",
@@ -526,12 +534,58 @@ def region_extraction(config, srs_hmi, srs_mdi):
     ]
 
     ar_classification_hmi_mdi = join(
-        hmi_table[column_subset],
-        mdi_table[column_subset],
+        QTable(hmi_table[column_subset]),
+        QTable(mdi_table[column_subset]),
         join_type="outer",  # keep all columns
         keys=["time", "number"],
         table_names=["hmi", "mdi"],
     )
+
+    # trying to combine columns with masks...; can't use as keys in the merge as there are missing values...
+    ar_classification_hmi_mdi["region_type"] = _combine_columns(
+        ar_classification_hmi_mdi["region_type_hmi"], ar_classification_hmi_mdi["region_type_mdi"]
+    )
+    ar_classification_hmi_mdi["magnetic_class"] = _combine_columns(
+        ar_classification_hmi_mdi["magnetic_class_hmi"], ar_classification_hmi_mdi["magnetic_class_mdi"]
+    )
+    ar_classification_hmi_mdi["carrington_longitude"] = _combine_columns(
+        ar_classification_hmi_mdi["carrington_longitude_hmi"], ar_classification_hmi_mdi["carrington_longitude_mdi"]
+    )
+    ar_classification_hmi_mdi["area"] = _combine_columns(
+        ar_classification_hmi_mdi["area_hmi"], ar_classification_hmi_mdi["area_mdi"]
+    )
+    ar_classification_hmi_mdi["mcintosh_class"] = _combine_columns(
+        ar_classification_hmi_mdi["mcintosh_class_hmi"], ar_classification_hmi_mdi["mcintosh_class_mdi"]
+    )
+    ar_classification_hmi_mdi["longitudinal_extent"] = _combine_columns(
+        ar_classification_hmi_mdi["longitudinal_extent_hmi"], ar_classification_hmi_mdi["longitudinal_extent_mdi"]
+    )
+    ar_classification_hmi_mdi["number_of_sunspots"] = _combine_columns(
+        ar_classification_hmi_mdi["number_of_sunspots_hmi"], ar_classification_hmi_mdi["number_of_sunspots_mdi"]
+    )
+
+    # List of columns to remove
+    columns_to_remove = [
+        "region_type_hmi",
+        "region_type_mdi",
+        "magnetic_class_hmi",
+        "magnetic_class_mdi",
+        "carrington_longitude_hmi",
+        "carrington_longitude_mdi",
+        "area_hmi",
+        "area_mdi",
+        "mcintosh_class_hmi",
+        "mcintosh_class_mdi",
+        "longitudinal_extent_hmi",
+        "longitudinal_extent_mdi",
+        "number_of_sunspots_hmi",
+        "number_of_sunspots_mdi",
+    ]
+
+    # Loop through the list and remove the specified columns
+    for col_name in columns_to_remove:
+        if col_name in ar_classification_hmi_mdi.colnames:
+            ar_classification_hmi_mdi.remove_column(col_name)
 
     logger.debug(f"writing {classification_file}")
     ar_classification_hmi_mdi.write(classification_file, format="parquet", overwrite=True)
@@ -539,6 +593,33 @@ def region_extraction(config, srs_hmi, srs_mdi):
     # filter: hmi/mdi cutout size...
     # one merged catalogue file with both MDI/HMI each task classification and detection
     return ar_classification_hmi_mdi
+
+
+# Define a function to combine the two columns
+def _combine_columns(column1, column2):
+    """
+    given two columns, attempt to combine as long as values are not different
+    """
+    combined_column = MaskedColumn(np.empty(len(column1), dtype=column1.dtype))
+
+    for i in range(len(column1)):
+        if column1.mask[i] and column2.mask[i]:
+            # Both values are masked, set the combined column to masked
+            combined_column[i] = np.ma.masked
+        elif column1.mask[i]:
+            # Use the value from column2 when column1 is masked
+            combined_column[i] = column2[i]
+        elif column2.mask[i]:
+            # Use the value from column1 when column2 is masked
+            combined_column[i] = column1[i]
+        elif column1[i] == column2[i]:
+            # Values are identical, set the combined column to the same value
+            combined_column[i] = column1[i]
+        else:
+            # Values are different and not both masked, raise an error
+            raise ValueError(f"Elements at index {i} are different or have different masks.")
+
+    return combined_column
 
 
 def region_detection(config, hmi_sharps, mdi_smarps):
@@ -549,10 +630,10 @@ def region_detection(config, hmi_sharps, mdi_smarps):
     region_detection_path_intermediate.mkdir(exist_ok=True, parents=True)
     region_detection_path.mkdir(exist_ok=True, parents=True)
 
-    hmidetection = RegionDetection(table=hmi_sharps)
+    hmidetection = RegionDetection(table=hmi_sharps, col_group_path="processed_path", col_cutout_path="path_arc")
     hmi_sharps_detection_table, hmi_sharps_detection_bboxes = hmidetection.get_bboxes()
 
-    mdidetection = RegionDetection(table=mdi_smarps)
+    mdidetection = RegionDetection(table=mdi_smarps, col_group_path="processed_path", col_cutout_path="path_arc")
     mdi_smarps_detection_table, mdi_smarps_detection_bboxes = mdidetection.get_bboxes()
 
     hmi_sharps_detection_table.write(
@@ -575,15 +656,14 @@ def region_detection(config, hmi_sharps, mdi_smarps):
         "datetime_arc",
         "record_T_REC_arc",
         "path_arc",
-        "top_right_region",
-        "bottom_left_region",
+        "top_right_cutout",
+        "bottom_left_cutout",
     ]
 
     # subset of columns
     hmi_sharps_detection_table["instrument"] = "HMI"
     hmi_column_subset = column_subset + ["record_HARPNUM_arc"]
     hmi_sharps_detection_table_subset = hmi_sharps_detection_table[hmi_column_subset]
-    # hmi_sharps_detection_table_subset.write(region_detection_path / "hmi_sharps_detection_table_subset.parq", format="parquet", overwrite=True)
 
     mdi_smarps_detection_table["instrument"] = "MDI"
     mdi_column_subset = column_subset + ["record_TARPNUM_arc"]
