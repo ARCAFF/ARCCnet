@@ -62,8 +62,8 @@ class RD(QTable):
         # Add the new columns to the table
         length = len(base_table)
         # Create masked columns with specified values as masks
-        new_table["top_right_region"] = MaskedColumn(data=[(0, 0)] * length * u.pix, mask=[(True, True)] * length)
-        new_table["bottom_left_region"] = MaskedColumn(data=[(0, 0)] * length * u.pix, mask=[(True, True)] * length)
+        new_table["top_right_cutout"] = MaskedColumn(data=[(0, 0)] * length * u.pix, mask=[(True, True)] * length)
+        new_table["bottom_left_cutout"] = MaskedColumn(data=[(0, 0)] * length * u.pix, mask=[(True, True)] * length)
 
         return new_table
 
@@ -106,7 +106,7 @@ class RegionDetection:
 
         bboxes = []
         for group in tqdm(grouped_data.groups, total=len(grouped_data.groups), desc="Processing"):
-            fulldisk_path = group["path"][0]
+            fulldisk_path = group["processed_path"][0]
             fulldisk_map = sunpy.map.Map(Path(fulldisk_path))
 
             for row in group:
@@ -167,8 +167,8 @@ class RegionDetection:
 
             if len(matching_rows[0]) == 1:
                 # Update the masked columns directly using the row index
-                updated_table[matching_rows[0][0]]["top_right_region"] = bbox.top_right_coord_px
-                updated_table[matching_rows[0][0]]["bottom_left_region"] = bbox.bottom_left_coord_px
+                updated_table[matching_rows[0][0]]["top_right_cutout"] = bbox.top_right_coord_px
+                updated_table[matching_rows[0][0]]["bottom_left_cutout"] = bbox.bottom_left_coord_px
             else:
                 logger.warn(f"{len(matching_rows)} rows matched with {bbox.fulldisk_path} and {bbox.cutout_path}")
 
