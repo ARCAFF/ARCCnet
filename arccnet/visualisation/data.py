@@ -422,7 +422,7 @@ def plot_col_scatter_single(
     return fig, ax
 
 
-def plot_maps(map_one, map_two):
+def plot_maps(map_one, map_two, horizontal=True):
     fig = plt.figure(figsize=(10, 4))
 
     ax1 = fig.add_subplot(1, 2, 1, projection=map_one)
@@ -432,3 +432,32 @@ def plot_maps(map_one, map_two):
     map_two.plot(cmap="hmimag")
 
     return fig, [ax1, ax2]
+
+
+def plot_maps_regions(map_one, regions_one, map_two, regions_two, **kwargs):
+    fig = plt.figure(figsize=(10, 4))
+
+    # Assign different projections to each subplot
+    ax0 = fig.add_subplot(1, 2, 1, projection=map_one)
+    ax1 = fig.add_subplot(1, 2, 2, projection=map_two)
+
+    # Set the colormap limits for both maps
+    vmin, vmax = -1499, 1499
+    map_one.plot_settings["norm"].vmin = vmin
+    map_one.plot_settings["norm"].vmax = vmax
+    map_two.plot_settings["norm"].vmin = vmin
+    map_two.plot_settings["norm"].vmax = vmax
+
+    # Plot HMI and MDI maps on the respective subplots
+    map_one.plot(axes=ax0, cmap="hmimag")
+    map_two.plot(axes=ax1, cmap="hmimag")
+
+    # Loop through region_table and draw quadrangles for both maps
+    for row in regions_one:
+        print(row["bottom_left_cutout"])
+        map_one.draw_quadrangle(row["bottom_left_cutout"], axes=ax0, top_right=row["top_right_cutout"], **kwargs)
+    for row in regions_two:
+        print(row["bottom_left_cutout"])
+        map_two.draw_quadrangle(row["bottom_left_cutout"], axes=ax1, top_right=row["top_right_cutout"], **kwargs)
+
+    return fig, [ax0, ax1]
