@@ -78,7 +78,6 @@ mag_processed, _ = plot_maps(processed_mdi_file, processed_hmi_file)
 # -- AR Classification
 region_classification_table = QTable.read(Path(config["paths"]["data_root"]) / "04_final" / "mag" / "region_extraction" / "region_classification.parq")
 rct_subset = region_classification_table[region_classification_table['time'] == obs_date_time]
-rct_subset['region_type_hmi', 'processed_path_image_hmi', 'top_right_cutout_hmi', 'bottom_left_cutout_hmi', 'number']
 
 map_one = sunpy.map.Map(rct_subset['processed_path_image_hmi'][0])
 regions_one = rct_subset['region_type', 'top_right_cutout_hmi', 'bottom_left_cutout_hmi', 'number', 'magnetic_class', 'carrington_longitude', 'area', 'mcintosh_class']
@@ -107,15 +106,13 @@ glue("regions_mdi_mcintosh", regions_mdi_mcintosh, display=False)
 glue("regions_mdi_mag_class", regions_mdi_mag_class, display=False)
 
 import matplotlib.pyplot as plt
-mag_cutouts_mdi = plt.figure(figsize=(7.5, 3))
-smap_mdi = map_two.submap(top_right=regions_two['top_right_cutout'][0], bottom_left=regions_two['bottom_left_cutout'][0])
-smap_mdi.plot(cmap="hmimag")
+# mag_cutouts_mdi = plt.figure(figsize=(7.5, 3))
+# smap_mdi = map_two.submap(top_right=regions_two['top_right_cutout'][0], bottom_left=regions_two['bottom_left_cutout'][0])
+# smap_mdi.plot(cmap="hmimag")
 
 mag_cutouts_hmi = plt.figure(figsize=(7.5, 3))
 smap_hmi = map_one.submap(top_right=regions_one['top_right_cutout'][0], bottom_left=regions_one['bottom_left_cutout'][0])
 smap_hmi.plot(cmap="hmimag")
-
-
 
 map_cutouts, _ = plot_maps_regions(map_two, regions_two, map_one, regions_one, **{
     'edgecolor': 'black',
@@ -138,9 +135,11 @@ map_cutouts_two, _ = plot_maps_regions(mdi_map, mdi_region_table, hmi_map, hmi_r
 glue("two_plots", mag, display=False)
 glue("two_plots_processed", mag_processed, display=False)
 glue("two_plots_cutouts", map_cutouts, display=False)
-glue("two_plots_cutouts_mdi", mag_cutouts_mdi, display=False)
+# glue("two_plots_cutouts_mdi", mag_cutouts_mdi, display=False)
 glue("two_plots_cutouts_hmi", mag_cutouts_hmi, display=False)
 glue("two_plots_cutouts_two", map_cutouts_two, display=False)
+glue("rct_subset_ar", rct_subset[rct_subset["region_type"] == "AR"], display=True)
+glue("rdt_subset", rdt_subset, display=True)
 glue("hmi_plot", hmi, display=False)
 glue("mdi_plot", mdi, display=False)
 glue("obs_date", obs_date, display=False)
@@ -203,7 +202,6 @@ Initially, we will utilise each instrument individually, before expanding to cro
 :name: "fig:hmi:cotemporalmag"
 MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`.
 ```
-
 
 #### Instrumental/Orbital Effects on Data
 
@@ -274,24 +272,26 @@ The AR Classification dataset, has cotemporal observations with associated Activ
 MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`, showing NOAA AR cutouts.
 ```
 
-For example, for HMI, the cutout is shown below:
+For example, for HMI, the cutout is shown below with Mcintosh/Hale Classes: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`.
 
-```{glue:figure} two_plots_cutouts_mdi
+<!-- ```{glue:figure} two_plots_cutouts_mdi
 :alt: "AR Cutouts from MDI"
 :name: "fig:hmi:cotemporalmagprocessmdi"
-...
-```
+Active region cutout with Mcintosh/Hale Classes: {glue}`regions_mdi_mcintosh`, {glue}`regions_mdi_mag_class
+``` -->
 
 ```{glue:figure} two_plots_cutouts_hmi
 :alt: "AR Cutouts from HMI"
 :name: "fig:hmi:cotemporalmagprocesshmi"
-...
+Active region cutout with Mcintosh/Hale Classes: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class
 ```
 
-{glue}`regions_one_mcintosh`
-{glue}`regions_one_mag_class`
-{glue}`regions_two_mcintosh`
-{glue}`regions_two_mag_class`
+where the Active Regions are described in the region cutout table, as follows
+
+```{glue:} rct_subset_ar
+```
+
+To access the data, for a chosen `time`, the `magnetic_class` and `mcintosh_class` columns provide the appropriate classification classes (if `region_type` is an Active Region ("AR"). For any given `region_type`, the `processed_path_image_hmi` and `path_image_cutout_hmi` provide the HMI image and cutout paths, with the `top_right_cutout_hmi` and `bottom_left_cutout_hmi` values providing the top-right, and bottom-left coordinates of the cutout in the processed image.
 
 ### Region Detection Dataset
 
@@ -303,6 +303,12 @@ The Region Detection dataset has cotemporal observations,
 MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`, showing NOAA AR cutouts.
 ```
 
+where the table below shows the HMI and MDI data for the full-disk, and active region cutouts ("arc") data:
+
+```{glue:} rdt_subset
+```
+
+To access the data, for a given `target_time`, data can be split through the `instrument` column, where the `processed_path` provides the path of the full-disk image, `path_arc` provides the location of the active region classification image, or alternatively, the bounds (that correspond to the `processed_path`) can be requested through `top_right_cutout` and `bottom_left_cutout`.
 
 ## Bibliography
 
