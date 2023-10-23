@@ -22,14 +22,14 @@ class DetectionBox:
     top_right_coord_px: tuple[float, float]
 
 
-class RD(QTable):
+class RegionDetectionTable(QTable):
     r"""
     Region Detection QTable object.
 
     """
     required_column_types = {
         "target_time": Time,
-        "path": str,  # probably want processed_path
+        "processed_path": str,
         "path_arc": str,
     }
 
@@ -43,7 +43,7 @@ class RD(QTable):
     @classmethod
     def augment_table(cls, base_table):
         if not isinstance(base_table, cls):
-            raise ValueError("base_table must be an instance of RD")
+            raise ValueError("base_table must be an instance of RegionDetectionTable")
 
         # Check if additional columns already exist
         existing_columns = set(base_table.colnames).intersection(["top_right", "bottom_left"])
@@ -80,8 +80,8 @@ class RegionDetection:
 
         """
 
-        self._loaded_data = RD(table)
-        self._result_table = QTable(RD.augment_table(self._loaded_data))
+        self._loaded_data = RegionDetectionTable(table)
+        self._result_table = QTable(RegionDetectionTable.augment_table(self._loaded_data))
         self._col_group = col_group_path
         self._col_cutout = col_cutout_path
 
@@ -166,4 +166,4 @@ class RegionDetection:
             else:
                 logger.warn(f"{len(matching_rows)} rows matched with {bbox.fulldisk_path} and {bbox.cutout_path}")
 
-        return RD(updated_table)
+        return RegionDetectionTable(updated_table)
