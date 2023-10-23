@@ -264,7 +264,7 @@ Currently we obtain bitmap images as a preliminary method to extract regions aro
 
 ### Active Region Classification Dataset
 
-The AR Classification dataset, has cotemporal observations with associated Active regions cutouts, centered on NOAA ARs
+The AR Classification dataset contains cutouts associated with NOAA ARs, and "quiet sun" regions. Currently, in this version, a "quiet sun" region is any region that is not a NOAA AR. The ARs at {glue}`obs_date` are shown below
 
 ```{glue:figure} two_plots_cutouts
 :alt: "AR Cutouts from cotemporal HMI-MDI"
@@ -272,7 +272,7 @@ The AR Classification dataset, has cotemporal observations with associated Activ
 MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`, showing NOAA AR cutouts.
 ```
 
-For example, for HMI, the cutout is shown below with Mcintosh/Hale Classes: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`.
+where the cutout from HMI is shown with Mcintosh/Hale Classes: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`.
 
 <!-- ```{glue:figure} two_plots_cutouts_mdi
 :alt: "AR Cutouts from MDI"
@@ -283,19 +283,19 @@ Active region cutout with Mcintosh/Hale Classes: {glue}`regions_mdi_mcintosh`, {
 ```{glue:figure} two_plots_cutouts_hmi
 :alt: "AR Cutouts from HMI"
 :name: "fig:hmi:cotemporalmagprocesshmi"
-Active region cutout with Mcintosh/Hale Classes: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class
+Active region cutout with Mcintosh/Hale Classes: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`
 ```
 
-where the Active Regions are described in the region cutout table, as follows
+The Rection Classification Table for ARs only (`region_type` = "AR") at {glue}`obs_date` is as follows
 
 ```{glue:} rct_subset_ar
 ```
 
-To access the data, for a chosen `time`, the `magnetic_class` and `mcintosh_class` columns provide the appropriate classification classes (if `region_type` is an Active Region ("AR"). For any given `region_type`, the `processed_path_image_hmi` and `path_image_cutout_hmi` provide the HMI image and cutout paths, with the `top_right_cutout_hmi` and `bottom_left_cutout_hmi` values providing the top-right, and bottom-left coordinates of the cutout in the processed image.
+To access the data from this table, for a chosen `time`, the `magnetic_class` and `mcintosh_class` columns provide the appropriate classification classes (if `region_type` is an Active Region, "AR"). Additionally, for any given `region_type`, the `processed_path_image_hmi` and `path_image_cutout_hmi` provide the HMI image and cutout paths, with the `top_right_cutout_hmi` and `bottom_left_cutout_hmi` values providing the top-right, and bottom-left coordinates of the cutout in the processed image.
 
 ### Region Detection Dataset
 
-The Region Detection dataset has cotemporal observations,
+The Region Detection dataset has cotemporal observations, with regions extracted from SHARPs/SMARPs, as shown below
 
 ```{glue:figure} two_plots_cutouts_two
 :alt: "AR Cutouts from cotemporal HMI-MDI"
@@ -303,7 +303,7 @@ The Region Detection dataset has cotemporal observations,
 MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`, showing NOAA AR cutouts.
 ```
 
-where the table below shows the HMI and MDI data for the full-disk, and active region cutouts ("arc") data:
+where the Region Detection Table shows the HMI and MDI data for the full-disk, and active region cutout ("arc") data:
 
 ```{glue:} rdt_subset
 ```
