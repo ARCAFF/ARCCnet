@@ -24,13 +24,7 @@ class DetectionBox:
 
 class RD(QTable):
     r"""
-    Result object defines both the result and download status.
-
-    The value of the 'path' is used to encode if the corresponding file was downloaded or not.
-
-    Notes
-    -----
-    Under the hood uses QTable and Masked columns to define if a file was downloaded or not
+    Region Detection QTable object.
 
     """
     required_column_types = {
