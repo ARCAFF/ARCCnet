@@ -63,7 +63,7 @@ class RegionDetectionTable(QTable):
 
 
 class RegionDetection:
-    def __init__(self, table: QTable, col_group_path="path", col_cutout_path="path_arc"):
+    def __init__(self, table: QTable, col_group_path="processed_path", col_cutout_path="path_arc"):
         """
         Initialize a RegionDetection instance
 
