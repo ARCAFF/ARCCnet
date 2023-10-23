@@ -72,7 +72,7 @@ class MagnetogramProcessor:
     def process(
         self, use_multiprocessing: bool = True, merge_col_prefix: str = "processed_", overwrite: bool = True
     ) -> dict:
-        """
+        r"""
         Process data using multiprocessing.
         """
 
@@ -129,7 +129,7 @@ class MagnetogramProcessor:
         return MagResult(new_table)
 
     def _multiprocess_and_save_data_wrapper(self, args):
-        """
+        r"""
         Wrapper method to process and save data using `_process_and_save_data`.
 
         This method takes a tuple of arguments containing the file path and the output directory,
@@ -137,12 +137,12 @@ class MagnetogramProcessor:
 
         Parameters
         ----------
-        args : tuple
+        args : `tuple`
             A tuple containing the file path and output directory.
 
         Returns
         -------
-        Path
+        `Path`
             A path for the processed file
 
         See Also:
@@ -153,15 +153,15 @@ class MagnetogramProcessor:
         return self._process_and_save_data(file, output_dir, overwrite)
 
     def _process_and_save_data(self, file: Path, output_dir: Path, overwrite: bool) -> Path:
-        """
+        r"""
         Process data and save compressed map.
 
         Parameters
         ----------
-        file : Path
+        file : `Path`
             Data file path.
 
-        output_dir : Path
+        output_dir : `Path`
             Directory to save processed data.
 
         Returns
@@ -177,25 +177,24 @@ class MagnetogramProcessor:
         return output_file
 
     def _process_datum(self, file) -> sunpy.map.Map:
-        """
+        r"""
         Process a single data file.
 
         Processing Steps:
             1. Load and rotate
             2. Set off-disk data to 0
-            3. Set NaN values to 0
             # !TODO
             4. Normalise radius to a fixed value
             5. Project to a certain location in space
 
         Parameters
         ----------
-        file : Path
+        file : `Path`
             Data file path.
 
         Returns
         -------
-        rotated_map : sunpy.map.Map
+        rotated_map : `sunpy.map.Map`
             Processed sunpy map.
         """
         #!TODO remove 'BLANK' keyword
@@ -213,16 +212,16 @@ class MagnetogramProcessor:
         return rotated_map
 
     def _rotate_datum(self, amap: sunpy.map.Map) -> sunpy.map.Map:
-        """
+        r"""
         Rotate a map according to metadata.
 
         Args:
-        amap : sunpy.map.Map
+        amap : `sunpy.map.Map`
             An input sunpy map.
 
         Parameters
         ----------
-        rotated_map : sunpy.map.Map
+        rotated_map : `sunpy.map.Map`
             Rotated sunpy map.
 
         Notes
@@ -233,26 +232,26 @@ class MagnetogramProcessor:
 
 
 class RegionBox:
-    """
+    r"""
     Parameters
     ----------
-    top_right
+    top_right : `tuple[float, float]`
         pixel coordinates of the top right of the bounding box
 
-    bottom_left
+    bottom_left : `tuple[float, float]`
         pixel coordinates of the top right of the bounding box
 
-    shape
+    shape : `tuple[int, int]`
         shape in pixels of the region
 
-    ar_pos_pixels
+    ar_pos_pixels : `tuple[int, int]`
         pixel coordinates of the active region centre
 
-    identifier
-        an identifier for the region, e.g. NOAA AR Number
+    identifier: `int`
+        an identifier for the region, e.g. NOAA AR Number. Default is None
 
-    filepath
-        filepath of the region
+    filepath: `Path`
+        filepath of the region. Default is None
 
     """
 
@@ -261,9 +260,9 @@ class RegionBox:
         top_right: tuple[float, float],
         bottom_left: tuple[float, float],
         shape: tuple[int, int],
-        ar_pos_pixels=tuple[int, int],
-        identifier=None,
-        filepath=None,
+        ar_pos_pixels: tuple[int, int],
+        identifier: int = None,
+        filepath: Path = None,
     ):
         self.top_right = top_right
         self.bottom_left = bottom_left
@@ -640,26 +639,26 @@ class RegionExtractor:
 
 @u.quantity_input
 def extract_region_lonlat(sunpy_map, latitude: u.deg, longitude: u.deg, xsize: u.pix, ysize: u.pix) -> sunpy.map.Map:
-    """
+    r"""
 
     Parameters
     ----------
-    map : sunpy.map.Map
+    map : `sunpy.map.Map`
 
-    latitude : u.deg
+    latitude : `u.deg`
 
-    longitude : u.deg
+    longitude : `u.deg`
 
-    xsize : int, u.pix
+    xsize : `int`, `u.pix`
         x extent of region to extract (in pixels)
 
-    ysize : int, u.pix
+    ysize : `int`, `u.pix`
         y extend of region to extract (in pixels)
 
 
     Returns
     -------
-    tuple[float], tuple[float], tuple[float]]
+    `tuple[float], tuple[float], tuple[float]]`
         locations of the top right, bottom left and active region center
     """
     ar_pos_pixels = latlon_to_map_pixels(latitude, longitude, sunpy_map)
@@ -670,7 +669,7 @@ def extract_region_lonlat(sunpy_map, latitude: u.deg, longitude: u.deg, xsize: u
 
 @u.quantity_input
 def pixel_to_bboxcoords(xsize: u.pix, ysize: u.pix, box_center: u.pix):
-    """
+    r"""
     Given the box center, and xsize, ysize, return the bottom left and top right coordinates in pixels
     """
     # remove u.pix
@@ -694,7 +693,7 @@ def latlon_to_map_pixels(
     sunpy_map: sunpy.map.Map,
     frame=sunpy.coordinates.frames.HeliographicStonyhurst,
 ):
-    """
+    r"""
     Given lat/lon in degrees, convert to pixel locations
     """
     ar_pos_hgs = SkyCoord(
@@ -709,7 +708,7 @@ def latlon_to_map_pixels(
 
 
 def map_pixels_to_latlon(sunpy_map: sunpy.map.Map):
-    """
+    r"""
     provide pixels, get out latlon
     """
     pass

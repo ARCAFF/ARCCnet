@@ -64,7 +64,7 @@ class RegionDetectionTable(QTable):
 
 class RegionDetection:
     def __init__(self, table: QTable, col_group_path="processed_path", col_cutout_path="path_arc"):
-        """
+        r"""
         Initialize a RegionDetection instance
 
         Parameters
@@ -88,7 +88,7 @@ class RegionDetection:
     def get_bboxes(
         self,
     ) -> list[DetectionBox]:
-        """
+        r"""
         Extract detection boxes from the input DataFrame.
 
         Returns
@@ -137,7 +137,7 @@ class RegionDetection:
         self,
         bboxes: list[DetectionBox],
     ) -> QTable:
-        """
+        r"""
         Update the loaded QTable with detection box information.
 
         Parameters
