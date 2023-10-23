@@ -405,6 +405,8 @@ def plot_col_scatter_single(
     for i, df in enumerate(df_list):
         ax.scatter(df["target_time"], df[column], marker=".", s=0.1, color=colors[i])
 
+    ax.set_ylabel(f"{column}")
+
     # Set a fixed locator for the x-axis (yearly ticks)
     years = plt.matplotlib.dates.YearLocator(base=1)
     ax.xaxis.set_major_locator(years)
