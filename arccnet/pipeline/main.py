@@ -512,93 +512,96 @@ def region_extraction(config, srs_hmi, srs_mdi):
         logger.debug(f"writing {mdi_file}")
         mdi_table.write(mdi_file, format="parquet", overwrite=True)
 
-    column_subset = [
-        "time",
-        "region_type",
-        "number",
-        "carrington_longitude",
-        "area",
-        "mcintosh_class",
-        "longitudinal_extent",
-        "number_of_sunspots",
-        "magnetic_class",
-        "latitude",
-        "longitude",
-        "processed_path_image",
-        "top_right_cutout",
-        "bottom_left_cutout",
-        "path_image_cutout",
-        "dim_image_cutout",
-        "sum_ondisk_nans",
-        "quicklook_path",
-    ]
+    if classification_file.exists():
+        ar_classification_hmi_mdi = QTable.read(classification_file)
+    else:
+        column_subset = [
+            "time",
+            "region_type",
+            "number",
+            "carrington_longitude",
+            "area",
+            "mcintosh_class",
+            "longitudinal_extent",
+            "number_of_sunspots",
+            "magnetic_class",
+            "latitude",
+            "longitude",
+            "processed_path_image",
+            "top_right_cutout",
+            "bottom_left_cutout",
+            "path_image_cutout",
+            "dim_image_cutout",
+            "sum_ondisk_nans",
+            "quicklook_path",
+        ]
 
-    ar_classification_hmi_mdi = join(
-        QTable(hmi_table[column_subset]),
-        QTable(mdi_table[column_subset]),
-        join_type="outer",  # keep all columns
-        keys=["time", "number"],
-        table_names=["hmi", "mdi"],
-    )
+        ar_classification_hmi_mdi = join(
+            QTable(hmi_table[column_subset]),
+            QTable(mdi_table[column_subset]),
+            join_type="outer",  # keep all columns
+            keys=["time", "number"],
+            table_names=["hmi", "mdi"],
+        )
 
-    # trying to combine columns with masks...; can't use as keys in the merge as there are missing values...
-    ar_classification_hmi_mdi["region_type"] = _combine_columns(
-        ar_classification_hmi_mdi["region_type_hmi"], ar_classification_hmi_mdi["region_type_mdi"]
-    )
-    ar_classification_hmi_mdi["magnetic_class"] = _combine_columns(
-        ar_classification_hmi_mdi["magnetic_class_hmi"], ar_classification_hmi_mdi["magnetic_class_mdi"]
-    )
-    ar_classification_hmi_mdi["carrington_longitude"] = _combine_columns(
-        ar_classification_hmi_mdi["carrington_longitude_hmi"], ar_classification_hmi_mdi["carrington_longitude_mdi"]
-    )
-    ar_classification_hmi_mdi["area"] = _combine_columns(
-        ar_classification_hmi_mdi["area_hmi"], ar_classification_hmi_mdi["area_mdi"]
-    )
-    ar_classification_hmi_mdi["mcintosh_class"] = _combine_columns(
-        ar_classification_hmi_mdi["mcintosh_class_hmi"], ar_classification_hmi_mdi["mcintosh_class_mdi"]
-    )
-    ar_classification_hmi_mdi["longitudinal_extent"] = _combine_columns(
-        ar_classification_hmi_mdi["longitudinal_extent_hmi"], ar_classification_hmi_mdi["longitudinal_extent_mdi"]
-    )
-    ar_classification_hmi_mdi["number_of_sunspots"] = _combine_columns(
-        ar_classification_hmi_mdi["number_of_sunspots_hmi"], ar_classification_hmi_mdi["number_of_sunspots_mdi"]
-    )
+        # trying to combine columns with masks. Can't use as keys in the merge as there are missing values
+        # !TODO there must be a better way to do this, but for now, this can suffice.
+        ar_classification_hmi_mdi["region_type"] = _combine_columns(
+            ar_classification_hmi_mdi["region_type_hmi"], ar_classification_hmi_mdi["region_type_mdi"]
+        )
+        ar_classification_hmi_mdi["magnetic_class"] = _combine_columns(
+            ar_classification_hmi_mdi["magnetic_class_hmi"], ar_classification_hmi_mdi["magnetic_class_mdi"]
+        )
+        ar_classification_hmi_mdi["carrington_longitude"] = _combine_columns(
+            ar_classification_hmi_mdi["carrington_longitude_hmi"], ar_classification_hmi_mdi["carrington_longitude_mdi"]
+        )
+        ar_classification_hmi_mdi["area"] = _combine_columns(
+            ar_classification_hmi_mdi["area_hmi"], ar_classification_hmi_mdi["area_mdi"]
+        )
+        ar_classification_hmi_mdi["mcintosh_class"] = _combine_columns(
+            ar_classification_hmi_mdi["mcintosh_class_hmi"], ar_classification_hmi_mdi["mcintosh_class_mdi"]
+        )
+        ar_classification_hmi_mdi["longitudinal_extent"] = _combine_columns(
+            ar_classification_hmi_mdi["longitudinal_extent_hmi"], ar_classification_hmi_mdi["longitudinal_extent_mdi"]
+        )
+        ar_classification_hmi_mdi["number_of_sunspots"] = _combine_columns(
+            ar_classification_hmi_mdi["number_of_sunspots_hmi"], ar_classification_hmi_mdi["number_of_sunspots_mdi"]
+        )
 
-    # List of columns to remove
-    columns_to_remove = [
-        "region_type_hmi",
-        "region_type_mdi",
-        "magnetic_class_hmi",
-        "magnetic_class_mdi",
-        "carrington_longitude_hmi",
-        "carrington_longitude_mdi",
-        "area_hmi",
-        "area_mdi",
-        "mcintosh_class_hmi",
-        "mcintosh_class_mdi",
-        "longitudinal_extent_hmi",
-        "longitudinal_extent_mdi",
-        "number_of_sunspots_hmi",
-        "number_of_sunspots_mdi",
-    ]
+        # List of columns to remove
+        columns_to_remove = [
+            "region_type_hmi",
+            "region_type_mdi",
+            "magnetic_class_hmi",
+            "magnetic_class_mdi",
+            "carrington_longitude_hmi",
+            "carrington_longitude_mdi",
+            "area_hmi",
+            "area_mdi",
+            "mcintosh_class_hmi",
+            "mcintosh_class_mdi",
+            "longitudinal_extent_hmi",
+            "longitudinal_extent_mdi",
+            "number_of_sunspots_hmi",
+            "number_of_sunspots_mdi",
+        ]
 
-    # Loop through the list and remove the specified columns
-    for col_name in columns_to_remove:
-        if col_name in ar_classification_hmi_mdi.colnames:
-            ar_classification_hmi_mdi.remove_column(col_name)
+        # Loop through the list and remove the specified columns
+        for col_name in columns_to_remove:
+            if col_name in ar_classification_hmi_mdi.colnames:
+                ar_classification_hmi_mdi.remove_column(col_name)
 
-    logger.debug(f"writing {classification_file}")
-    ar_classification_hmi_mdi.write(classification_file, format="parquet", overwrite=True)
+        logger.debug(f"writing {classification_file}")
+        ar_classification_hmi_mdi.write(classification_file, format="parquet", overwrite=True)
 
     # filter: hmi/mdi cutout size...
     # one merged catalogue file with both MDI/HMI each task classification and detection
     return ar_classification_hmi_mdi
 
 
-# Define a function to combine the two columns
 def _combine_columns(column1, column2):
     """
-    given two columns, attempt to combine as long as values are not different
+    given two columns from QTable, attempt to combine as long as values are not different
     """
     combined_column = MaskedColumn(np.empty(len(column1), dtype=column1.dtype))
 
@@ -628,58 +631,67 @@ def region_detection(config, hmi_sharps, mdi_smarps):
     region_detection_path_intermediate = Path(data_root) / "02_intermediate" / "mag" / "region_detection"
     region_detection_path = Path(data_root) / "04_final" / "mag" / "region_detection"
     region_detection_path_intermediate.mkdir(exist_ok=True, parents=True)
+    hmi_ar_det_file = region_detection_path_intermediate / "hmi_ar_detection.parq"
+    mdi_ar_det_file = region_detection_path_intermediate / "mdi_ar_detection.parq"
+    reg_det_file = region_detection_path / "region_detection.parq"
     region_detection_path.mkdir(exist_ok=True, parents=True)
 
-    hmidetection = RegionDetection(table=hmi_sharps, col_group_path="processed_path", col_cutout_path="path_arc")
-    hmi_sharps_detection_table, hmi_sharps_detection_bboxes = hmidetection.get_bboxes()
+    if hmi_ar_det_file.exists():
+        logger.debug(f"reading {hmi_ar_det_file}")
+        hmi_sharps_detection_table = QTable.read(hmi_ar_det_file)
+    else:
+        hmidetection = RegionDetection(table=hmi_sharps, col_group_path="processed_path", col_cutout_path="path_arc")
+        hmi_sharps_detection_table, hmi_sharps_detection_bboxes = hmidetection.get_bboxes()
+        hmi_sharps_detection_table.write(hmi_ar_det_file, format="parquet", overwrite=True)
+        logger.debug(f"writing {hmi_ar_det_file}")
 
-    mdidetection = RegionDetection(table=mdi_smarps, col_group_path="processed_path", col_cutout_path="path_arc")
-    mdi_smarps_detection_table, mdi_smarps_detection_bboxes = mdidetection.get_bboxes()
+    if mdi_ar_det_file.exists():
+        logger.debug(f"reading {mdi_ar_det_file}")
+        mdi_ar_det_file = QTable.read(mdi_ar_det_file)
+    else:
+        mdidetection = RegionDetection(table=mdi_smarps, col_group_path="processed_path", col_cutout_path="path_arc")
+        mdi_smarps_detection_table, mdi_smarps_detection_bboxes = mdidetection.get_bboxes()
+        mdi_smarps_detection_table.write(mdi_ar_det_file, format="parquet", overwrite=True)
+        logger.debug(f"writing {mdi_ar_det_file}")
 
-    hmi_sharps_detection_table.write(
-        region_detection_path_intermediate / "hmi_ar_detection.parq", format="parquet", overwrite=True
-    )
-    mdi_smarps_detection_table.write(
-        region_detection_path_intermediate / "mdi_ar_detection.parq", format="parquet", overwrite=True
-    )
-    logger.debug(
-        f"writing {region_detection_path_intermediate / 'hmi_ar_detection.parq'}, {region_detection_path_intermediate / 'mdi_ar_detection.parq'}"
-    )
-
-    column_subset = [
-        "target_time",
-        "datetime",
-        "instrument",
-        "path",
-        "processed_path",
-        "target_time_arc",
-        "datetime_arc",
-        "record_T_REC_arc",
-        "path_arc",
-        "top_right_cutout",
-        "bottom_left_cutout",
-    ]
-
-    # subset of columns
-    hmi_sharps_detection_table["instrument"] = "HMI"
-    hmi_column_subset = column_subset + ["record_HARPNUM_arc"]
-    hmi_sharps_detection_table_subset = hmi_sharps_detection_table[hmi_column_subset]
-
-    mdi_smarps_detection_table["instrument"] = "MDI"
-    mdi_column_subset = column_subset + ["record_TARPNUM_arc"]
-    mdi_smarps_detection_table_subset = mdi_smarps_detection_table[mdi_column_subset]
-
-    # !TODO probably want to add an instrument column or something...
-    ar_detection = vstack(
-        [
-            QTable(mdi_smarps_detection_table_subset),
-            QTable(hmi_sharps_detection_table_subset),
+    if reg_det_file.exists():
+        logger.debug(f"reading {reg_det_file}")
+        ar_detection = QTable.read(reg_det_file)
+    else:
+        column_subset = [
+            "target_time",
+            "datetime",
+            "instrument",
+            "path",
+            "processed_path",
+            "target_time_arc",
+            "datetime_arc",
+            "record_T_REC_arc",
+            "path_arc",
+            "top_right_cutout",
+            "bottom_left_cutout",
         ]
-    )
-    ar_detection.sort("target_time")
 
-    ar_detection.write(region_detection_path / "region_detection.parq", format="parquet", overwrite=True)
-    logger.debug(f"writing {region_detection_path / 'region_detection.parq'}")
+        # subset of columns
+        hmi_sharps_detection_table["instrument"] = "HMI"
+        hmi_column_subset = column_subset + ["record_HARPNUM_arc"]
+        hmi_sharps_detection_table_subset = hmi_sharps_detection_table[hmi_column_subset]
+
+        mdi_smarps_detection_table["instrument"] = "MDI"
+        mdi_column_subset = column_subset + ["record_TARPNUM_arc"]
+        mdi_smarps_detection_table_subset = mdi_smarps_detection_table[mdi_column_subset]
+
+        # "instrument" column allows each instrument to be studied individually.
+        ar_detection = vstack(
+            [
+                QTable(mdi_smarps_detection_table_subset),
+                QTable(hmi_sharps_detection_table_subset),
+            ]
+        )
+        ar_detection.sort("target_time")
+
+        ar_detection.write(reg_det_file, format="parquet", overwrite=True)
+        logger.debug(f"writing {reg_det_file}")
 
     return ar_detection
 
