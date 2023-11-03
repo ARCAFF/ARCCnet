@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from astropy.table import QTable
 import numpy as np
+import pandas as pd
 import sunpy
 import sunpy.map
 from arccnet import config
@@ -31,6 +32,9 @@ from arccnet.visualisation.data import (
     plot_maps_regions,
 )
 
+from arccnet import __version__
+glue("arccnet_version", __version__, display=False)
+
 # Load data -------------------------------------------------------------------
 NOAA_AR_IDENTIFIER = 'I'
 glue("NOAA_AR_IDENTIFIER", NOAA_AR_IDENTIFIER, display=False)
@@ -41,8 +45,8 @@ srs_raw_catalog = QTable.read(Path(config["paths"]["data_dir_intermediate"]) / "
 srs_clean_catalog = QTable.read(Path(config["paths"]["data_dir_final"]) / "srs_clean_catalog.parq") # final cleaned catalog
 
 # srs query: start, end, length
-glue("srs_query_start", srs_query_results['start_time'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
-glue("srs_query_end", srs_query_results['start_time'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+glue("srs_query_start", srs_query_results['start_time'][0].strftime("%Y-%m-%d"), display=False)
+glue("srs_query_end", srs_query_results['start_time'][-1].strftime("%Y-%m-%d"), display=False)
 glue("len_srs_query_results", len(srs_query_results), display=False)
 
 # srs exist (may not load)
@@ -51,8 +55,10 @@ glue("num_unique_srs_exist", len(np.unique(srs_files_exist['filename'])), displa
 
 # srs exist (and loaded)
 srs_files_exist_loaded = srs_files_exist[srs_files_exist['loaded_successfully'] == True] # files that exist and loaded correctly
-glue("srs_exist_loaded_start", srs_files_exist_loaded['time'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False) # start time
-glue("srs_exist_loaded_end", srs_files_exist_loaded['time'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False) # end time
+# glue("srs_exist_loaded_start", srs_files_exist_loaded['time'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False) # start time
+# glue("srs_exist_loaded_end", srs_files_exist_loaded['time'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False) # end time
+glue("srs_exist_loaded_start", pd.to_datetime(srs_files_exist_loaded.to_pandas()['time']).round("D").unique()[0].strftime("%Y-%m-%d"), display=False) # rounded to nearest dat
+glue("srs_exist_loaded_end", pd.to_datetime(srs_files_exist_loaded.to_pandas()['time']).round("D").unique()[-1].strftime("%Y-%m-%d"), display=False) # rounded to nearest day
 glue("len_srs_exist_loaded", len(srs_files_exist_loaded), display=False) # number of regions that exist
 glue("num_unique_srs_exist_loaded", len(np.unique(srs_files_exist_loaded['filename'])), display=False) # number of unique files
 glue("srs_files_exist_loaded_num_noaa_ar_identifier", len(srs_files_exist_loaded[srs_files_exist_loaded['id'] == NOAA_AR_IDENTIFIER]), display=False) # ... are of the NOAA type
@@ -69,24 +75,31 @@ hmi_table = QTable.read(Path(config["paths"]["data_root"]) / "02_intermediate" /
 hmi_processed = QTable.read(Path(config["paths"]["data_root"]) / "03_processed" / "mag" / "hmi_processed.parq")
 sharps_downloads = QTable.read(Path(config["paths"]["data_root"]) / "02_intermediate" / "mag" / "sharps_downloads.parq") # sharps downloads
 # ... extracted values
-glue("hmi_query_start", hmi_processed['target_time'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
-glue("hmi_query_end", hmi_processed['target_time'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+# glue("hmi_query_start", hmi_processed['target_time'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+# glue("hmi_query_end", hmi_processed['target_time'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+glue("hmi_query_start", hmi_processed['target_time'][0].strftime("%Y-%m-%d"), display=False) # just provide date
+glue("hmi_query_end", hmi_processed['target_time'][-1].strftime("%Y-%m-%d"), display=False) # just provide date
 hmi_data_exist = hmi_processed[~hmi_processed['datetime'].mask]
 glue("len_hmi_data_exist", len(hmi_data_exist), display=False)
-glue("hmi_data_exist_start", hmi_data_exist['datetime'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
-glue("hmi_data_exist_end", hmi_data_exist['datetime'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+# glue("hmi_data_exist_start", hmi_data_exist['datetime'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+# glue("hmi_data_exist_end", hmi_data_exist['datetime'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+
+glue("hmi_data_exist_start", pd.to_datetime(hmi_data_exist.to_pandas()['datetime']).round("D").unique()[0].strftime("%Y-%m-%d"), display=False) # rounded to nearest day
+glue("hmi_data_exist_end", pd.to_datetime(hmi_data_exist.to_pandas()['datetime']).round("D").unique()[-1].strftime("%Y-%m-%d"), display=False) # rounded to nearest day
 
 # 3. MDI
 mdi_table = QTable.read(Path(config["paths"]["data_root"]) / "02_intermediate" / "mag" / "mdi_results.parq").to_pandas()
 mdi_processed = QTable.read(Path(config["paths"]["data_root"]) / "03_processed" / "mag" / "mdi_processed.parq")
 smarps_downloads = QTable.read(Path(config["paths"]["data_root"]) / "02_intermediate" / "mag" / "smarps_downloads.parq") # smarps downloads
 # ... extracted values
-glue("mdi_query_start", mdi_processed['target_time'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
-glue("mdi_query_end", mdi_processed['target_time'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+glue("mdi_query_start", mdi_processed['target_time'][0].strftime("%Y-%m-%d"), display=False) # just show date
+glue("mdi_query_end", mdi_processed['target_time'][-1].strftime("%Y-%m-%d"), display=False) # just show date
 mdi_data_exist = mdi_processed[~mdi_processed['datetime'].mask]
 glue("len_mdi_data_exist", len(mdi_data_exist), display=False)
-glue("mdi_data_exist_start", mdi_data_exist['datetime'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
-glue("mdi_data_exist_end", mdi_data_exist['datetime'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+# glue("mdi_data_exist_start", mdi_data_exist['datetime'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+# glue("mdi_data_exist_end", mdi_data_exist['datetime'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+glue("mdi_data_exist_start", pd.to_datetime(mdi_data_exist.to_pandas()['datetime']).round("D").unique()[0].strftime("%Y-%m-%d"), display=False) # rounded to nearest day
+glue("mdi_data_exist_end", pd.to_datetime(mdi_data_exist.to_pandas()['datetime']).round("D").unique()[-1].strftime("%Y-%m-%d"), display=False) # rounded to nearest day
 
 
 # 4. SRS-Magnetogram
@@ -94,10 +107,14 @@ srs_hmi = QTable.read(Path(config["paths"]["data_root"]) / "03_processed" / "mag
 srs_mdi = QTable.read(Path(config["paths"]["data_root"]) / "03_processed" / "mag" / "srs_mdi_merged.parq")
 
 glue("len_srs_hmi", len(srs_hmi), display=False)
-glue("len_srs_hmi_processed_path", len(srs_hmi[~srs_hmi['processed_path_image'].mask]), display=False)
+srs_hmi_ppi_exists = np.unique(srs_hmi[~srs_hmi['processed_path_image'].mask]['time'])
+glue("len_srs_hmi_processed_path", len(srs_hmi_ppi_exists), display=False)
+glue("num_unique_dates_srs_hmi_processed_path", len(np.unique(srs_hmi_ppi_exists)), display=False)
 
 glue("len_srs_mdi", len(srs_mdi), display=False)
-glue("len_srs_mdi_processed_path", len(srs_mdi[~srs_mdi['processed_path_image'].mask]), display=False)
+srs_mdi_ppi_exists = np.unique(srs_hmi[~srs_hmi['processed_path_image'].mask]['time'])
+glue("len_srs_mdi_processed_path", len(srs_mdi_ppi_exists), display=False)
+glue("num_unique_dates_srs_mdi_processed_path", len(np.unique(srs_mdi_ppi_exists)), display=False)
 
 
 # 5. DATASETS
@@ -274,6 +291,10 @@ JSOC
 
 To train active region classification and detection models, we also retrieve line-of-sight magnetograms once-per-day, from 1995 - 2022, synchronized with the validity of NOAA SRS reports at 00:00 UTC (issued at 00:30 UTC).
 
+:::{important}
+This report was generated based upon version ({glue}`arccnet_version`) of the `arccnet` dataset.
+:::
+
 ## Data Sources and Observations
 
 The observations from SoHO/MDI (1995 - 2011; {cite:t}`Scherrer1995,Domingo1995`) and SDO/HMI (2010 - present {cite:p}`Scherrer2012,Pesnell2012`) are retrieved from the Joint Science Operations Center (JSOC) at Stanford University for 1996 - 2022 inclusive, leaving 2023 as unseen data.
@@ -326,7 +347,7 @@ While these can be corrected through data preparation and processing, including 
 
 ### Full-disk HMI/MDI
 
-For this v0.1 of the dataset a preliminary data processing routine is applied to full-disk HMI and MDI (as shown below) to include
+In {glue}`arccnet_version` of the dataset, a preliminary data processing routine is applied to full-disk HMI and MDI (as shown below) to include
 
 1. Rotation to Solar North
 2. Removal (and zero) off-disk data
@@ -347,8 +368,8 @@ Currently the correct choice of reprojection is still under consideration, and t
 1. Instrument inter-calibration (and super-resolution) -- Due to optically distortion in MDI, even with reprojection to a common coordinate frame, perfect alignment of images is not possible between these instruments.
 2. Addition of Coronal Information e.g.
 
-* Inclusion and alignment of EUV images
-* Generation of Differential Emission Measure (DEM) maps {cite:p}`2012A&A...539A.146H,2015ApJ...807..143C`
+  * Inclusion and alignment of EUV images
+  * Generation of Differential Emission Measure (DEM) maps {cite:p}`2012A&A...539A.146H,2015ApJ...807..143C`
 
 3. Magnetic Field Extrapolation
 
@@ -360,21 +381,27 @@ Currently we obtain bitmap images as a preliminary method to extract regions aro
 
 ## Datasets
 
-The NOAA SRS archive was queried daily from {glue}`srs_query_start` to {glue}`srs_query_end` (spanning a total of {glue}`len_srs_query_results` days). This query returned {glue}`num_unique_srs_exist` NOAA SRS files, where {glue}`num_unique_srs_exist_loaded` were valid, and successfully parsed. From these {glue}`num_unique_srs_exist_loaded` SRS text files, we extracted a total of {glue}`len_srs_exist_loaded` regions (with IDs {glue}`srs_files_exist_loaded_unique_srs_id`), spanning {glue}`srs_exist_loaded_start` to {glue}`srs_exist_loaded_end`, inclusive.
+The NOAA SRS archive was queried daily from {glue}`srs_query_start` to {glue}`srs_query_end` (spanning a total of {glue}`len_srs_query_results` days). This query returned {glue}`num_unique_srs_exist` NOAA SRS files, where {glue}`num_unique_srs_exist_loaded` were valid and successfully parsed. From these {glue}`num_unique_srs_exist_loaded` SRS text files, we extracted a total of {glue}`len_srs_exist_loaded` regions (with IDs {glue}`srs_files_exist_loaded_unique_srs_id`), spanning {glue}`srs_exist_loaded_start` to {glue}`srs_exist_loaded_end`, inclusive.
 
-Out of these {glue}`len_srs_exist_loaded` regions, {glue}`srs_files_exist_loaded_num_noaa_ar_identifier` are of interest as they have an idenfitier equal to {glue}`NOAA_AR_IDENTIFIER`. This table is further filtered based on criteria described previously, resulting in a reduced number of usable regions, totaling {glue}`len_srs_clean_catalog`, obtained over {glue}`num_unique_dates_srs_clean_catalog` days.
+Out of these {glue}`len_srs_exist_loaded` regions, {glue}`srs_files_exist_loaded_num_noaa_ar_identifier` are of interest as they have an identifier equal to {glue}`NOAA_AR_IDENTIFIER`. This table is further filtered based on criteria described previously, resulting in a reduced number of usable regions, totaling {glue}`len_srs_clean_catalog`, obtained over {glue}`num_unique_dates_srs_clean_catalog` days.
 
 Additionally, we queried JSOC for SDO/HMI and SoHO/MDI data over the period {glue}`hmi_query_start` to {glue}`hmi_query_end`. For HMI, we obtained {glue}`len_hmi_data_exist` observations spanning {glue}`hmi_data_exist_start` to {glue}`hmi_data_exist_end`, and for MDI there were {glue}`len_mdi_data_exist` observations (spanning {glue}`mdi_data_exist_start` to {glue}`mdi_data_exist_end`).
 
-To generate datasets that relate the NOAA SRS regions and full-disk images, we performed individual merges of the NOAA SRS and SDO/HMI and SoHO/MDI catalogs, resulting in the creation of two primary tables: SRS-HMI, and SRS-MDI. As mentioned, the NOAA SRS catalog contains {glue}`len_srs_clean_catalog` rows, while the HMI table contains {glue}`len_hmi_data_exist` rows (and MDI, {glue}`len_mdi_data_exist` rows). We independently merged the NOAA SRS table with both the HMI and MDI tables using their respective time columns, resulting in an SRS-HMI table of length {glue}`len_srs_hmi` ({glue}`len_srs_mdi` for SRS-MDI). Among these rows, there are {glue}`len_srs_hmi_processed_path` rows where SRS and HMI both have data ({glue}`len_srs_mdi_processed_path` for SRS-MDI).
+To generate datasets that relate the NOAA SRS regions and full-disk images, we performed individual merges of the NOAA SRS and SDO/HMI and SoHO/MDI catalogs, resulting in the creation of two primary tables: SRS-HMI, and SRS-MDI. As mentioned, the NOAA SRS catalog contains {glue}`len_srs_clean_catalog` rows, while the HMI table contains {glue}`len_hmi_data_exist` rows (and MDI, {glue}`len_mdi_data_exist` rows). We independently merged the NOAA SRS table with both the HMI and MDI tables using their respective time columns, resulting in an SRS-HMI table of length {glue}`len_srs_hmi` ({glue}`len_srs_mdi` for SRS-MDI). Among these rows, there are {glue}`len_srs_hmi_processed_path` rows ({glue}`num_unique_dates_srs_hmi_processed_path` dates) where SRS and HMI both have data ({glue}`len_srs_mdi_processed_path` for SRS-MDI; {glue}`num_unique_dates_srs_mdi_processed_path` dates).
 
 ### Active Region Classification Dataset
 
-The AR Classification dataset contains cutouts associated with NOAA ARs, and randomly chosen "quiet sun" (QS) regions. In this version, a QS region is any region that is not a NOAA AR.
+The AR Classification dataset contains cutouts associated with NOAA ARs, and randomly chosen "quiet sun" (QS) regions.
 
-Starting with the SRS-HMI table ({glue}`len_srs_hmi_processed_path` rows) the active regions are extracted, and no filtering is performed. The HMI AR Classification dataset contains a total of {glue}`len_hmi_region_extraction_ar` ARs, and {glue}`len_hmi_region_extraction_qs` QS regions. Similarly, for MDI, there are {glue}`len_mdi_region_extraction_ar` AR regions {glue}`len_mdi_region_extraction_qs` QS regions. The ARs at {glue}`obs_date` are shown below for both MDI and HMI.
+:::{important}
+In this version ({glue}`arccnet_version`), we have defined a quiet sun region as any region that is not a NOAA AR.
+:::
 
-While no filtering is currently implemented, this may be necessary based on the number of NaN values found on disk (the columns `sum_ondisk_nans_mdi`, `sum_ondisk_nans_hmi`)
+Starting with the SRS-HMI table ({glue}`len_srs_hmi_processed_path` rows) the active regions are extracted, and SRS-HMI and SRS-MDI tables are merged on the `number` and `time` columns (for the `AR` `region_type` the `number` is an NOAA AR Number, extracted from the SRS text files, and for `QS`, this is an integer from `[0, N)`, where `N` was the number of QS regions generated). No further filtering is performed.
+
+The resulting HMI AR Classification dataset contains a total of {glue}`len_hmi_region_extraction_ar` ARs, and {glue}`len_hmi_region_extraction_qs` QS regions. Similarly, for MDI, there are {glue}`len_mdi_region_extraction_ar` AR regions {glue}`len_mdi_region_extraction_qs` QS regions. The ARs at {glue}`obs_date` are shown below for both MDI and HMI.
+
+While no filtering is currently implemented, this may be necessary based on the number of NaN values found on disk (the columns `sum_ondisk_nans_mdi`, `sum_ondisk_nans_hmi`), and based upon the size of the cutout `dim_image_cutout_hmi`, `dim_image_cutout_mdi`
 
 ```{glue:figure} two_plots_cutouts
 :alt: "AR Cutouts from cotemporal HMI-MDI"
@@ -399,9 +426,13 @@ To demonstrate how these figures were made, the region classification table at {
 
 ### Region Detection Dataset
 
-The Region Detection dataset contains cotemporal observations from HMI and MDI, with regions extracted from SHARPs/SMARPs, as shown in {numref}`fig:mag_region_detection`. In comparison to {numref}`fig:hmi:cotemporalmagprocess`, these data contain NOAA active regions and additional regions detected through the pipeline. In the initial version of this dataset, all regions are provided. With care, it it possible to merge the hand-labelled NOAA ARs, and automatically extract SHARP/SMARP regions, however it is possible that there is a one-to-many relationship present.
+The Region Detection dataset contains cotemporal observations from HMI and MDI, with regions extracted from SHARPs/SMARPs, as shown in {numref}`fig:mag_region_detection`. In comparison to {numref}`fig:hmi:cotemporalmagprocess`, these data contain NOAA active regions and additional regions detected through the pipeline.
 
-Figure {numref}`fig:mag_region_detection` shows MDI (left) and HMI (right) with the extracted SMARP/SHARP regions, from the `bitmap` segment that identifies the pixels located within the smooth bounding curve of the SHARP/SMARP detection algorithms.
+:::{note}
+In this version ({glue}`arccnet_version`) of this dataset, all regions from SMARP/SHARPs are provided. With care, it would be possible to merge the hand-labelled NOAA ARs, and automatically extract SHARP/SMARP regions, however it is possible that there is a one-to-many relationship present.
+:::
+
+Figure {numref}`fig:mag_region_detection` shows MDI (left) and HMI (right) with the respective SMARP and SHARP regions, from the `bitmap` segment. The `bitmap` segment identifies the pixels located within the smooth bounding curve of the SHARP/SMARP detection algorithms.
 
 ```{glue:figure} two_plots_cutouts_two
 :alt: "AR Cutouts from cotemporal HMI-MDI"
@@ -409,11 +440,10 @@ Figure {numref}`fig:mag_region_detection` shows MDI (left) and HMI (right) with 
 MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`, showing NOAA AR cutouts.
 ```
 
-The Region Detection table contains HMI and MDI data for full-disk as well as active region cutouts ("arc"). To access the data for a specific `target_time`, you can utilise the `instrument` column. The `processed_path` column offers the path to the full-disk image, while the `path_arc` column provides the location of the active region classification image. Alternatively, you can request the bounds that correspond to the `processed_path` through the `top_right_cutout` and `bottom_left_cutout` columns.
+The Region Detection table contains HMI and MDI data for full-disk as well as active region cutouts ("arc"). Individual instrument access is enabled through the `instrument` column for a `target_time`. The `processed_path` column offers the path to the full-disk image, while the `path_arc` column provides the location of the active region classification image. Alternatively, the  `top_right_cutout` and `bottom_left_cutout` provide bounds of the `path_arc` image, in full-disk data (`processed_path`).
 
 ```{glue:} rdt_subset
 ```
-
 
 ## Bibliography
 

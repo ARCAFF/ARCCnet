@@ -58,7 +58,11 @@ myst_enable_extensions = [
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints", "reports"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]  # , "reports"]
+
+# NBSphinx timeout
+# https://jupyterbook.org/en/stable/content/execute.html
+execution_timeout = 100
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
