@@ -12,7 +12,6 @@ jupytext:
     format_name: myst
 
 ---
-
 ```{code-cell} python3
 :tags: [hide-cell, remove-input, remove-output]
 
@@ -32,95 +31,191 @@ from arccnet.visualisation.data import (
     plot_maps_regions,
 )
 
+# Load data -------------------------------------------------------------------
+NOAA_AR_IDENTIFIER = 'I'
+glue("NOAA_AR_IDENTIFIER", NOAA_AR_IDENTIFIER, display=False)
 
-# Load HMI and MDI data
+# 1. SRS
+srs_query_results = QTable.read(Path(config["paths"]["data_dir_intermediate"]) / "noaa_srs" / "srs_results.parq") # search results
+srs_raw_catalog = QTable.read(Path(config["paths"]["data_dir_intermediate"]) / "noaa_srs" / "srs_raw_catalog.parq") # search results
+srs_clean_catalog = QTable.read(Path(config["paths"]["data_dir_final"]) / "srs_clean_catalog.parq") # final cleaned catalog
+
+# srs query: start, end, length
+glue("srs_query_start", srs_query_results['start_time'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+glue("srs_query_end", srs_query_results['start_time'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+glue("len_srs_query_results", len(srs_query_results), display=False)
+
+# srs exist (may not load)
+srs_files_exist = srs_raw_catalog[srs_raw_catalog['filename'] != ''] # files exist
+glue("num_unique_srs_exist", len(np.unique(srs_files_exist['filename'])), display=False) # unique files
+
+# srs exist (and loaded)
+srs_files_exist_loaded = srs_files_exist[srs_files_exist['loaded_successfully'] == True] # files that exist and loaded correctly
+glue("srs_exist_loaded_start", srs_files_exist_loaded['time'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False) # start time
+glue("srs_exist_loaded_end", srs_files_exist_loaded['time'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False) # end time
+glue("len_srs_exist_loaded", len(srs_files_exist_loaded), display=False) # number of regions that exist
+glue("num_unique_srs_exist_loaded", len(np.unique(srs_files_exist_loaded['filename'])), display=False) # number of unique files
+glue("srs_files_exist_loaded_num_noaa_ar_identifier", len(srs_files_exist_loaded[srs_files_exist_loaded['id'] == NOAA_AR_IDENTIFIER]), display=False) # ... are of the NOAA type
+
+# unique ID type in the SRS table
+glue("srs_files_exist_loaded_unique_srs_id", set(srs_files_exist_loaded[~srs_files_exist_loaded['id'].mask]['id']), display=False)
+
+# clean catalog (only ID == I currently)
+glue("len_srs_clean_catalog", len(srs_clean_catalog), display=False)
+glue("num_unique_dates_srs_clean_catalog", len(np.unique(srs_clean_catalog['time'])), display=False)
+
+# 2. HMI
 hmi_table = QTable.read(Path(config["paths"]["data_root"]) / "02_intermediate" / "mag" / "hmi_results.parq").to_pandas()
+hmi_processed = QTable.read(Path(config["paths"]["data_root"]) / "03_processed" / "mag" / "hmi_processed.parq")
+sharps_downloads = QTable.read(Path(config["paths"]["data_root"]) / "02_intermediate" / "mag" / "sharps_downloads.parq") # sharps downloads
+# ... extracted values
+glue("hmi_query_start", hmi_processed['target_time'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+glue("hmi_query_end", hmi_processed['target_time'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+hmi_data_exist = hmi_processed[~hmi_processed['datetime'].mask]
+glue("len_hmi_data_exist", len(hmi_data_exist), display=False)
+glue("hmi_data_exist_start", hmi_data_exist['datetime'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+glue("hmi_data_exist_end", hmi_data_exist['datetime'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+
+# 3. MDI
 mdi_table = QTable.read(Path(config["paths"]["data_root"]) / "02_intermediate" / "mag" / "mdi_results.parq").to_pandas()
+mdi_processed = QTable.read(Path(config["paths"]["data_root"]) / "03_processed" / "mag" / "mdi_processed.parq")
+smarps_downloads = QTable.read(Path(config["paths"]["data_root"]) / "02_intermediate" / "mag" / "smarps_downloads.parq") # smarps downloads
+# ... extracted values
+glue("mdi_query_start", mdi_processed['target_time'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+glue("mdi_query_end", mdi_processed['target_time'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+mdi_data_exist = mdi_processed[~mdi_processed['datetime'].mask]
+glue("len_mdi_data_exist", len(mdi_data_exist), display=False)
+glue("mdi_data_exist_start", mdi_data_exist['datetime'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
+glue("mdi_data_exist_end", mdi_data_exist['datetime'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
 
-# set the date range regardless of what has been requested.
-start_date = datetime(1995, 1, 1)
-end_date = datetime.now()
-mag_availability = plot_hmi_mdi_availability(hmi_table, mdi_table, start_date, end_date)
 
-glue("hmi_mdi_availability", mag_availability[0], display=False)
-glue("start_date", start_date.strftime("%d-%h-%Y"), display=False)
-glue("end_date", end_date.strftime("%d-%h-%Y"), display=False)
+# 4. SRS-Magnetogram
+srs_hmi = QTable.read(Path(config["paths"]["data_root"]) / "03_processed" / "mag" / "srs_hmi_merged.parq")
+srs_mdi = QTable.read(Path(config["paths"]["data_root"]) / "03_processed" / "mag" / "srs_mdi_merged.parq")
 
-cdelt = plot_col_scatter([mdi_table, hmi_table], column="CDELT1", colors=["red", "blue"])
-glue("hmi_mdi_cdelt", cdelt[0], display=False)
+glue("len_srs_hmi", len(srs_hmi), display=False)
+glue("len_srs_hmi_processed_path", len(srs_hmi[~srs_hmi['processed_path_image'].mask]), display=False)
 
-dsun = plot_col_scatter_single([mdi_table, hmi_table], column="DSUN_OBS", colors=["red", "blue"])
-glue("hmi_mdi_dsun", dsun[0], display=False)
+glue("len_srs_mdi", len(srs_mdi), display=False)
+glue("len_srs_mdi_processed_path", len(srs_mdi[~srs_mdi['processed_path_image'].mask]), display=False)
 
-# create co-temporal observations
-region_table = Path(config["paths"]["data_root"]) / "04_final" / "mag" / "region_detection" / "region_detection.parq"
-region_detection_table = QTable.read(region_table)
 
-# Group the table by the "time" column
-# Iterate through the groups to find the first group with both 'mdi' and 'hmi' in the "instrument" column
+# 5. DATASETS
+# ... Region Detection
+region_detection_table = QTable.read(Path(config["paths"]["data_root"]) / "04_final" / "mag" / "region_detection" / "region_detection.parq")
+# ... Region Extraction
+region_classification_table = QTable.read(Path(config["paths"]["data_root"]) / "04_final" / "mag" / "region_extraction" / "region_classification.parq")
+rct_hmi = region_classification_table[~region_classification_table['path_image_cutout_hmi'].mask]
+rct_mdi = region_classification_table[~region_classification_table['path_image_cutout_mdi'].mask]
+glue("len_hmi_region_extraction_ar", len(rct_hmi[rct_hmi['region_type'] == 'AR']), display=False)
+glue("len_hmi_region_extraction_qs", len(rct_hmi[rct_hmi['region_type'] == 'QS']), display=False)
+glue("len_mdi_region_extraction_ar", len(rct_mdi[rct_mdi['region_type'] == 'AR']), display=False)
+glue("len_mdi_region_extraction_qs", len(rct_mdi[rct_mdi['region_type'] == 'QS']), display=False)
+
+# -----------------------------------------------------------------------------
+
+
+
+# -- Data Availability --------------------------------------------------------
+#
+plotting_start_date = datetime(1995, 1, 1)
+plotting_end_date = datetime.now()
+
+# plotting
+# 1. magnetogram availability
+# 2. cdelt for MDI/HMI
+# 3. dsun for MDI/HMI
+mag_availability = plot_hmi_mdi_availability(hmi_table, mdi_table, plotting_start_date, plotting_end_date)
+cdelt = plot_col_scatter([mdi_table, hmi_table], column="CDELT1", colors=["red", "blue"]) # plate scale
+dsun = plot_col_scatter_single([mdi_table, hmi_table], column="DSUN_OBS", colors=["red", "blue"]) # instrument-sun distance
+
+glue("mag_cdelt", cdelt[0], display=False)
+glue("mag_dsun", dsun[0], display=False)
+glue("mag_availability", mag_availability[0], display=False)
+glue("plotting_start_date", plotting_start_date.strftime("%d-%h-%Y"), display=False)
+glue("plotting_end_date", plotting_end_date.strftime("%d-%h-%Y"), display=False)
+
+
+# -- Extract a cotemporal observation --
+# Group the table by the "time" column and iterate through the groups to find
+# the first group with both 'mdi' and 'hmi' in the "instrument" column
 for group in region_detection_table.group_by('target_time').groups:
     if 'MDI' in group['instrument'] and 'HMI' in group['instrument']:
-        obs_date_time = np.unique(group['target_time'])[0]
+        cotemporal_obs_date_time = np.unique(group['target_time'])[0]
         break
 
-obs_date = obs_date_time.to_datetime().strftime("%Y-%m-%d")
+cotemporal_obs_date = cotemporal_obs_date_time.to_datetime().strftime("%Y-%m-%d")
 
-mdi = sunpy.map.Map(region_detection_table[(region_detection_table['target_time'] == obs_date_time) & (region_detection_table['instrument'] == 'MDI')]['path'][0])
-hmi = sunpy.map.Map(region_detection_table[(region_detection_table['target_time'] == obs_date_time) & (region_detection_table['instrument'] == 'HMI')]['path'][0])
+# pre-processed maps
+hmi = sunpy.map.Map(hmi_processed[hmi_processed['target_time'] == cotemporal_obs_date_time]['path'].data.data[0])
+mdi = sunpy.map.Map(mdi_processed[mdi_processed['target_time'] == cotemporal_obs_date_time]['path'].data.data[0])
 mag, _ = plot_maps(mdi, hmi)
 
-hmi_processed = QTable.read(Path(config["paths"]["data_root"]) / "03_processed" / "mag" / "hmi_processed.parq")
-mdi_processed = QTable.read(Path(config["paths"]["data_root"]) / "03_processed" / "mag" / "mdi_processed.parq")
-processed_hmi_file = sunpy.map.Map(hmi_processed[hmi_processed['target_time'] == obs_date_time]['processed_path'].data.data[0])
-processed_mdi_file = sunpy.map.Map(mdi_processed[mdi_processed['target_time'] == obs_date_time]['processed_path'].data.data[0])
+# post-processed maps
+processed_hmi_file = sunpy.map.Map(hmi_processed[hmi_processed['target_time'] == cotemporal_obs_date_time]['processed_path'].data.data[0])
+processed_mdi_file = sunpy.map.Map(mdi_processed[mdi_processed['target_time'] == cotemporal_obs_date_time]['processed_path'].data.data[0])
+
+# plotting
+mag, _ = plot_maps(mdi, hmi)
 mag_processed, _ = plot_maps(processed_mdi_file, processed_hmi_file)
+# -----------------------------------------------------------------------------
 
-# -- AR Classification
-region_classification_table = QTable.read(Path(config["paths"]["data_root"]) / "04_final" / "mag" / "region_extraction" / "region_classification.parq")
-rct_subset = region_classification_table[region_classification_table['time'] == obs_date_time]
 
+
+# -- AR Classification --------------------------------------------------------
+
+# subset based on the cotemporal observations
+rct_subset = region_classification_table[region_classification_table['time'] == cotemporal_obs_date_time]
+
+# rename for the plotting function
 map_one = sunpy.map.Map(rct_subset['processed_path_image_hmi'][0])
-regions_one = rct_subset['region_type', 'top_right_cutout_hmi', 'bottom_left_cutout_hmi', 'number', 'magnetic_class', 'carrington_longitude', 'area', 'mcintosh_class']
+regions_one = rct_subset['region_type', 'top_right_cutout_hmi', 'bottom_left_cutout_hmi', 'number', 'magnetic_class', 'carrington_longitude', 'area', 'mcintosh_class', 'number_of_sunspots']
 regions_one.rename_columns(
     ['top_right_cutout_hmi', 'bottom_left_cutout_hmi'],
     ['top_right_cutout', 'bottom_left_cutout'],
 )
 regions_one = regions_one[regions_one["region_type"] == "AR"]
-regions_hmi_mcintosh = regions_one['mcintosh_class'][0]
-regions_hmi_mag_class = regions_one['magnetic_class'][0]
 
+# rename for the plotting function
 map_two = sunpy.map.Map(rct_subset['processed_path_image_mdi'][0])
-regions_two = rct_subset['region_type', 'top_right_cutout_mdi', 'bottom_left_cutout_mdi', 'number', 'magnetic_class', 'carrington_longitude', 'area', 'mcintosh_class']
+regions_two = rct_subset['region_type', 'top_right_cutout_mdi', 'bottom_left_cutout_mdi', 'number', 'magnetic_class', 'carrington_longitude', 'area', 'mcintosh_class', 'number_of_sunspots']
 regions_two.rename_columns(
     ['top_right_cutout_mdi', 'bottom_left_cutout_mdi'],
     ['top_right_cutout', 'bottom_left_cutout'],
 )
 regions_two = regions_two[regions_two["region_type"] == "AR"]
-regions_mdi_mcintosh = regions_two['mcintosh_class'][0]
-regions_mdi_mag_class = regions_two['magnetic_class'][0]
+
+# extract cutout with largest area
+# !TODO fix this for when there isn't the same region.
+# I suspect this won't break because of the area criteria
+regions_one_sorted = regions_one.copy()
+regions_one_sorted.sort('area')
+hmi_ar = regions_one_sorted[-1:]
+hmi_ar_num = hmi_ar['number']
+mdi_ar = regions_two[regions_two['number'] == hmi_ar_num]
 
 # -- setting the values to be the zeroth element (and plotting the associated cutouts)
-glue("regions_hmi_mcintosh", regions_hmi_mcintosh, display=False)
-glue("regions_hmi_mag_class", regions_hmi_mag_class, display=False)
-glue("regions_mdi_mcintosh", regions_mdi_mcintosh, display=False)
-glue("regions_mdi_mag_class", regions_mdi_mag_class, display=False)
+glue("regions_hmi_mcintosh", hmi_ar['mcintosh_class'][0], display=False)
+glue("regions_hmi_mag_class", hmi_ar['magnetic_class'][0], display=False)
+glue("regions_sunspots", hmi_ar['number_of_sunspots'][0], display=False)
 
-import matplotlib.pyplot as plt
-# mag_cutouts_mdi = plt.figure(figsize=(7.5, 3))
-# smap_mdi = map_two.submap(top_right=regions_two['top_right_cutout'][0], bottom_left=regions_two['bottom_left_cutout'][0])
-# smap_mdi.plot(cmap="hmimag")
-
-mag_cutouts_hmi = plt.figure(figsize=(7.5, 3))
-smap_hmi = map_one.submap(top_right=regions_one['top_right_cutout'][0], bottom_left=regions_one['bottom_left_cutout'][0])
-smap_hmi.plot(cmap="hmimag")
-
+# plotting
 map_cutouts, _ = plot_maps_regions(map_two, regions_two, map_one, regions_one, **{
     'edgecolor': 'black',
     'linestyle': '--',
 })
 
-# -- AR Detection
-rdt_subset = region_detection_table[region_detection_table['target_time'] == obs_date_time]
+smap_hmi = map_one.submap(top_right=hmi_ar['top_right_cutout'][0], bottom_left=hmi_ar['bottom_left_cutout'][0])
+smap_mdi = map_two.submap(top_right=mdi_ar['top_right_cutout'][0], bottom_left=mdi_ar['bottom_left_cutout'][0])
+mag_cutouts, _ = plot_maps(smap_mdi, smap_hmi, figsize=(10,2))
+# -----------------------------------------------------------------------------
+
+
+
+# -- AR Detection -------------------------------------------------------------
+
+# subset based on the cotemporal observations
+rdt_subset = region_detection_table[region_detection_table['target_time'] == cotemporal_obs_date_time]
 
 hmi_region_table = rdt_subset[rdt_subset['instrument'] == 'HMI']
 hmi_map = sunpy.map.Map(hmi_region_table["processed_path"][0])
@@ -131,18 +226,22 @@ map_cutouts_two, _ = plot_maps_regions(mdi_map, mdi_region_table, hmi_map, hmi_r
     'edgecolor': 'black',
     'linestyle': '--',
 })
+# -----------------------------------------------------------------------------
 
 glue("two_plots", mag, display=False)
 glue("two_plots_processed", mag_processed, display=False)
 glue("two_plots_cutouts", map_cutouts, display=False)
 # glue("two_plots_cutouts_mdi", mag_cutouts_mdi, display=False)
-glue("two_plots_cutouts_hmi", mag_cutouts_hmi, display=False)
+glue("two_plots_cutouts_hmi", mag_cutouts, display=False)
 glue("two_plots_cutouts_two", map_cutouts_two, display=False)
-glue("rct_subset_ar", rct_subset[rct_subset["region_type"] == "AR"], display=True)
+glue("rct_subset", rct_subset, display=True)
 glue("rdt_subset", rdt_subset, display=True)
 glue("hmi_plot", hmi, display=False)
 glue("mdi_plot", mdi, display=False)
-glue("obs_date", obs_date, display=False)
+glue("obs_date", cotemporal_obs_date, display=False)
+
+# -----------------------------------------------------------------------------
+
 ```
 
 # Magnetograms
@@ -179,12 +278,12 @@ To train active region classification and detection models, we also retrieve lin
 
 The observations from SoHO/MDI (1995 - 2011; {cite:t}`Scherrer1995,Domingo1995`) and SDO/HMI (2010 - present {cite:p}`Scherrer2012,Pesnell2012`) are retrieved from the Joint Science Operations Center (JSOC) at Stanford University for 1996 - 2022 inclusive, leaving 2023 as unseen data.
 
-The availability of images in our dataset is shown for this period in Figure {numref}`fig:mag:availability`, where between 2010 and 2011, there are co-temporal observations of the line-of-sight field.
+The availability of images in our dataset is shown for this period in Figure {numref}`fig:mag_availability`, where between 2010 and 2011, there are co-temporal observations of the line-of-sight field.
 
-```{glue:figure} hmi_mdi_availability
+```{glue:figure} mag_availability
 :alt: "HMI-MDI Availability"
-:name: "fig:mag:availability"
-HMI-MDI coverage diagram from {glue}`start_date` to {glue}`end_date`.
+:name: "fig:mag_availability"
+HMI-MDI coverage diagram from {glue}`plotting_start_date` to {glue}`plotting_start_date`.
 ```
 
 ### Co-temporal observations
@@ -195,11 +294,11 @@ Datasets that combine observations from multiple observatories allow us to under
 
 The expansion of the SHARP series {cite:p}`Bobra2014` to SoHO/MDI (SMARPs; {cite:t}`Bobra2021`) has tried to negate this with a tuned detection algorithm to provide similar active region cutouts (and associated parameters) across two solar cycles. Other authors have incorporated advancements in the state-of-the-art for image translation to cross-calibrate data, however, out-of-the-box, these models generally prefer perceptual similarity. Importantly, progress has been made towards physically-driven approaches for instrument cross-calibration/super-resolution (e.g. Munoz-Jaramillo et al 2023 (in revision)) that takes into account knowledge of the underlying physics.
 
-Initially, we will utilise each instrument individually, before expanding to cross-calibration techniques. Examples of co-temporal data (for {glue}`obs_date`) is shown below with SunPy map objects in Figure {numref}`fig:mdi:cotemporalmag`.
+Initially, we will utilise each instrument individually, before expanding to cross-calibration techniques. Examples of co-temporal data (for {glue}`obs_date`) is shown below with SunPy map objects in Figure {numref}`fig:mag_cotemporal`.
 
 ```{glue:figure} two_plots
 :alt: "Cotemporal HMI-MDI"
-:name: "fig:hmi:cotemporalmag"
+:name: "fig:mag_cotemporal"
 MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`.
 ```
 
@@ -207,19 +306,19 @@ MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`.
 
 While there are noticeable visual differences (e.g. resolution and noise properties), there are a number of subtle differences between these instruments that can be observed in the metadata, and should be accounted for. Both instruments are located at different positions in space, and at different distances from the Sun, which vary as the Earth orbits around the Sun.
 
-To demonstrate some of these instrumental and orbital differences Figure {numref}`hmi_mdifig:mag:cdelt` shows the image scale in the x-axis of the image plane as a function of time for SDO/HMI and SoHO/MDI, while Figure {numref}`fig:mag:dsun` demonstrates how the radius of the Sun varies during normal observations.
-
-```{glue:figure} hmi_mdi_cdelt
+```{glue:figure} mag_cdelt
 :alt: "HMI-MDI CDELT1"
-:name: "fig:mag:cdelt"
-CDELT1 (image scale in the x-direction [arcsec/pixel]) from {glue}`start_date` to {glue}`end_date` for SDO/HMI (top, blue) and SoHO/MDI (bottom, red).
+:name: "fig:mag_cdelt"
+CDELT1 (image scale in the x-direction [arcsec/pixel]) from {glue}`plotting_start_date` to {glue}`plotting_end_date` for SDO/HMI (top, blue) and SoHO/MDI (bottom, red).
 ```
 
-```{glue:figure} hmi_mdi_dsun
-:alt: "HMI-MDI DSUN"
-:name: "fig:mag:dsun"
-DSUN_OBS (distance from instrument to sun-centre [metres]) from {glue}`start_date` to {glue}`end_date` for SDO/HMI (blue) and SoHO/MDI (red).
+```{glue:figure} mag_dsun
+:alt: HMI-MDI DSUN
+:name: fig:mag_dsun
+DSUN_OBS (distance from instrument to sun-centre [metres]) from {glue}`plotting_start_date` to {glue}`plotting_end_date` for SDO/HMI (blue) and SoHO/MDI (red).
 ```
+
+To demonstrate some of these instrumental and orbital differences Figure {numref}`fig:mag_cdelt` shows the image scale in the x-axis of the image plane as a function of time for SDO/HMI and SoHO/MDI, while Figure {numref}`fig:mag_dsun` demonstrates how the radius of the Sun varies during normal observations. {numref}`fig:mag_cdelt`.
 
 While these can be corrected through data preparation and processing, including the reprojection of images to be as-observed from a set location along the Sun-Earth line, complex relationships mean it may be necessary to use machine learning models (such as the cross-calibration approach mentioned previously) to prepare data.
 
@@ -232,14 +331,13 @@ For this v0.1 of the dataset a preliminary data processing routine is applied to
 1. Rotation to Solar North
 2. Removal (and zero) off-disk data
 
-
 ```{glue:figure} two_plots_processed
 :alt: "Processed Cotemporal HMI-MDI"
-:name: "fig:hmi:cotemporalmagprocess"
+:name: "fig:hmi_cotemporalmagprocess"
 MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`.
 ```
 
-Compared to Figure {numref}`fig:mdi:cotemporalmag`, Figure {numref}`fig:hmi:cotemporalmagprocess` shows these corrections applied, however, the removal of off-disk data in MDI is incomplete, leaving NaN values on the limb (white). As we progress towards v1.0, the processing pipeline will also be expanded to include additional corrections such as
+Compared to Figure {numref}`fig:mag_cotemporal`, Figure {numref}`fig:hmi_cotemporalmagprocess` shows these corrections applied, however, the removal of off-disk data in MDI is incomplete, leaving NaN values on the limb (white). As we progress towards v1.0, the processing pipeline will also be expanded to include additional corrections such as
 
 * Reprojection of images to a fixed point at 1 AU along the Sun-Earth line
 * Filtering according to the hexadecimal `QUALITY` flag.
@@ -262,9 +360,21 @@ Currently we obtain bitmap images as a preliminary method to extract regions aro
 
 ## Datasets
 
+The NOAA SRS archive was queried daily from {glue}`srs_query_start` to {glue}`srs_query_end` (spanning a total of {glue}`len_srs_query_results` days). This query returned {glue}`num_unique_srs_exist` NOAA SRS files, where {glue}`num_unique_srs_exist_loaded` were valid, and successfully parsed. From these {glue}`num_unique_srs_exist_loaded` SRS text files, we extracted a total of {glue}`len_srs_exist_loaded` regions (with IDs {glue}`srs_files_exist_loaded_unique_srs_id`), spanning {glue}`srs_exist_loaded_start` to {glue}`srs_exist_loaded_end`, inclusive.
+
+Out of these {glue}`len_srs_exist_loaded` regions, {glue}`srs_files_exist_loaded_num_noaa_ar_identifier` are of interest as they have an idenfitier equal to {glue}`NOAA_AR_IDENTIFIER`. This table is further filtered based on criteria described previously, resulting in a reduced number of usable regions, totaling {glue}`len_srs_clean_catalog`, obtained over {glue}`num_unique_dates_srs_clean_catalog` days.
+
+Additionally, we queried JSOC for SDO/HMI and SoHO/MDI data over the period {glue}`hmi_query_start` to {glue}`hmi_query_end`. For HMI, we obtained {glue}`len_hmi_data_exist` observations spanning {glue}`hmi_data_exist_start` to {glue}`hmi_data_exist_end`, and for MDI there were {glue}`len_mdi_data_exist` observations (spanning {glue}`mdi_data_exist_start` to {glue}`mdi_data_exist_end`).
+
+To generate datasets that relate the NOAA SRS regions and full-disk images, we performed individual merges of the NOAA SRS and SDO/HMI and SoHO/MDI catalogs, resulting in the creation of two primary tables: SRS-HMI, and SRS-MDI. As mentioned, the NOAA SRS catalog contains {glue}`len_srs_clean_catalog` rows, while the HMI table contains {glue}`len_hmi_data_exist` rows (and MDI, {glue}`len_mdi_data_exist` rows). We independently merged the NOAA SRS table with both the HMI and MDI tables using their respective time columns, resulting in an SRS-HMI table of length {glue}`len_srs_hmi` ({glue}`len_srs_mdi` for SRS-MDI). Among these rows, there are {glue}`len_srs_hmi_processed_path` rows where SRS and HMI both have data ({glue}`len_srs_mdi_processed_path` for SRS-MDI).
+
 ### Active Region Classification Dataset
 
-The AR Classification dataset contains cutouts associated with NOAA ARs, and "quiet sun" regions. Currently, in this version, a "quiet sun" region is any region that is not a NOAA AR. The ARs at {glue}`obs_date` are shown below
+The AR Classification dataset contains cutouts associated with NOAA ARs, and randomly chosen "quiet sun" (QS) regions. In this version, a QS region is any region that is not a NOAA AR.
+
+Starting with the SRS-HMI table ({glue}`len_srs_hmi_processed_path` rows) the active regions are extracted, and no filtering is performed. The HMI AR Classification dataset contains a total of {glue}`len_hmi_region_extraction_ar` ARs, and {glue}`len_hmi_region_extraction_qs` QS regions. Similarly, for MDI, there are {glue}`len_mdi_region_extraction_ar` AR regions {glue}`len_mdi_region_extraction_qs` QS regions. The ARs at {glue}`obs_date` are shown below for both MDI and HMI.
+
+While no filtering is currently implemented, this may be necessary based on the number of NaN values found on disk (the columns `sum_ondisk_nans_mdi`, `sum_ondisk_nans_hmi`)
 
 ```{glue:figure} two_plots_cutouts
 :alt: "AR Cutouts from cotemporal HMI-MDI"
@@ -272,13 +382,8 @@ The AR Classification dataset contains cutouts associated with NOAA ARs, and "qu
 MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`, showing NOAA AR cutouts.
 ```
 
-where the cutout from HMI is shown with Mcintosh/Hale Classes: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`.
-
-<!-- ```{glue:figure} two_plots_cutouts_mdi
-:alt: "AR Cutouts from MDI"
-:name: "fig:hmi:cotemporalmagprocessmdi"
-Active region cutout with Mcintosh/Hale Classes: {glue}`regions_mdi_mcintosh`, {glue}`regions_mdi_mag_class
-``` -->
+An example active region (with {glue}`regions_sunspots` sunspots) is shown below, where the Mcintosh/Hale Classes are {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`.
+<!-- this is the largest by area -->
 
 ```{glue:figure} two_plots_cutouts_hmi
 :alt: "AR Cutouts from HMI"
@@ -286,29 +391,29 @@ Active region cutout with Mcintosh/Hale Classes: {glue}`regions_mdi_mcintosh`, {
 Active region cutout with Mcintosh/Hale Classes: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`
 ```
 
-The Rection Classification Table for ARs only (`region_type` = "AR") at {glue}`obs_date` is as follows
+To demonstrate how these figures were made, the region classification table at {glue}`obs_date` is shown below. To access data from this table for a selected `time`, you can utilise the `magnetic_class` and `mcintosh_class` columns, which offer the relevant classification classes (when `region_type` is an Active Region, denoted as "AR"). Additionally, for a specific `region_type`, the `processed_path_image_hmi` and `path_image_cutout_hmi` provide the paths to the HMI image and cutout. Alternatively, the `top_right_cutout_hmi` and `bottom_left_cutout_hmi` values specify the coordinates of the top-right and bottom-left corners of the cutout within the processed image.
 
-```{glue:} rct_subset_ar
+
+```{glue:} rct_subset
 ```
-
-To access the data from this table, for a chosen `time`, the `magnetic_class` and `mcintosh_class` columns provide the appropriate classification classes (if `region_type` is an Active Region, "AR"). Additionally, for any given `region_type`, the `processed_path_image_hmi` and `path_image_cutout_hmi` provide the HMI image and cutout paths, with the `top_right_cutout_hmi` and `bottom_left_cutout_hmi` values providing the top-right, and bottom-left coordinates of the cutout in the processed image.
 
 ### Region Detection Dataset
 
-The Region Detection dataset has cotemporal observations, with regions extracted from SHARPs/SMARPs, as shown below
+The Region Detection dataset contains cotemporal observations from HMI and MDI, with regions extracted from SHARPs/SMARPs, as shown in {numref}`fig:mag_region_detection`. In comparison to {numref}`fig:hmi:cotemporalmagprocess`, these data contain NOAA active regions and additional regions detected through the pipeline. In the initial version of this dataset, all regions are provided. With care, it it possible to merge the hand-labelled NOAA ARs, and automatically extract SHARP/SMARP regions, however it is possible that there is a one-to-many relationship present.
+
+Figure {numref}`fig:mag_region_detection` shows MDI (left) and HMI (right) with the extracted SMARP/SHARP regions, from the `bitmap` segment that identifies the pixels located within the smooth bounding curve of the SHARP/SMARP detection algorithms.
 
 ```{glue:figure} two_plots_cutouts_two
 :alt: "AR Cutouts from cotemporal HMI-MDI"
-:name: "fig:hmi:cotemporalmagprocess"
+:name: "fig:mag_region_detection"
 MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`, showing NOAA AR cutouts.
 ```
 
-where the Region Detection Table shows the HMI and MDI data for the full-disk, and active region cutout ("arc") data:
+The Region Detection table contains HMI and MDI data for full-disk as well as active region cutouts ("arc"). To access the data for a specific `target_time`, you can utilise the `instrument` column. The `processed_path` column offers the path to the full-disk image, while the `path_arc` column provides the location of the active region classification image. Alternatively, you can request the bounds that correspond to the `processed_path` through the `top_right_cutout` and `bottom_left_cutout` columns.
 
 ```{glue:} rdt_subset
 ```
 
-To access the data, for a given `target_time`, data can be split through the `instrument` column, where the `processed_path` provides the path of the full-disk image, `path_arc` provides the location of the active region classification image, or alternatively, the bounds (that correspond to the `processed_path`) can be requested through `top_right_cutout` and `bottom_left_cutout`.
 
 ## Bibliography
 

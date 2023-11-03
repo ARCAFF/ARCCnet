@@ -424,8 +424,8 @@ def plot_col_scatter_single(
     return fig, ax
 
 
-def plot_maps(map_one, map_two, horizontal=True):
-    fig = plt.figure(figsize=(10, 4))
+def plot_maps(map_one, map_two, figsize=(10, 4), horizontal=True):
+    fig = plt.figure(figsize=figsize)
 
     ax1 = fig.add_subplot(1, 2, 1, projection=map_one)
     map_one.plot(cmap="hmimag")
