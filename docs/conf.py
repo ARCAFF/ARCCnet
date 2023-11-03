@@ -62,7 +62,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints", 
 
 # NBSphinx timeout
 # https://jupyterbook.org/en/stable/content/execute.html
-execution_timeout = 100
+nb_execution_timeout = 100
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
