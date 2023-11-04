@@ -31,7 +31,6 @@ from arccnet.visualisation.data import (
     plot_maps,
     plot_map,
     plot_maps_regions,
-    create_image_with_key_value_pairs,
 )
 
 from arccnet import __version__
