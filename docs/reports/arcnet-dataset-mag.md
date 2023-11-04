@@ -508,7 +508,7 @@ To tackle this as a supervised learning problem, we require a dataset consisting
 
 In version markdown{glue}`arccnet_version`, the active region locations (and classification label output) have been extracted from the daily SRS files. The locations, combined with a pre-defined region size were used to crop cutouts from the full-disk magnetograms.
 
-An example active region from this dataset, extracted from SDO/HMI (with {glue}`regions_sunspots` sunspots) is shown in Figure {numref}`fig:hmi:hmi_mag_co`, along with the corresponding Mcintosh/Mag classification labels: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`.
+An example active region from this dataset, extracted from SDO/HMI (with {glue}`regions_sunspots` sunspots) is shown in Figure {numref}`fig:hmi_mag_co`, along with the corresponding Mcintosh/Mag classification labels: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`.
 
 ```{glue:figure} mag_co
 :alt: "HMI Magnetogram Cutout"
