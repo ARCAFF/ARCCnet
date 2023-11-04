@@ -29,7 +29,9 @@ from arccnet.visualisation.data import (
     plot_col_scatter,
     plot_col_scatter_single,
     plot_maps,
+    plot_map,
     plot_maps_regions,
+    create_image_with_key_value_pairs,
 )
 
 from arccnet import __version__
@@ -81,11 +83,18 @@ glue("hmi_query_start", hmi_processed['target_time'][0].strftime("%Y-%m-%d"), di
 glue("hmi_query_end", hmi_processed['target_time'][-1].strftime("%Y-%m-%d"), display=False) # just provide date
 hmi_data_exist = hmi_processed[~hmi_processed['datetime'].mask]
 glue("len_hmi_data_exist", len(hmi_data_exist), display=False)
+glue("num_unique_hmi_data_exist", len(np.unique(hmi_data_exist['datetime'])), display=False)
 # glue("hmi_data_exist_start", hmi_data_exist['datetime'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
 # glue("hmi_data_exist_end", hmi_data_exist['datetime'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
-
 glue("hmi_data_exist_start", pd.to_datetime(hmi_data_exist.to_pandas()['datetime']).round("D").unique()[0].strftime("%Y-%m-%d"), display=False) # rounded to nearest day
 glue("hmi_data_exist_end", pd.to_datetime(hmi_data_exist.to_pandas()['datetime']).round("D").unique()[-1].strftime("%Y-%m-%d"), display=False) # rounded to nearest day
+
+sharps_data_exist = sharps_downloads[~sharps_downloads['datetime'].mask]
+glue("len_sharps_data_exist", len(sharps_data_exist), display=False)
+glue("num_unique_sharps_data_exist", len(np.unique(sharps_data_exist['datetime'])), display=False)
+hmi_sharps_merged_file = QTable.read(Path(config["paths"]["data_root"]) / "03_processed" / "mag" / "hmi_sharps_merged.parq")
+glue("len_hmi_sharps_merged", len(hmi_sharps_merged_file), display=False)
+glue("num_unique_hmi_sharps_merged", len(np.unique(hmi_sharps_merged_file['datetime'])), display=False)
 
 # 3. MDI
 mdi_table = QTable.read(Path(config["paths"]["data_root"]) / "02_intermediate" / "mag" / "mdi_results.parq").to_pandas()
@@ -96,11 +105,18 @@ glue("mdi_query_start", mdi_processed['target_time'][0].strftime("%Y-%m-%d"), di
 glue("mdi_query_end", mdi_processed['target_time'][-1].strftime("%Y-%m-%d"), display=False) # just show date
 mdi_data_exist = mdi_processed[~mdi_processed['datetime'].mask]
 glue("len_mdi_data_exist", len(mdi_data_exist), display=False)
+glue("num_unique_mdi_data_exist", len(np.unique(mdi_data_exist['datetime'])), display=False)
 # glue("mdi_data_exist_start", mdi_data_exist['datetime'][0].strftime("%Y-%m-%d %H:%M:%S"), display=False)
 # glue("mdi_data_exist_end", mdi_data_exist['datetime'][-1].strftime("%Y-%m-%d %H:%M:%S"), display=False)
 glue("mdi_data_exist_start", pd.to_datetime(mdi_data_exist.to_pandas()['datetime']).round("D").unique()[0].strftime("%Y-%m-%d"), display=False) # rounded to nearest day
 glue("mdi_data_exist_end", pd.to_datetime(mdi_data_exist.to_pandas()['datetime']).round("D").unique()[-1].strftime("%Y-%m-%d"), display=False) # rounded to nearest day
 
+smarps_data_exist = smarps_downloads[~smarps_downloads['datetime'].mask]
+glue("len_smarps_data_exist", len(smarps_data_exist), display=False)
+glue("num_unique_smarps_data_exist", len(np.unique(smarps_data_exist['datetime'])), display=False)
+mdi_smarps_merged_file = QTable.read(Path(config["paths"]["data_root"]) / "03_processed" / "mag" / "mdi_smarps_merged.parq")
+glue("len_mdi_smarps_merged", len(mdi_smarps_merged_file), display=False)
+glue("num_unique_mdi_smarps_merged", len(np.unique(mdi_smarps_merged_file['datetime'])), display=False)
 
 # 4. SRS-Magnetogram
 srs_hmi = QTable.read(Path(config["paths"]["data_root"]) / "03_processed" / "mag" / "srs_hmi_merged.parq")
@@ -143,15 +159,21 @@ plotting_end_date = datetime.now()
 # 2. cdelt for MDI/HMI
 # 3. dsun for MDI/HMI
 mag_availability = plot_hmi_mdi_availability(hmi_table, mdi_table, plotting_start_date, plotting_end_date)
+zoom_start_date = datetime(2009, 1, 1)
+zoom_end_date = datetime(2012, 6, 1)
+mag_availability_zoom = plot_hmi_mdi_availability(hmi_table, mdi_table, zoom_start_date, zoom_end_date)
+
 cdelt = plot_col_scatter([mdi_table, hmi_table], column="CDELT1", colors=["red", "blue"]) # plate scale
 dsun = plot_col_scatter_single([mdi_table, hmi_table], column="DSUN_OBS", colors=["red", "blue"]) # instrument-sun distance
 
 glue("mag_cdelt", cdelt[0], display=False)
 glue("mag_dsun", dsun[0], display=False)
 glue("mag_availability", mag_availability[0], display=False)
+glue("mag_availability_zoom", mag_availability_zoom[0], display=False)
 glue("plotting_start_date", plotting_start_date.strftime("%d-%h-%Y"), display=False)
 glue("plotting_end_date", plotting_end_date.strftime("%d-%h-%Y"), display=False)
-
+glue("plotting_start_date_zoom", zoom_start_date.strftime("%d-%h-%Y"), display=False)
+glue("plotting_end_date_zoom", zoom_end_date.strftime("%d-%h-%Y"), display=False)
 
 # -- Extract a cotemporal observation --
 # Group the table by the "time" column and iterate through the groups to find
@@ -166,7 +188,6 @@ cotemporal_obs_date = cotemporal_obs_date_time.to_datetime().strftime("%Y-%m-%d"
 # pre-processed maps
 hmi = sunpy.map.Map(hmi_processed[hmi_processed['target_time'] == cotemporal_obs_date_time]['path'].data.data[0])
 mdi = sunpy.map.Map(mdi_processed[mdi_processed['target_time'] == cotemporal_obs_date_time]['path'].data.data[0])
-mag, _ = plot_maps(mdi, hmi)
 
 # post-processed maps
 processed_hmi_file = sunpy.map.Map(hmi_processed[hmi_processed['target_time'] == cotemporal_obs_date_time]['processed_path'].data.data[0])
@@ -210,6 +231,8 @@ regions_one_sorted.sort('area')
 hmi_ar = regions_one_sorted[-1:]
 hmi_ar_num = hmi_ar['number']
 mdi_ar = regions_two[regions_two['number'] == hmi_ar_num]
+hmi_ar_dict = regions_one_sorted['number', 'magnetic_class', 'carrington_longitude', 'area', 'mcintosh_class', 'number_of_sunspots'].to_pandas().to_dict(orient='records')[0]
+hmi_ar_pdseries = pd.Series(hmi_ar_dict)
 
 # -- setting the values to be the zeroth element (and plotting the associated cutouts)
 glue("regions_hmi_mcintosh", hmi_ar['mcintosh_class'][0], display=False)
@@ -225,6 +248,13 @@ map_cutouts, _ = plot_maps_regions(map_two, regions_two, map_one, regions_one, *
 smap_hmi = map_one.submap(top_right=hmi_ar['top_right_cutout'][0], bottom_left=hmi_ar['bottom_left_cutout'][0])
 smap_mdi = map_two.submap(top_right=mdi_ar['top_right_cutout'][0], bottom_left=mdi_ar['bottom_left_cutout'][0])
 mag_cutouts, _ = plot_maps(smap_mdi, smap_hmi, figsize=(10,2))
+mag_kvpair, _ = create_image_with_key_value_pairs(smap_hmi, hmi_ar_dict, x_position=0.1, y_position=0.625, x_delt=0.5, y_delt=0.075)
+
+glue("mag_kvpair_plot", mag_kvpair, display=False)
+glue("mag_co", plot_map(smap_hmi)[0], display=False)
+glue("mag_co_dict", pd.DataFrame({'Key': hmi_ar_pdseries.index, 'Value': hmi_ar_pdseries.values}), display=False)
+glue("mag_co_html", ''.join([f"<b>{key}</b>: {value}<br>" for key, value in hmi_ar_dict.items()]), display=False)
+
 # -----------------------------------------------------------------------------
 
 
@@ -251,8 +281,8 @@ glue("two_plots_cutouts", map_cutouts, display=False)
 # glue("two_plots_cutouts_mdi", mag_cutouts_mdi, display=False)
 glue("two_plots_cutouts_hmi", mag_cutouts, display=False)
 glue("two_plots_cutouts_two", map_cutouts_two, display=False)
-glue("rct_subset", rct_subset, display=True)
-glue("rdt_subset", rdt_subset, display=True)
+# glue("rct_subset", rct_subset, display=True)
+# glue("rdt_subset", rdt_subset, display=True)
 glue("hmi_plot", hmi, display=False)
 glue("mdi_plot", mdi, display=False)
 glue("obs_date", cotemporal_obs_date, display=False)
@@ -299,12 +329,18 @@ This report was generated based upon version ({glue}`arccnet_version`) of the `a
 
 The observations from SoHO/MDI (1995 - 2011; {cite:t}`Scherrer1995,Domingo1995`) and SDO/HMI (2010 - present {cite:p}`Scherrer2012,Pesnell2012`) are retrieved from the Joint Science Operations Center (JSOC) at Stanford University for 1996 - 2022 inclusive, leaving 2023 as unseen data.
 
-The availability of images in our dataset is shown for this period in Figure {numref}`fig:mag_availability`, where between 2010 and 2011, there are co-temporal observations of the line-of-sight field.
+The availability of images in our dataset is shown for this period in Figure {numref}`fig:mag_availability`, where between 2010 and 2011, there are co-temporal observations of the line-of-sight component of the magnetic field.
 
 ```{glue:figure} mag_availability
 :alt: "HMI-MDI Availability"
 :name: "fig:mag_availability"
-HMI-MDI coverage diagram from {glue}`plotting_start_date` to {glue}`plotting_start_date`.
+HMI-MDI coverage diagram from {glue}`plotting_start_date` to {glue}`plotting_end_date`.
+```
+
+```{glue:figure} mag_availability_zoom
+:alt: "HMI-MDI Availability"
+:name: "fig:mag_availability_zoom"
+MDI and HMI coverage diagram from {glue}`plotting_start_date_zoom` to {glue}`plotting_end_date_zoom`.
 ```
 
 ### Co-temporal observations
@@ -315,12 +351,12 @@ Datasets that combine observations from multiple observatories allow us to under
 
 The expansion of the SHARP series {cite:p}`Bobra2014` to SoHO/MDI (SMARPs; {cite:t}`Bobra2021`) has tried to negate this with a tuned detection algorithm to provide similar active region cutouts (and associated parameters) across two solar cycles. Other authors have incorporated advancements in the state-of-the-art for image translation to cross-calibrate data, however, out-of-the-box, these models generally prefer perceptual similarity. Importantly, progress has been made towards physically-driven approaches for instrument cross-calibration/super-resolution (e.g. Munoz-Jaramillo et al 2023 (in revision)) that takes into account knowledge of the underlying physics.
 
-Initially, we will utilise each instrument individually, before expanding to cross-calibration techniques. Examples of co-temporal data (for {glue}`obs_date`) is shown below with SunPy map objects in Figure {numref}`fig:mag_cotemporal`.
+Initially as part of `arccnet`, we will utilise each instrument as a separate source, before expanding to cross-calibration techniques that homogenise the data. Examples of co-temporal data (for {glue}`obs_date`) are shown below with SunPy map objects in Figure {numref}`fig:mag_cotemporal`.
 
 ```{glue:figure} two_plots
 :alt: "Cotemporal HMI-MDI"
 :name: "fig:mag_cotemporal"
-MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`.
+MDI (left) and HMI (right) observation of the Sun's magnetic field at {glue}`obs_date`.
 ```
 
 #### Instrumental/Orbital Effects on Data
@@ -330,13 +366,13 @@ While there are noticeable visual differences (e.g. resolution and noise propert
 ```{glue:figure} mag_cdelt
 :alt: "HMI-MDI CDELT1"
 :name: "fig:mag_cdelt"
-CDELT1 (image scale in the x-direction [arcsec/pixel]) from {glue}`plotting_start_date` to {glue}`plotting_end_date` for SDO/HMI (top, blue) and SoHO/MDI (bottom, red).
+`CDELT1` (image scale in the x-direction [arcsec/pixel]) from {glue}`plotting_start_date` to {glue}`plotting_end_date` for SDO/HMI (top, blue) and SoHO/MDI (bottom, red).
 ```
 
 ```{glue:figure} mag_dsun
 :alt: HMI-MDI DSUN
 :name: fig:mag_dsun
-DSUN_OBS (distance from instrument to sun-centre [metres]) from {glue}`plotting_start_date` to {glue}`plotting_end_date` for SDO/HMI (blue) and SoHO/MDI (red).
+`DSUN_OBS` (distance from instrument to sun-centre [metres]) from {glue}`plotting_start_date` to {glue}`plotting_end_date` for SDO/HMI (blue) and SoHO/MDI (red).
 ```
 
 To demonstrate some of these instrumental and orbital differences Figure {numref}`fig:mag_cdelt` shows the image scale in the x-axis of the image plane as a function of time for SDO/HMI and SoHO/MDI, while Figure {numref}`fig:mag_dsun` demonstrates how the radius of the Sun varies during normal observations. {numref}`fig:mag_cdelt`.
@@ -345,94 +381,297 @@ While these can be corrected through data preparation and processing, including 
 
 ## Data Processing
 
+As described above, the data obtained is of various processing levels, taken from individual instruments that have varying noise properties, plate scales, and systematics, among others.
+For example, the *Line-of-sight magnetograms* from SDO/HMI and SoHO/MDI are obtained as "level 1.5".
+
+:::{note}
+While not addressed in version {glue}`arccnet_version`, SDO/AIA data is provided at level 1, and requires various pre-processing steps to reach level 1.5.
+:::
+
+As such, all data obtained as part of this project needs to be carefully processed to an agreed upon level, with further corrections and transformations applied to process these data.
+
 ### Full-disk HMI/MDI
 
-In {glue}`arccnet_version` of the dataset, a preliminary data processing routine is applied to full-disk HMI and MDI (as shown below) to include
+In version {glue}`arccnet_version` of the dataset, a preliminary data processing routine is applied to full-disk MDI and HMI (as shown below) to include
 
 1. Rotation to Solar North
 2. Removal (and zero) off-disk data
 
+
+Compared to Figure {numref}`fig:mag_cotemporal`, Figure {numref}`fig:hmi_cotemporalmagprocess` shows these corrections applied, however, the removal of off-disk data in MDI is incomplete, leaving NaN values on the limb (white).
+
+
 ```{glue:figure} two_plots_processed
 :alt: "Processed Cotemporal HMI-MDI"
 :name: "fig:hmi_cotemporalmagprocess"
-MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`.
+MDI (left) and HMI (right) observation of the Sun's magnetic field at {glue}`obs_date`.
 ```
 
-Compared to Figure {numref}`fig:mag_cotemporal`, Figure {numref}`fig:hmi_cotemporalmagprocess` shows these corrections applied, however, the removal of off-disk data in MDI is incomplete, leaving NaN values on the limb (white). As we progress towards v1.0, the processing pipeline will also be expanded to include additional corrections such as
+As we progress towards v1.0, the processing pipeline will also be expanded to include additional corrections such as
 
-* Reprojection of images to a fixed point at 1 AU along the Sun-Earth line
+* Reprojection of images to a fixed point at 1 AU along the Sun-Earth line.
 * Filtering according to the hexadecimal `QUALITY` flag.
 
-Currently the correct choice of reprojection is still under consideration, and the handling of conversion of hexadecimal to float needs to be clarified. Additional data processing steps may include
+Currently the correct choice of reprojection is still under consideration, and the handling of conversion of hexadecimal to float needs to be clarified.
 
-1. Instrument inter-calibration (and super-resolution) -- Due to optically distortion in MDI, even with reprojection to a common coordinate frame, perfect alignment of images is not possible between these instruments.
-2. Addition of Coronal Information e.g.
+#### Further Corrections
 
-  * Inclusion and alignment of EUV images
-  * Generation of Differential Emission Measure (DEM) maps {cite:p}`2012A&A...539A.146H,2015ApJ...807..143C`
+In future versions, additional data processing steps may include
 
+1. Instrument inter-calibration (and super-resolution)
+    * Due to optically distortion in MDI, even with reprojection to a common coordinate frame, perfect alignment of images is not possible between these instruments
+2. Addition of Coronal Information
+    * Inclusion and alignment of EUV images (such as those from SDO/AIA)
+    * Generation of Differential Emission Measure (DEM) maps {cite:p}`2012A&A...539A.146H,2015ApJ...807..143C`
 3. Magnetic Field Extrapolation
 
 ### HMI/MDI Cutouts (SHARP/SMARP)
 
-As SHARP/SMARP are already at level 1.8, these images only need correcting for rotation. For more discussion on the generation of SHARP/SMARP data, see <https://github.com/mbobra/SHARPs>, <https://github.com/mbobra/SMARPs>.
+The SHARP/SMARP series are the "Spaceweather HMI/MDI Active Region patches". Using SHARP as an example, a SHARP is a series that contains:
 
-Currently we obtain bitmap images as a preliminary method to extract regions around NOAA ARs.
+1. various spaceweather quantities calculated from vector magnetogram data and stored as FITS header keywords
+2. 31 data segments, including each component of the vector magnetic field, the line-of-sight magnetic field,
+continuum intensity, doppler velocity, error maps and bitmaps.
 
-## Datasets
+Similarly to NOAA AR numbers, the SHARP(/SMARP) have their own region identifiers HARP(/TARP).
+Below is an example of the output of the active-region automatic detection algorithm for the 13th Jan 2013.
+Figure {numref}`fig:bobra_sharp` provides a visual representation of the detection algorithm, with HARP regions and NOAA ARs shown.
 
-The NOAA SRS archive was queried daily from {glue}`srs_query_start` to {glue}`srs_query_end` (spanning a total of {glue}`len_srs_query_results` days). This query returned {glue}`num_unique_srs_exist` NOAA SRS files, where {glue}`num_unique_srs_exist_loaded` were valid and successfully parsed. From these {glue}`num_unique_srs_exist_loaded` SRS text files, we extracted a total of {glue}`len_srs_exist_loaded` regions (with IDs {glue}`srs_files_exist_loaded_unique_srs_id`), spanning {glue}`srs_exist_loaded_start` to {glue}`srs_exist_loaded_end`, inclusive.
+```{figure} images/bobra2014_sharps_fig1.png
+:alt: Full-disk image of the sun with HARP regions (Bobra et al 2014)
+:name: fig:bobra_sharp
+The results of the active-region automatic detection algorithm applied to the data on 13 January 2013 at 00:48 TAI. NOAA active-region numbers are labeled in blue near the Equator, next to arrows indicating the hemisphere; the HARP number is indicated inside the rectangular bounding box at the upper right. Note that HARP 2360 (lower right, in green) includes two NOAA active regions, 11650 and 11655. The colored patches show coherent magnetic structures that comprise the HARP. White pixels have a line-of-sight field strength above a line-of-sight magnetic-field threshold {cite:p}`Turmon2014AAS`. Blue + symbols indicate coordinates that correspond to the reported center of a NOAA active region. The temporal life of a definitive HARP starts when it rotates onto the visible disk or two days before the magnetic feature is first identified in the photosphere. As such, empty boxes, e.g. HARP 2398 (on the left), represent patches of photosphere that will contain a coherent magnetic structure at a future time. This figure is reproduced from {cite:t}`Bobra2014`.
+```
 
-Out of these {glue}`len_srs_exist_loaded` regions, {glue}`srs_files_exist_loaded_num_noaa_ar_identifier` are of interest as they have an identifier equal to {glue}`NOAA_AR_IDENTIFIER`. This table is further filtered based on criteria described previously, resulting in a reduced number of usable regions, totaling {glue}`len_srs_clean_catalog`, obtained over {glue}`num_unique_dates_srs_clean_catalog` days.
+Of the 31 data segments, the `bitmap` segment identifies the pixels with five unique values because they describe two different characteristics, as shown below:
+
+| Value | Keyword   | Definition                                       |
+|-------|-----------|-------------------------------------------------|
+| 0     | `OFFDISK`   | The pixel is located somewhere off the solar disk.           |
+| 1     | `QUIET`     | The pixel is associated with weak line-of-sight magnetic field. |
+| 2     | `ACTIVE`    | The pixel is associated with strong line-of-sight magnetic field.|
+| 32    | `ON_PATCH`  | The pixel is inside the patch.                       |
+
+where all possible permutations are as follows:
+
+| Value | Definition                                                         |
+|-------|-------------------------------------------------------------------|
+| 0     | The pixel is located somewhere off the solar disk.               |
+| 1     | The pixel is located outside the patch and associated with weak line-of-sight magnetic field. |
+| 2     | The pixel is located outside the patch and associated with strong line-of-sight magnetic field. |
+| 33    | The pixel is located inside the patch and associated with weak line-of-sight magnetic field. |
+| 34    | The pixel is located inside the patch and associated with strong line-of-sight magnetic field. |
+
+The bitmap segment for SMARPs is similar, but more complicated. See <https://github.com/mbobra/SMARPs/blob/main/example_gallery/Compare_SMARP_and_SHARP_bitmaps.ipynb>.
+
+In this version, we have obtained the bitmap segments as a means to extract regions-of-interest from the full-disk images, and the only necessary correction is to account for the rotation of the instrument to Solar North, as was performed with the full-disk images (the SHARP/SMARP regions are extracted from the full-disk image in the detector frame).
+
+:::{note}
+For more discussion on the generation of SHARP/SMARP data, see <https://github.com/mbobra/SHARPs>, <https://github.com/mbobra/SMARPs>.
+:::
+
+(sec:dataset_generation)=
+## Dataset Generation
+
+The NOAA SRS archive was queried daily from {glue}`srs_query_start` to {glue}`srs_query_end` (spanning a total of {glue}`len_srs_query_results` days). This query returned {glue}`num_unique_srs_exist` NOAA SRS files, where {glue}`num_unique_srs_exist_loaded` were valid and successfully parsed. From these {glue}`num_unique_srs_exist_loaded` SRS text files, we extracted a total of {glue}`len_srs_exist_loaded` regions (with IDs {glue}`srs_files_exist_loaded_unique_srs_id`), spanning {glue}`srs_exist_loaded_start` to {glue}`srs_exist_loaded_end`, inclusive. Out of these {glue}`len_srs_exist_loaded` regions, {glue}`srs_files_exist_loaded_num_noaa_ar_identifier` are of interest as they have an identifier equal to {glue}`NOAA_AR_IDENTIFIER`. This table is further filtered based on criteria described previously, resulting in a reduced number of usable regions, totaling {glue}`len_srs_clean_catalog`, obtained over {glue}`num_unique_dates_srs_clean_catalog` days.
 
 Additionally, we queried JSOC for SDO/HMI and SoHO/MDI data over the period {glue}`hmi_query_start` to {glue}`hmi_query_end`. For HMI, we obtained {glue}`len_hmi_data_exist` observations spanning {glue}`hmi_data_exist_start` to {glue}`hmi_data_exist_end`, and for MDI there were {glue}`len_mdi_data_exist` observations (spanning {glue}`mdi_data_exist_start` to {glue}`mdi_data_exist_end`).
 
-To generate datasets that relate the NOAA SRS regions and full-disk images, we performed individual merges of the NOAA SRS and SDO/HMI and SoHO/MDI catalogs, resulting in the creation of two primary tables: SRS-HMI, and SRS-MDI. As mentioned, the NOAA SRS catalog contains {glue}`len_srs_clean_catalog` rows, while the HMI table contains {glue}`len_hmi_data_exist` rows (and MDI, {glue}`len_mdi_data_exist` rows). We independently merged the NOAA SRS table with both the HMI and MDI tables using their respective time columns, resulting in an SRS-HMI table of length {glue}`len_srs_hmi` ({glue}`len_srs_mdi` for SRS-MDI). Among these rows, there are {glue}`len_srs_hmi_processed_path` rows ({glue}`num_unique_dates_srs_hmi_processed_path` dates) where SRS and HMI both have data ({glue}`len_srs_mdi_processed_path` for SRS-MDI; {glue}`num_unique_dates_srs_mdi_processed_path` dates).
+To generate datasets that relate the NOAA SRS regions and full-disk images, we performed individual merges of the NOAA SRS and SDO/HMI and SoHO/MDI catalogs, resulting in the creation of four primary tables: SRS-HMI, SRS-MDI, and HMI-SHARPS, MDI-SMARPS.
 
+**SRS-HMI & SRS-MDI**
+
+As mentioned, the NOAA SRS catalog contains {glue}`len_srs_clean_catalog` rows, while the HMI table contains {glue}`len_hmi_data_exist` rows (and MDI, {glue}`len_mdi_data_exist` rows). We independently merged the NOAA SRS table with both the MDI and HMI tables using their respective time columns, resulting in an SRS-HMI table of length {glue}`len_srs_hmi` ({glue}`len_srs_mdi` for SRS-MDI). Among these rows, there are {glue}`len_srs_hmi_processed_path` rows ({glue}`num_unique_dates_srs_hmi_processed_path` dates) where SRS and HMI both have data ({glue}`len_srs_mdi_processed_path` for SRS-MDI; {glue}`num_unique_dates_srs_mdi_processed_path` dates).
+
+**HMI-SHARPS & MDI-SMARPS**
+
+For each Full-disk and cutout magnetogram pair (e.g. HMI-SHARPs, MDI-SMARPs) the respective HMI/MDI and SHARP/SMARP tables are merged on the `datetime` column, limiting the dataset to those full-disk images that have on-disk regions.
+
+We start with {glue}`len_hmi_data_exist` rows for HMI ({glue}`len_mdi_data_exist` for MDI), corresponding to {glue:}`num_unique_hmi_data_exist` ({glue:}`num_unique_mdi_data_exist`) dates.
+These are merged with the SHARP(/SMARP) tables, that contain {glue}`len_sharps_data_exist` rows ({glue}`len_smarps_data_exist` rows), and correspond to {glue:}`num_unique_sharps_data_exist` ({glue:}`num_unique_smarps_data_exist`) dates.
+After merging this results in {glue}`len_hmi_sharps_merged` rows in the HMI-SHARPs table, ({glue}`len_mdi_smarps_merged` in the MDI-SMARPs table), corresponding to {glue}`num_unique_hmi_sharps_merged` ({glue}`num_unique_mdi_smarps_merged`) unique dates.
+
+(sec:arclassdataset)=
 ### Active Region Classification Dataset
 
-The AR Classification dataset contains cutouts associated with NOAA ARs, and randomly chosen "quiet sun" (QS) regions.
+One of the primary goals of the ARCAFF project is develop an automated solution to classify active regions based on existing schema (E.g. Mcintosh classes, or modified Zurich).
+By developing an automated solution, the aim is to automatically generate active region classifications in real-time, and utilise these as part of an end-to-end machine learning pipeline,
+or even used independelty, e.g. {cite:t}`2002SoPhGallagher,2012ApJBloomfield,2016SoPhMcCloskey,2018JSWSCMcCloskey` (see <http://solarmonitor.org>) to provide flaring forecast probabilities.
+
+To tackle this as a supervised learning problem, we require a dataset consisting of:
+
+1. **input**: cutouts centered on labelled NOAA ARs
+2. **output**: corresponding classification labels
+
+In version markdown{glue}`arccnet_version`, the active region locations (and classification label output) have been extracted from the daily SRS files. The locations, combined with a pre-defined region size were used to crop cutouts from the full-disk magnetograms.
+
+An example active region from this dataset, extracted from SDO/HMI (with {glue}`regions_sunspots` sunspots) is shown in Figure {numref}`fig:hmi:cotemporalmagprocesshmi`, along with the corresponding Mcintosh/Mag classification labels: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`.
+
+<!-- this looks terrible -->
+
+|       |      |
+|:-------------------------------------:|:--------------------:|
+| {glue:}`mag_co`                       | {glue:}`mag_co_dict`     |
+
+
+```{code-cell} python3
+:tags: [remove-input]
+pd.DataFrame({'Key': hmi_ar_pdseries.index, 'Value': hmi_ar_pdseries.values})
+```
+
+#### Dataset creation
+
+In practice, we started with the SRS-HMI table ({glue}`len_srs_hmi_processed_path` rows) the active regions are extracted, and SRS-HMI and SRS-MDI tables are merged on the `number` and `time` columns (for the `AR` `region_type` the `number` is an NOAA AR Number, extracted from the SRS text files, and for `QS`, this is an integer $n ∈ [0, N)$, where $N$ was the number of QS regions requested during data generation.  The resulting HMI AR Classification dataset contains a total of {glue}`len_hmi_region_extraction_ar` ARs, and {glue}`len_hmi_region_extraction_qs` QS regions. Similarly, for MDI, there are {glue}`len_mdi_region_extraction_ar` AR regions {glue}`len_mdi_region_extraction_qs` QS regions. The ARs at {glue}`obs_date` are shown below for both MDI and HMI.
 
 :::{important}
 In this version ({glue}`arccnet_version`), we have defined a quiet sun region as any region that is not a NOAA AR.
 :::
 
-Starting with the SRS-HMI table ({glue}`len_srs_hmi_processed_path` rows) the active regions are extracted, and SRS-HMI and SRS-MDI tables are merged on the `number` and `time` columns (for the `AR` `region_type` the `number` is an NOAA AR Number, extracted from the SRS text files, and for `QS`, this is an integer from `[0, N)`, where `N` was the number of QS regions generated). No further filtering is performed.
-
-The resulting HMI AR Classification dataset contains a total of {glue}`len_hmi_region_extraction_ar` ARs, and {glue}`len_hmi_region_extraction_qs` QS regions. Similarly, for MDI, there are {glue}`len_mdi_region_extraction_ar` AR regions {glue}`len_mdi_region_extraction_qs` QS regions. The ARs at {glue}`obs_date` are shown below for both MDI and HMI.
-
-While no filtering is currently implemented, this may be necessary based on the number of NaN values found on disk (the columns `sum_ondisk_nans_mdi`, `sum_ondisk_nans_hmi`), and based upon the size of the cutout `dim_image_cutout_hmi`, `dim_image_cutout_mdi`
+:::{info}
+While no further filtering is currently implemented, this may be necessary based on the number of NaN values found on disk (the columns `sum_ondisk_nans_mdi`, `sum_ondisk_nans_hmi`), and based upon the size of the cutout `dim_image_cutout_hmi`, `dim_image_cutout_mdi`
+:::
 
 ```{glue:figure} two_plots_cutouts
 :alt: "AR Cutouts from cotemporal HMI-MDI"
 :name: "fig:hmi:cotemporalmagprocess"
-MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`, showing NOAA AR cutouts.
+MDI (left) and HMI (right) observation of the Sun's magnetic field at {glue}`obs_date`, showing NOAA AR cutouts.
 ```
 
-An example active region (with {glue}`regions_sunspots` sunspots) is shown below, where the Mcintosh/Hale Classes are {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`.
+An example active region (with {glue}`regions_sunspots` sunspots) is shown below (X by Y pixels) as observed by SoHO/MDI and SDO/HMI. The Mcintosh/Mag Classes are {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`.
 <!-- this is the largest by area -->
 
 ```{glue:figure} two_plots_cutouts_hmi
 :alt: "AR Cutouts from HMI"
-:name: "fig:hmi:cotemporalmagprocesshmi"
-Active region cutout with Mcintosh/Hale Classes: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`
+:name: "fig:hmi:cotemporalmagprocess_hmi"
+Active region cutout with Mcintosh/Mag Classes: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`
 ```
 
 To demonstrate how these figures were made, the region classification table at {glue}`obs_date` is shown below. To access data from this table for a selected `time`, you can utilise the `magnetic_class` and `mcintosh_class` columns, which offer the relevant classification classes (when `region_type` is an Active Region, denoted as "AR"). Additionally, for a specific `region_type`, the `processed_path_image_hmi` and `path_image_cutout_hmi` provide the paths to the HMI image and cutout. Alternatively, the `top_right_cutout_hmi` and `bottom_left_cutout_hmi` values specify the coordinates of the top-right and bottom-left corners of the cutout within the processed image.
 
-
-```{glue:} rct_subset
+```{code-cell} python3
+:tags: [remove-input]
+rct_subset
 ```
 
-### Region Detection Dataset
+#### Quicklook files
 
-The Region Detection dataset contains cotemporal observations from HMI and MDI, with regions extracted from SHARPs/SMARPs, as shown in {numref}`fig:mag_region_detection`. In comparison to {numref}`fig:hmi:cotemporalmagprocess`, these data contain NOAA active regions and additional regions detected through the pipeline.
+For simplicity, the region classification table provides the columns `quicklook_path_mdi` and `quicklook_path_hmi`, to provide access to quicklook plots. In these plots, the red bounding boxes correspond to `AR` `region_type`, and blue, the `QS` `region_type`, and each region is labelled with their corresponding `number`.
+
+```{code-cell} python3
+:tags: [remove-input]
+
+from PIL import Image
+
+glue("quicklook_png_hmi", Image.open(rct_subset['quicklook_path_hmi'][0]), display=False)
+glue("quicklook_png_mdi", Image.open(rct_subset['quicklook_path_mdi'][0]), display=False)
+```
+
+|    MDI quicklook   |   HMI quicklook   |
+|:-------------------------------------:|:--------------------:|
+| {glue:}`quicklook_png_mdi`                       | {glue:}`quicklook_png_hmi`     |
+
+
+(sec:ardetdataset)=
+### Active Region Detection Dataset
+
+To classify active regions, they first need to be detected. By developing an automated solution to active region detection, the aim is to automatically isolated active regions in real-time, which can then be classified, and ultimately utilised as part of an end-to-end machine learning pipeline.
+
+To tackle this as a supervised learning problem, we require a dataset consisting of:
+
+1. **input**: full-disk images (that contain active regions)
+2. **output**: bounding boxes surrounding those active regions
+
+As described earlier, the Spaceweather HMI(MDI) Active Region Patches (SHARP/SMARP) provide data segments such as magnetograms and bitmaps for each active region patch.
+Here, we utilise the bitmap segment, which describe the pixels located within the smooth bounding curve of the SHARP/SMARP detection algorithms, to extract the bounding box around the patch.
+
+The table below, provides an example of one SHARP `bitmap` segments against the respective LOS HMI magnetogram cutout.
+
+```{code-cell} python3
+:tags: [hide-cell, remove-input, remove-output]
+import matplotlib.pyplot as plt
+
+n = -2
+# extract the sumpy map
+sunpy_map = sunpy.map.Map(hmi_region_table['processed_path'][n])
+# submap over the cutout region
+smap_hmi = sunpy_map.submap(top_right=hmi_region_table['top_right_cutout'][n], bottom_left=hmi_region_table['bottom_left_cutout'][n]).rotate()
+# load the equivalent bitmap
+hmi_arc = sunpy.map.Map(hmi_region_table['path_arc'][n])
+
+glue("smap_hmi_plot", plot_map(smap_hmi)[0], display=False)
+```
+
+```{code-cell} python3
+:tags: [hide-cell, remove-input, remove-output]
+
+import sunpy.map
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+from matplotlib.patches import Patch
+from matplotlib.colors import BoundaryNorm
+from astropy import units as u
+
+# Create a color map
+colors = ['#000000', '#E7EAE9', '#FFFFFF', '#547239', '#FFFFFF']
+cmap = ListedColormap(colors)
+
+# Define the boundaries for the color map
+bounds = [-0.5, 0.5, 1.5, 2.5, 33.5, 34.5]
+norm = BoundaryNorm(bounds, cmap.N)
+
+# Create a custom legend
+legend_labels = ['Off-disk', 'Weak field (Outside HARP)', 'Strong field',
+                 'Weak field (Inside HARP)']
+
+legend_elements = [Patch(facecolor=cmap(norm(bound)), label=label) for label, bound in zip(legend_labels, bounds)]
+
+# Plot the SunPy map using the specified color map
+fig = plt.figure(figsize=(5, 4))
+
+# this is because sharp stuff is done in reference frame and we rotate the Sun
+rounded_angle = round(hmi_arc.meta['crota2'] / 90) * 90
+hmi_arc_rotated = hmi_arc.rotate(rounded_angle*u.deg)
+
+ax = plt.subplot(projection=hmi_arc_rotated)
+im = hmi_arc_rotated.plot(cmap=cmap, norm=norm)
+
+# Add the legend
+ax.legend(handles=legend_elements)
+ax.set_title("SHARP (HMI) bitmap")
+
+glue("hmi_arc_rot_plot_full", fig, display=False)
+
+```
+
+|    SHARP bitmap   |   HMI magnetogram cutout   |
+|:-------------------------------------:|:--------------------:|
+| {glue:}`hmi_arc_rot_plot_full`                       | {glue:}`smap_hmi_plot`     |
 
 :::{note}
-In this version ({glue}`arccnet_version`) of this dataset, all regions from SMARP/SHARPs are provided. With care, it would be possible to merge the hand-labelled NOAA ARs, and automatically extract SHARP/SMARP regions, however it is possible that there is a one-to-many relationship present.
+SHARP/SMARP regions are processed in the instrument frame, where the valid values for SHARPs `bitmap` regions are ${0, 1, 2, 33, 34}$.
+As part of the processing of full-disk MDI/HMI images, these images are rotated to Solar North, through the angle described in the `crota2` metadata keyword.
+The interpolation during rotation of these `bitmap` segments can introduce intermediate values outside the valid labels.
+
+As such, for the visualisation shown above, the rotation for these `bitmap` segments is defined as:
+
+```
+rounded_angle = round(sunpy_map.meta['crota2'] / 90) * 90
+rotated_map = sunpy_map.rotate(rounded_angle*u.deg)
+```
+
+and may not perfectly align.
+
 :::
 
-Figure {numref}`fig:mag_region_detection` shows MDI (left) and HMI (right) with the respective SMARP and SHARP regions, from the `bitmap` segment. The `bitmap` segment identifies the pixels located within the smooth bounding curve of the SHARP/SMARP detection algorithms.
+
+#### Dataset creation
+
+To create this dataset we start with the HMI-SHARPS/MDI-SMARPs (see {ref}`sec:dataset_generation`) which merges the HMI full-disk images with the SHARP cutout images (and equivalent for MDI & SMARPs).
+With this merged table, each cutout can be opened to extract the bounding box coordinates.
+
+An example set of co-temporal observations from MDI and HMI, with regions extracted from SHARPs/SMARPs, is shown in {numref}`fig:mag_region_detection`.
+Figure {numref}`fig:mag_region_detection` shows MDI (left) and HMI (right) with the respective SMARP and SHARP bounds extracted from the `bitmap` segments.
 
 ```{glue:figure} two_plots_cutouts_two
 :alt: "AR Cutouts from cotemporal HMI-MDI"
@@ -440,12 +679,57 @@ Figure {numref}`fig:mag_region_detection` shows MDI (left) and HMI (right) with 
 MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`, showing NOAA AR cutouts.
 ```
 
-The Region Detection table contains HMI and MDI data for full-disk as well as active region cutouts ("arc"). Individual instrument access is enabled through the `instrument` column for a `target_time`. The `processed_path` column offers the path to the full-disk image, while the `path_arc` column provides the location of the active region classification image. Alternatively, the  `top_right_cutout` and `bottom_left_cutout` provide bounds of the `path_arc` image, in full-disk data (`processed_path`).
+:::{note}
+In this version ({glue}`arccnet_version`) of this dataset, all regions from SMARP/SHARPs are provided. With care, it would be possible to merge the hand-labelled NOAA ARs with the SHARP/SMARP regions based on latitude/longitude to automatically extract SHARP/SMARP regions, however it is very likely many one-to-many relationships exist between these two active region datasets.
+:::
 
-```{glue:} rdt_subset
+The Region Detection table contains MDI and HMI data for full-disk as well as active region cutouts ("arc").
+Individual instrument access is enabled through the `instrument` column for a `target_time`.
+The `processed_path` column offers the path to the full-disk image, while the `path_arc` column provides the location of the active region classification image.
+Alternatively, the  `top_right_cutout` and `bottom_left_cutout` provide bounds of the `path_arc` image, in full-disk data (`processed_path`).
+
+To demonstrate how these figures were made, the region detection table is shown below for {glue:}`obs_date`.
+Here, the `target_time` is shared between two instruments and denotes the time for which the full-disk and cutout data was requested.
+Each instrument, denoted by the `instrument` column contains its own respective `datetime` reference that corresponds to the full-disk observation time.
+The `processed_path` column provides the full-disk image for a given `target_time` and `instrument`, while the cutout can be accessed through `path_arc`, or alternatively the bounding box can be directly from the full-disk `processed_path` image using the `top_right_cutout`/`bottom_left_cutout`
+
+Finally, the `record_TARPNUM_arc` and `record_HARPNUM_arc` provide the TARP/HARP identifiers for each active region (similar to NOAA AR Numbers).
+
+```{code-cell} python3
+:tags: [remove-input]
+rdt_subset
 ```
+
+:::{note}
+Columns with the suffix `_arc` reference the equivalent for the active region cutouts.
+:::
+
+## Summary
+
+In version {glue:}`arccnet_version` of this dataset, we described the input data, and the process to generate initial versions of the Active Region Classification and Active Region Detection datasets.
+
+### Active Region Classification
+
+For AR Classification, Active Regions were obtained by extracting latitude/longitude information from daily NOAA SRS files, and merged with full-disk MDI/HMI observations that were requested at the validity-time of the NOAA SRS files.
+Utilising the latitude/longitude of each NOAA AR from the SRS files, the active regions were extracted (`region_type == 'AR'` in the final table) alongside a set of random quiet sun regions that describe locations on the Sun that are not NOAA ARs (`region_type == 'QS'`).
+
+As shown in {ref}`sec:arclassdataset`, each active region cutout has associated magnetic/mcintosh classes and other metadata extracted from the the daily SRS text files.
+These provide an input and classification labels for a supervised learning approach to active region classification
+
+### Active Region Detection
+
+For AR Detection, Regions were obtained for MDI and HMI by querying the SMARP/SHARP series. These series provide active regions that have been automatically detected, and are labelled with TARP/HARP Numbers, however, not all regions are associated with NOAA ARs.
+
+As shown in {ref}`sec:ardetdataset`, each SHARP/SMARP region is shown on the full-disk images with an example an example HMI bitmap segment also shown.
+For version {glue:}`arccnet_version`, the Region Detection table provides the full-disk image, and the bounds of the bounding boxes to train a supervised region detection model.
+
+:::{note}
+To isolate only the NOAA ARs, it is possible to merge the hand-labelled NOAA ARs (the SRS table) and the SHARP/SMARP tables, in an attempt to associate NOAA AR Numbers with TARP/HARP numbers, however it is very likely many one-to-many relationships exist.
+:::
+
 
 ## Bibliography
 
 ```{bibliography}
+:filter: docname in docnames
 ```

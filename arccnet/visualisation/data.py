@@ -424,7 +424,20 @@ def plot_col_scatter_single(
     return fig, ax
 
 
-def plot_maps(map_one, map_two, figsize=(10, 4), horizontal=True):
+def plot_map(map_one, figsize=(5, 4)):
+    fig = plt.figure(figsize=figsize)
+
+    ax1 = fig.add_subplot(1, 1, 1, projection=map_one)
+    map_one.plot(cmap="hmimag")
+
+    vmin, vmax = -1499, 1499
+    map_one.plot_settings["norm"].vmin = vmin
+    map_one.plot_settings["norm"].vmax = vmax
+
+    return fig, ax1
+
+
+def plot_maps(map_one, map_two, figsize=(10, 4)):
     fig = plt.figure(figsize=figsize)
 
     ax1 = fig.add_subplot(1, 2, 1, projection=map_one)
@@ -432,6 +445,12 @@ def plot_maps(map_one, map_two, figsize=(10, 4), horizontal=True):
 
     ax2 = fig.add_subplot(1, 2, 2, projection=map_two)
     map_two.plot(cmap="hmimag")
+
+    vmin, vmax = -1499, 1499
+    map_one.plot_settings["norm"].vmin = vmin
+    map_one.plot_settings["norm"].vmax = vmax
+    map_two.plot_settings["norm"].vmin = vmin
+    map_two.plot_settings["norm"].vmax = vmax
 
     return fig, [ax1, ax2]
 
