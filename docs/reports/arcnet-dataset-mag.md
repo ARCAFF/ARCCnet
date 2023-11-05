@@ -15,6 +15,9 @@ jupytext:
 ```{code-cell} python3
 :tags: [hide-cell, remove-input, remove-output]
 
+# set working directory to the base of the repo
+%cd ../..
+
 from myst_nb import glue
 from datetime import datetime
 from pathlib import Path
@@ -247,9 +250,7 @@ map_cutouts, _ = plot_maps_regions(map_two, regions_two, map_one, regions_one, *
 smap_hmi = map_one.submap(top_right=hmi_ar['top_right_cutout'][0], bottom_left=hmi_ar['bottom_left_cutout'][0])
 smap_mdi = map_two.submap(top_right=mdi_ar['top_right_cutout'][0], bottom_left=mdi_ar['bottom_left_cutout'][0])
 mag_cutouts, _ = plot_maps(smap_mdi, smap_hmi, figsize=(10,2))
-mag_kvpair, _ = create_image_with_key_value_pairs(smap_hmi, hmi_ar_dict, x_position=0.1, y_position=0.625, x_delt=0.5, y_delt=0.075)
 
-glue("mag_kvpair_plot", mag_kvpair, display=False)
 glue("mag_co", plot_map(smap_hmi)[0], display=False)
 glue("mag_co_dict", pd.DataFrame({'Key': hmi_ar_pdseries.index, 'Value': hmi_ar_pdseries.values}), display=False)
 glue("mag_co_html", ''.join([f"<b>{key}</b>: {value}<br>" for key, value in hmi_ar_dict.items()]), display=False)
@@ -421,7 +422,7 @@ where all possible permutations are as follows:
 
 The bitmap segment for SMARPs is similar, but more complicated. See <https://github.com/mbobra/SMARPs/blob/main/example_gallery/Compare_SMARP_and_SHARP_bitmaps.ipynb>.
 
-:::{note}
+:::{seealso}
 For more discussion on the generation of SHARP/SMARP data, see <https://github.com/mbobra/SHARPs>, <https://github.com/mbobra/SMARPs>.
 :::
 
@@ -505,7 +506,7 @@ To tackle this as a supervised learning problem, we require a dataset consisting
 1. **input**: cutouts centered on labelled NOAA ARs
 2. **output**: corresponding classification labels
 
-In version markdown{glue}`arccnet_version`, the active region locations (and classification label output) have been extracted from the daily SRS files. The locations, combined with a pre-defined region size were used to crop cutouts from the full-disk magnetograms.
+In version {glue}`arccnet_version`, the active region locations (and classification label output) have been extracted from the daily SRS files. The locations, combined with a pre-defined region size were used to crop cutouts from the full-disk magnetograms.
 
 An example active region from this dataset, extracted from SDO/HMI (with {glue}`regions_sunspots` sunspots) is shown in Figure {numref}`fig:hmi_mag_co`, along with the corresponding Mcintosh/Mag classification labels: {glue}`regions_hmi_mcintosh`, {glue}`regions_hmi_mag_class`.
 
@@ -527,7 +528,7 @@ In practice, we started with the SRS-HMI table ({glue}`len_srs_hmi_processed_pat
 In this version ({glue}`arccnet_version`), we have defined a quiet sun region as any region that is not a NOAA AR.
 :::
 
-:::{info}
+:::{warning}
 While no further filtering is currently implemented, this may be necessary based on the number of NaN values found on disk (the columns `sum_ondisk_nans_mdi`, `sum_ondisk_nans_hmi`), and based upon the size of the cutout `dim_image_cutout_hmi`, `dim_image_cutout_mdi`
 :::
 
@@ -558,12 +559,17 @@ rct_subset
 For simplicity, the region classification table provides the columns `quicklook_path_mdi` and `quicklook_path_hmi`, to provide access to quicklook plots. In these plots, the red bounding boxes correspond to `AR` `region_type`, and blue, the `QS` `region_type`, and each region is labelled with their corresponding `number`.
 
 ```{code-cell} python3
-:tags: [remove-input]
+:tags: [remove-input, remove-output]
 
 from PIL import Image
 
-glue("quicklook_png_hmi", Image.open(rct_subset['quicklook_path_hmi'][0]), display=False)
-glue("quicklook_png_mdi", Image.open(rct_subset['quicklook_path_mdi'][0]), display=False)
+# just doing Image.open will end up having the docs trying to save and raise: OSError: cannot write mode RGBA as JPEG
+
+with Image.open(rct_subset['quicklook_path_hmi'][0]) as im:
+    glue("quicklook_png_hmi", im, display=False)
+
+with Image.open(rct_subset['quicklook_path_mdi'][0]) as im:
+    glue("quicklook_png_mdi", im, display=False)
 ```
 
 |    MDI quicklook   |   HMI quicklook   |
@@ -679,7 +685,7 @@ Figure {numref}`fig:mag_region_detection` shows MDI (left) and HMI (right) with 
 MDI-HMI observation of the Sun's magnetic field at {glue}`obs_date`, showing NOAA AR cutouts.
 ```
 
-:::{note}
+:::{important}
 In this version ({glue}`arccnet_version`) of this dataset, all regions from SMARP/SHARPs are provided. With care, it would be possible to merge the hand-labelled NOAA ARs with the SHARP/SMARP regions based on latitude/longitude to automatically extract SHARP/SMARP regions, however it is very likely many one-to-many relationships exist between these two active region datasets.
 :::
 
@@ -713,14 +719,14 @@ In version {glue:}`arccnet_version` of this dataset, we described the input data
 For AR Classification, Active Regions were obtained by extracting latitude/longitude information from daily NOAA SRS files, and merged with full-disk MDI/HMI observations that were requested at the validity-time of the NOAA SRS files.
 Utilising the latitude/longitude of each NOAA AR from the SRS files, the active regions were extracted (`region_type == 'AR'` in the final table) alongside a set of random quiet sun regions that describe locations on the Sun that are not NOAA ARs (`region_type == 'QS'`).
 
-As shown in {ref}`sec:arclassdataset`, each active region cutout has associated magnetic/mcintosh classes and other metadata extracted from the the daily SRS text files.
+As shown in the {ref}`sec:arclassdataset` section, each active region cutout has associated magnetic/mcintosh classes and other metadata extracted from the the daily SRS text files.
 These provide an input and classification labels for a supervised learning approach to active region classification
 
 ### Active Region Detection
 
 For AR Detection, Regions were obtained for MDI and HMI by querying the SMARP/SHARP series. These series provide active regions that have been automatically detected, and are labelled with TARP/HARP Numbers, however, not all regions are associated with NOAA ARs.
 
-As shown in {ref}`sec:ardetdataset`, each SHARP/SMARP region is shown on the full-disk images with an example an example HMI bitmap segment also shown.
+As shown in the {ref}`sec:ardetdataset` section, each SHARP/SMARP region is shown on the full-disk images with an example an example HMI bitmap segment also shown.
 For version {glue:}`arccnet_version`, the Region Detection table provides the full-disk image, and the bounds of the bounding boxes to train a supervised region detection model.
 
 :::{note}

@@ -104,12 +104,17 @@ None
 
 ```{code-cell} python3
 :tags: [hide-cell, remove-input, remove-output]
+
+# set working directory to the base of the repo
+%cd ../..
+
 from myst_nb import glue
 import datetime
 from pathlib import Path
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog
 from arccnet.visualisation.data import plot_srs_coverage, plot_srs_map, plot_filtered_srs_trace
 from arccnet import config
+
 start_date = config["general"]["start_date"]
 end_date = config["general"]["end_date"]
 pcat = ClassificationCatalog.read(Path(config["paths"]["data_dir_processed"]) / "noaa_srs" / "srs_processed_catalog.parq")
