@@ -1,6 +1,8 @@
 from pathlib import Path
 from dataclasses import dataclass
 
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import sunpy.map
 from tqdm import tqdm
@@ -10,6 +12,8 @@ from astropy.table import MaskedColumn, QTable
 from astropy.time import Time
 
 from arccnet.data_generation.utils.data_logger import logger
+
+matplotlib.use("Agg")
 
 __all__ = ["RegionDetection", "DetectionBox"]
 
@@ -167,3 +171,87 @@ class RegionDetection:
                 logger.warn(f"{len(matching_rows)} rows matched with {bbox.fulldisk_path} and {bbox.cutout_path}")
 
         return RegionDetectionTable(updated_table)
+
+    def summary_plots(
+        self,
+        table: RegionDetectionTable,
+        summary_plot_path: Path,
+    ) -> None:
+        grouped_data = table.group_by("processed_path")
+
+        for group in tqdm(grouped_data.groups, total=len(grouped_data.groups), desc="Processing"):
+            self._summary_plot(group, summary_plot_path)
+
+        return
+
+    @staticmethod
+    def _summary_plot(
+        table: RegionDetectionTable,
+        summary_plot_path: Path,
+    ):
+        """
+        assumes a RegionDetectionTable that has been grouped by `processed_path`
+
+        """
+        fulldisk_path = table["processed_path"][0]
+        instrument = table["instrument"][0]
+
+        if instrument == "HMI":
+            num_col_name = "record_HARPNUM_arc"
+            identifier = "HARP"
+        elif instrument == "MDI":
+            num_col_name = "record_TARPNUM_arc"
+            identifier = "TARP"
+        else:
+            raise NotImplementedError()
+
+        fulldisk_map = sunpy.map.Map(Path(fulldisk_path))
+
+        # save to file
+        output_filename = (
+            summary_plot_path
+            / f"{fulldisk_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{instrument}_{identifier}.png"
+        )
+
+        # set up plot
+        fig = plt.figure(figsize=(5, 5))
+        # there may be an issue with this cmap and vmin/max (different gray values as background)
+        ax = fig.add_subplot(projection=fulldisk_map)
+        fulldisk_map.plot_settings["norm"].vmin = -1499
+        fulldisk_map.plot_settings["norm"].vmax = 1499
+        fulldisk_map.plot(axes=ax, cmap="hmimag")
+
+        text_objects = []
+
+        for row in table:
+            # deal with boxes off the edge
+            fulldisk_map.draw_quadrangle(
+                row["bottom_left_cutout"],
+                axes=ax,
+                top_right=row["top_right_cutout"],
+                edgecolor="black",
+                linewidth=1,
+            )
+
+            text = ax.text(
+                row["bottom_left_cutout"][0].value
+                + (row["top_right_cutout"][0].value - row["bottom_left_cutout"][0].value) / 2,
+                row["bottom_left_cutout"][1].value
+                + (row["top_right_cutout"][1].value - row["bottom_left_cutout"][1].value) / 2,
+                row[num_col_name],
+                **{"size": "x-small", "color": "black", "ha": "center", "va": "center"},
+            )
+
+            text_objects.append(text)
+
+        plt.savefig(
+            output_filename,
+            dpi=300,
+        )
+
+        plt.close("all")
+
+        for text in text_objects:
+            text.remove()
+
+        return

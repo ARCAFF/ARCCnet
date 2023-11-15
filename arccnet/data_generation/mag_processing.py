@@ -21,7 +21,7 @@ from arccnet.data_generation.utils.utils import is_point_far_from_point, save_co
 
 matplotlib.use("Agg")
 
-__all__ = ["MagnetogramProcessor", "RegionExtractor"]  # , "ARDetection"]
+__all__ = ["MagnetogramProcessor", "RegionExtractor"]
 
 
 class MagnetogramProcessor:
@@ -586,7 +586,6 @@ class RegionExtractor:
         regions: list[Union[ARBox, QSBox]],
         sunpy_map: sunpy.map.Map,
         ysize: u.pix,
-        summary_plot_path: Path,
         output_filename: Path,
     ) -> None:
         fig = plt.figure(figsize=(5, 5))
