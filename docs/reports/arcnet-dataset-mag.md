@@ -21,7 +21,7 @@ jupytext:
 from myst_nb import glue
 from datetime import datetime
 from pathlib import Path
-from astropy.table import QTable
+from astropy.table import QTable, join
 import numpy as np
 import pandas as pd
 import sunpy
@@ -35,6 +35,8 @@ from arccnet.visualisation.data import (
     plot_map,
     plot_maps_regions,
 )
+
+import matplotlib.pyplot as plt
 
 from arccnet import __version__
 glue("arccnet_version", __version__, display=False)
@@ -594,7 +596,6 @@ The table below, provides an example of one SHARP bitmap segments against the re
 
 ```{code-cell} python3
 :tags: [hide-cell, remove-input, remove-output]
-import matplotlib.pyplot as plt
 
 n = -2
 # extract the sumpy map
@@ -612,7 +613,6 @@ glue("smap_hmi_plot", plot_map(smap_hmi)[0], display=False)
 
 import sunpy.map
 import numpy as np
-import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from matplotlib.patches import Patch
 from matplotlib.colors import BoundaryNorm
@@ -710,6 +710,185 @@ rdt_subset
 Columns with the suffix `_arc` reference the equivalent for the active region cutouts.
 :::
 
+##### Simplifying the data: HARP/NOAA
+
+To obtain bounding boxes around NOAA active regions, we utilise the SHARP regions, and the NOAA-to-HARP mapping that is continually updated at <http://jsoc.stanford.edu/doc/data/hmi/harpnum_to_noaa/all_harps_with_noaa_ars.txt> (further work has been performed by {cite:t}`2020NatSD...7..227A` and references thee-in).
+
+As there is often a one-to-many relation between HARP and NOAA, in this version we subselect only those full-disk observations that contain a set of unique HARP-to-NOAA mappings. The resulting subset can be visualised for both McIntosh and Magnetic class.
+
+```{code-cell} python3
+:tags: [hide-cell, remove-input, remove-output]
+
+from arccnet.catalogs.utils import retrieve_harp_noaa_mapping
+
+classification_file = Path(config["paths"]["data_root"]) / "04_final" / "mag" / "region_extraction" / "region_classification.parq"
+arclass = QTable.read(classification_file)
+ar = arclass[arclass['region_type'] == 'AR']
+ar = ar[~ar['quicklook_path_hmi'].mask]
+ar['NOAA'] = ar['number']
+ar['target_time'] = ar['time']
+
+merged_filtered_path = Path(config["paths"]["data_root"]) / "04_final" / "mag" / "region_detection" / "region_detection_noaa-harp.parq"
+merged_filtered = QTable.read(merged_filtered_path)
+```
+
+```{code-cell} python3
+:tags: [remove-input, remove-output]
+
+from arccnet.catalogs.active_regions import HALE_CLASSES, MCINTOSH_CLASSES
+
+df_names = pd.DataFrame({'mcintosh_class': MCINTOSH_CLASSES})
+
+df = ar['target_time','mcintosh_class'].to_pandas()
+dists_df = df['mcintosh_class'].value_counts(normalize=False)
+
+md_df = merged_filtered['datetime','mcintosh_class'].to_pandas()
+md_df = md_df['mcintosh_class'].value_counts(normalize=False)
+
+merged_df = pd.merge(dists_df, md_df, left_index=True, right_index=True, how='outer', suffixes=['_original', '_subset'])
+merged_df = pd.merge(df_names, merged_df, left_on='mcintosh_class', right_index=True, how='outer')
+
+# Fill NaN values with 0, assuming NaN means no count for that class in a particular dataframe
+merged_df = merged_df.fillna(0)
+merged_df.set_index('mcintosh_class', inplace=True)
+merged_df.sort_values('count_original', inplace=True, ascending=False)
+
+fig, ax = plt.subplots(figsize=(12, 4))
+merged_df.plot(kind='bar', ax=ax)
+ax.set_yscale('log')
+
+glue("mcintosh_plot", fig, display=False)
+```
+
+```{code-cell} python3
+:tags: [remove-input, remove-output]
+# Mt Wilson Magnetic classification
+
+df_names = pd.DataFrame({'magnetic_class': HALE_CLASSES})
+
+df = ar['target_time','magnetic_class'].to_pandas()
+dists_df = df['magnetic_class'].value_counts(normalize=False)
+
+md_df = merged_filtered['datetime','magnetic_class'].to_pandas()
+md_df = md_df['magnetic_class'].value_counts(normalize=False)
+
+merged_df2 = pd.merge(dists_df, md_df, left_index=True, right_index=True, how='outer', suffixes=['_original', '_subset'])
+merged_df2 = pd.merge(df_names, merged_df2, left_on='magnetic_class', right_index=True, how='outer')
+
+# Fill NaN values with 0, assuming NaN means no count for that class in a particular dataframe
+merged_df2 = merged_df2.fillna(0)
+merged_df2.set_index('magnetic_class', inplace=True)
+merged_df2.sort_values('count_original', inplace=True, ascending=False)
+
+fig, ax = plt.subplots(figsize=(12, 4))
+merged_df2.plot(kind='bar', ax=ax)
+ax.set_yscale('log')
+ax.tick_params(axis='x', rotation=45)
+
+glue("magnetic_plot", fig, display=False)
+```
+
+```{glue:figure} magnetic_plot
+:alt: "..."
+:name: "fig:magnetic_plot"
+Original Hale classes (blue), and number of classes post-filtering (orange).
+```
+
+```{glue:figure} mcintosh_plot
+:alt: "..."
+:name: "fig:mcintosh_plot"
+Original McIntosh classes (blue), and number of classes post-filtering (orange). The filtering of full-disk images to include those with only one-to-one mappings between HARP bounding boxes and NOAA active regions reduces some classes to zero.
+```
+
+```{code-cell} python3
+:tags: [remove-input, remove-output]
+
+# Assuming 'merged_df' has the structure: mcintosh_class (as index), count_original, count_subset
+
+# Define filtering criteria using a dictionary with regex patterns
+filter_criteria_z = {
+    'A': '^A',
+    'B': '^B',
+    'C': '^C',
+    'D': '^D',
+    'E': '^E',
+    'F': '^F',
+    'H': '^H'
+}
+
+filter_criteria_p = {
+    'x': '^.x',
+    'r': '^.r',
+    's': '^.s',
+    'a': '^.a',
+    'h': '^.h',
+    'k': '^.k'
+}
+
+filter_criteria_c = {
+    'x': '^..x',
+    'o': '^..o',
+    'i': '^..i',
+    'c': '^..c'
+}
+
+def create_filtered_dataframe(df, filter_criteria, title):
+    filtered_counts_original = {}
+    filtered_counts_subset = {}
+
+    for label, pattern in filter_criteria.items():
+        filtered_counts_original[label] = df[df.index.str.contains(pattern)]['count_original'].sum()
+        filtered_counts_subset[label] = df[df.index.str.contains(pattern)]['count_subset'].sum()
+
+    filtered_df = pd.DataFrame({
+        title: list(filtered_counts_original.keys()),
+        'count_original': list(filtered_counts_original.values()),
+        'count_subset': list(filtered_counts_subset.values())
+    })
+
+    filtered_df.set_index(title, inplace=True)  # Set the desired index
+
+    return filtered_df
+
+# Create DataFrames for 'Z', 'p', and 'c'
+df_z = create_filtered_dataframe(merged_df, filter_criteria_z, 'Z-values')
+df_p = create_filtered_dataframe(merged_df, filter_criteria_p, 'p-values')
+df_c = create_filtered_dataframe(merged_df, filter_criteria_c, 'c-values')
+
+# Plot the DataFrames with shared y-axis
+fig, axes = plt.subplots(1, 3, figsize=(10, 3), sharey=True)
+
+dfs = [df_z, df_p, df_c]
+
+for i, df in enumerate(dfs):
+    # Plot for each DataFrame
+    width = 0.4
+    df.plot(kind='bar', ax=axes[i])
+
+    # Customize plot settings
+    axes[i].set_yscale('log')
+    axes[i].set_ylabel('Count')
+    axes[i].set_ylim(10,40000)
+    axes[i].legend()
+    axes[i].tick_params(axis='x', rotation=0)
+
+# Show the plots
+plt.tight_layout()
+# plt.show()
+
+glue("zpc_plot", fig, display=False)
+```
+
+As discussed on <https://www.sidc.be/educational/classification.php>, the three-component McIntosh classification {cite:p}`mcintosh1990` is based on the general form 'Zpc', where 'Z' is the modified Zurich Class, 'p' describes the penumbra of the principal spot, and 'c' describes the distribution of spots in the interior of the group, we can plot the frequency of each component separately
+
+```{glue:figure} zpc_plot
+:alt: "..."
+:name: "fig:zpc_plot"
+Original Mcintosh classes pre- (blue) and post-filtering (orange) for each component of the three-component classification. Compared to plotting these classes individually, this provides a larger sample for each letter.
+```
+
+The NOAA ARs have been merge the hand-labelled NOAA ARs (the SRS table) and the SHARP/SMARP tables. As there is a one-to-many relationship between HARP and NOAA, we utilised the mapping provided by Stanford, and keep only the full-disk images that contain HARP regions with one-to-one mappings. This has removed the many-to-one problem, where a single HARP box can contain upto six NOAA active regions, but significantly reduces the amount of labelled data, and due to the nature, specifically reduces the number of complex regions, as shown in the previous plots.
+
 ## Summary
 
 In version {glue:}`arccnet_version` of this dataset, we described the input data, and the process to generate initial versions of the Active Region Classification and Active Region Detection datasets.
@@ -729,10 +908,7 @@ For AR Detection, Regions were obtained for MDI and HMI by querying the SMARP/SH
 As shown in the {ref}`sec:ardetdataset` section, each SHARP/SMARP region is shown on the full-disk images with an example an example HMI bitmap segment also shown.
 For version {glue:}`arccnet_version`, the Region Detection table provides the full-disk image, and the bounds of the bounding boxes to train a supervised region detection model.
 
-:::{note}
-To isolate only the NOAA ARs, it is possible to merge the hand-labelled NOAA ARs (the SRS table) and the SHARP/SMARP tables, in an attempt to associate NOAA AR Numbers with TARP/HARP numbers, however it is very likely many one-to-many relationships exist.
-:::
-
+To isolate only the NOAA ARs, we merge the hand-labelled NOAA ARs (the SRS table) and the SHARP/SMARP tables. As there is a one-to-many relationship between HARP and NOAA, we utilise the mapping provided by Stanford, and keep only the full-disk images that contain HARP regions with one-to-one mappings. This removes the many-to-one problem, where a single HARP box can contain upto six NOAA active regions, but significantly reduces the amount of labelled data, and due to the nature, specifically reduces the number of complex regions.
 
 ## Bibliography
 

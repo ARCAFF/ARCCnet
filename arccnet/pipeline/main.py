@@ -10,6 +10,7 @@ from astropy.table import MaskedColumn, QTable, join, vstack
 
 from arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
+from arccnet.catalogs.utils import retrieve_harp_noaa_mapping
 from arccnet.data_generation.data_manager import DataManager
 from arccnet.data_generation.data_manager import Query as MagQuery
 from arccnet.data_generation.mag_processing import MagnetogramProcessor, RegionExtractor
@@ -696,6 +697,46 @@ def region_detection(config, hmi_sharps, mdi_smarps):
     return ar_detection
 
 
+def merge_noaa_harp(arclass, ardeten):
+    """
+    merge noaa and harp on a one-to-one basis
+    """
+    ar = arclass[arclass["region_type"] == "AR"]
+    ar = ar[~ar["quicklook_path_hmi"].mask]
+    ar["NOAA"] = ar["number"]
+    ar["target_time"] = ar["time"]
+
+    ardeten_hmi = ardeten[ardeten["instrument"] == "HMI"]
+
+    harp_noaa_map = retrieve_harp_noaa_mapping()
+
+    joined_table = join(ardeten_hmi, harp_noaa_map, keys="record_HARPNUM_arc")
+
+    # Identify dates to drop
+    paths_to_drop = set()
+    for date in joined_table.group_by("processed_path").groups:
+        if any(date["NOAANUM"] > 1):
+            paths_to_drop.add(date["processed_path"][0])
+
+    # Filter out rows with dates to drop
+    filtered_table = joined_table[~np.isin(joined_table["processed_path"].data, list(paths_to_drop))]
+    joined_table[np.isin(joined_table["processed_path"].data, list(paths_to_drop))]
+
+    # make NOAA an int now that > 1 NOAANUM is dropped
+    filtered_table["NOAA"] = filtered_table["NOAA"].astype("int")
+
+    # and merge
+    merged_filtered = join(filtered_table, ar, keys=["target_time", "NOAA"])
+
+    logger.info("Generating `Region Detection` dataset")
+    data_root = config["paths"]["data_root"]
+    merged_filtered_path = Path(data_root) / "04_final" / "mag" / "region_detection" / "region_detection_noaa-harp.parq"
+
+    merged_filtered.write(merged_filtered_path, format="parquet", overwrite=True)
+
+    return merged_filtered
+
+
 def main():
     root_logger = logging.getLogger()
     root_logger.setLevel("DEBUG")
@@ -720,10 +761,12 @@ def main():
     )
 
     # extract AR/QS regions from HMI and MDI
-    region_extraction(config, srs_hmi, srs_mdi)
+    arclass = region_extraction(config, srs_hmi, srs_mdi)
 
     # bounding box locations of cutouts (in pixel space) on the full-disk images
-    region_detection(config, hmi_sharps, mdi_smarps)
+    ardeten = region_detection(config, hmi_sharps, mdi_smarps)
+
+    merge_noaa_harp(arclass, ardeten)
 
     logger.debug("Finished main")
 
