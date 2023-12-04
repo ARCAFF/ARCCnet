@@ -712,7 +712,7 @@ Columns with the suffix `_arc` reference the equivalent for the active region cu
 
 ##### Simplifying the data: HARP/NOAA
 
-To obtain bounding boxes around NOAA active regions, we utilise the SHARP regions, and the NOAA-to-HARP mapping that is continually updated at <http://jsoc.stanford.edu/doc/data/hmi/harpnum_to_noaa/all_harps_with_noaa_ars.txt> (further work has been performed by {cite:t}`2020NatSD...7..227A` and references thee-in).
+To obtain bounding boxes around NOAA active regions, we utilise the SHARP regions, and the NOAA-to-HARP mapping that is continually updated at <http://jsoc.stanford.edu/doc/data/hmi/harpnum_to_noaa/all_harps_with_noaa_ars.txt> (further work has been performed by {cite:t}`2020NatSD...7..227A` and references there-in).
 
 As there is often a one-to-many relation between HARP and NOAA, in this version we subselect only those full-disk observations that contain a set of unique HARP-to-NOAA mappings. The resulting subset can be visualised for both McIntosh and Magnetic class.
 
