@@ -20,12 +20,11 @@ def retrieve_harp_noaa_mapping():
     num_commas = []
 
     for line in lines:
-        if line:
-            harp, noaa = line.split()
-            harps.append(int(harp))
-            noaas.append(noaa)
-            commas = noaa.split(",")
-            num_commas.append(len(commas))
+        harp, noaa = line.split()
+        harps.append(int(harp))
+        noaas.append(noaa)
+        commas = noaa.split(",")
+        num_commas.append(len(commas))
 
     # Create a QTable with two columns
     table = QTable(
