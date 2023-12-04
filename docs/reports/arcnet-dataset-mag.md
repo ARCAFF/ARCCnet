@@ -712,10 +712,6 @@ Columns with the suffix `_arc` reference the equivalent for the active region cu
 
 ##### Simplifying the data: HARP/NOAA
 
-To obtain bounding boxes around NOAA active regions, we utilise the SHARP regions, and the NOAA-to-HARP mapping that is continually updated at <http://jsoc.stanford.edu/doc/data/hmi/harpnum_to_noaa/all_harps_with_noaa_ars.txt> (further work has been performed by {cite:t}`2020NatSD...7..227A` and references there-in).
-
-As there is often a one-to-many relation between HARP and NOAA, in this version we subselect only those full-disk observations that contain a set of unique HARP-to-NOAA mappings. The resulting subset can be visualised for both McIntosh and Magnetic class.
-
 ```{code-cell} python3
 :tags: [hide-cell, remove-input, remove-output]
 
@@ -731,6 +727,48 @@ ar['target_time'] = ar['time']
 merged_filtered_path = Path(config["paths"]["data_root"]) / "04_final" / "mag" / "region_detection" / "region_detection_noaa-harp.parq"
 merged_filtered = QTable.read(merged_filtered_path)
 ```
+
+```{code-cell} python3
+:tags: [hide-cell, remove-input, remove-output]
+
+group = merged_filtered[merged_filtered['target_time'] == cotemporal_obs_date_time]
+
+sunpy_map = sunpy.map.Map(group['processed_path_image_hmi'][0])
+regions = group
+
+fig = plt.figure(figsize=(10, 4))
+
+# Assign different projections to each subplot
+ax = fig.add_subplot(1, 1, 1, projection=sunpy_map)
+
+# Set the colormap limits for both maps
+vmin, vmax = -1499, 1499
+sunpy_map.plot_settings["norm"].vmin = vmin
+sunpy_map.plot_settings["norm"].vmax = vmax
+
+# Plot HMI and MDI maps on the respective subplots
+sunpy_map.plot(axes=ax, cmap="hmimag")
+
+# Loop through region_table and draw quadrangles for both maps
+for row in regions:
+    print(row["bottom_left_cutout"])
+    sunpy_map.draw_quadrangle(row["bottom_left_cutout"], axes=ax, top_right=row["top_right_cutout"])
+
+glue("harp_noaa_hmi", fig, display=False)
+```
+
+To obtain bounding boxes around NOAA active regions, we utilise the SHARP regions, and the NOAA-to-HARP mapping that is continually updated at <http://jsoc.stanford.edu/doc/data/hmi/harpnum_to_noaa/all_harps_with_noaa_ars.txt> (further work has been performed by {cite:t}`2020NatSD...7..227A` and references therein).
+
+As there is often a one-to-many relation between HARP and NOAA, in this version we subselect only those full-disk observations that contain a set of unique HARP-to-NOAA mappings. An example of this is shown below, where the full-disk HMI image is shown with a HARP cutout. In comparison to {numref}`fig:mag_region_detection`, all HARP regions not associated with NOAA active regions are not included.
+
+```{glue:figure} harp_noaa_hmi
+:alt: "..."
+:name: "fig:hmi:harp_noaa_hmi"
+HMI full-disk image with HARP cutout associated with NOAA active region.
+```
+
+The resulting subset of data can be visualised for both McIntosh and Magnetic class
+
 
 ```{code-cell} python3
 :tags: [remove-input, remove-output]
