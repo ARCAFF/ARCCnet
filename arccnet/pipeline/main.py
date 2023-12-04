@@ -10,7 +10,7 @@ from astropy.table import MaskedColumn, QTable, join, vstack
 
 from arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
-from arccnet.catalogs.utils import retrieve_harp_noaa_mapping
+from arccnet.catalogs.utils import remove_columns_with_suffix, retrieve_harp_noaa_mapping
 from arccnet.data_generation.data_manager import DataManager
 from arccnet.data_generation.data_manager import Query as MagQuery
 from arccnet.data_generation.mag_processing import MagnetogramProcessor, RegionExtractor
@@ -731,6 +731,9 @@ def merge_noaa_harp(arclass, ardeten):
     logger.info("Generating `Region Detection` dataset")
     data_root = config["paths"]["data_root"]
     merged_filtered_path = Path(data_root) / "04_final" / "mag" / "region_detection" / "region_detection_noaa-harp.parq"
+
+    # Remove columns ending with "_mdi"
+    merged_filtered = remove_columns_with_suffix(merged_filtered, "_mdi")
 
     merged_filtered.write(merged_filtered_path, format="parquet", overwrite=True)
 
