@@ -2,7 +2,7 @@ import requests
 
 from astropy.table import Column, QTable
 
-__all__ = ["retrieve_harp_noaa_mapping"]
+__all__ = ["retrieve_harp_noaa_mapping", "remove_columns_with_suffix"]
 
 
 def retrieve_harp_noaa_mapping():
@@ -20,11 +20,12 @@ def retrieve_harp_noaa_mapping():
     num_commas = []
 
     for line in lines:
-        harp, noaa = line.split()
-        harps.append(int(harp))
-        noaas.append(noaa)
-        commas = noaa.split(",")
-        num_commas.append(len(commas))
+        if line:
+            harp, noaa = line.split()
+            harps.append(int(harp))
+            noaas.append(noaa)
+            commas = noaa.split(",")
+            num_commas.append(len(commas))
 
     # Create a QTable with two columns
     table = QTable(
@@ -32,3 +33,10 @@ def retrieve_harp_noaa_mapping():
     )
 
     return table
+
+
+def remove_columns_with_suffix(table, suffix):
+    modified_table = table.copy()
+    columns_to_remove = [col for col in modified_table.colnames if col.endswith(suffix)]
+    modified_table.remove_columns(columns_to_remove)
+    return modified_table
