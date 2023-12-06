@@ -735,6 +735,21 @@ def merge_noaa_harp(arclass, ardeten):
     # Remove columns ending with "_mdi"
     merged_filtered = remove_columns_with_suffix(merged_filtered, "_mdi")
 
+    # remove columns; !TODO drop these earlier
+    cols_to_remove = [
+        "record_TARPNUM_arc",
+        "NOAANUM",
+        "time",
+        "number",
+        "processed_path_image_hmi",
+        "top_right_cutout_hmi",
+        "bottom_left_cutout_hmi",
+        "path_image_cutout_hmi",
+        "dim_image_cutout_hmi",
+        "quicklook_path_hmi",
+    ]
+    merged_filtered.remove_columns(cols_to_remove)
+
     merged_filtered.write(merged_filtered_path, format="parquet", overwrite=True)
 
     return merged_filtered
