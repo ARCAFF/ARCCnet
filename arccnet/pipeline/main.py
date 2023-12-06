@@ -750,6 +750,15 @@ def merge_noaa_harp(arclass, ardeten):
     ]
     merged_filtered.remove_columns(cols_to_remove)
 
+    # rename columns; !TODO do this earlier
+    cols_to_rename = {
+        "latitude_hmi": "latitude",
+        "longitude_hmi": "longitude",
+        "sum_ondisk_nans_hmi": "sum_ondisk_nans",
+    }
+    for k, v in cols_to_rename.items():
+        merged_filtered.rename_column(k, v)
+
     merged_filtered.write(merged_filtered_path, format="parquet", overwrite=True)
 
     return merged_filtered
