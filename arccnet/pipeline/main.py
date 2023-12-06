@@ -713,32 +713,24 @@ def merge_noaa_harp(arclass, ardeten):
     joined_table = join(ardeten_hmi, harp_noaa_map, keys="record_HARPNUM_arc")
 
     # Identify dates to drop
-    paths_to_drop = set()
-    for date in joined_table.group_by("processed_path").groups:
+    joined_table["filtered"] = False
+    grouped_table = joined_table.group_by("processed_path")
+    for date in grouped_table.groups:
         if any(date["NOAANUM"] > 1):
-            paths_to_drop.add(date["processed_path"][0])
+            date["filtered"] = True
 
-    # Filter out rows with dates to drop
-    filtered_table = joined_table[~np.isin(joined_table["processed_path"].data, list(paths_to_drop))]
-    joined_table[np.isin(joined_table["processed_path"].data, list(paths_to_drop))]
-
-    # make NOAA an int now that > 1 NOAANUM is dropped
-    filtered_table["NOAA"] = filtered_table["NOAA"].astype("int")
-
-    # and merge
-    merged_filtered = join(filtered_table, ar, keys=["target_time", "NOAA"])
+    merged_grouped = join(grouped_table, ar, keys=["target_time", "NOAA"])
 
     logger.info("Generating `Region Detection` dataset")
     data_root = config["paths"]["data_root"]
-    merged_filtered_path = Path(data_root) / "04_final" / "mag" / "region_detection" / "region_detection_noaa-harp.parq"
+    merged_grouped_path = Path(data_root) / "04_final" / "mag" / "region_detection" / "region_detection_noaa-harp.parq"
 
     # Remove columns ending with "_mdi"
-    merged_filtered = remove_columns_with_suffix(merged_filtered, "_mdi")
+    merged_grouped = remove_columns_with_suffix(merged_grouped, "_mdi")
 
     # remove columns; !TODO drop these earlier
     cols_to_remove = [
         "record_TARPNUM_arc",
-        "NOAANUM",
         "time",
         "number",
         "processed_path_image_hmi",
@@ -748,20 +740,21 @@ def merge_noaa_harp(arclass, ardeten):
         "dim_image_cutout_hmi",
         "quicklook_path_hmi",
     ]
-    merged_filtered.remove_columns(cols_to_remove)
+    merged_grouped.remove_columns(cols_to_remove)
 
     # rename columns; !TODO do this earlier
     cols_to_rename = {
         "latitude_hmi": "latitude",
         "longitude_hmi": "longitude",
         "sum_ondisk_nans_hmi": "sum_ondisk_nans",
+        "NOAANUM": "number_noaa_per_harp",
     }
     for k, v in cols_to_rename.items():
-        merged_filtered.rename_column(k, v)
+        merged_grouped.rename_column(k, v)
 
-    merged_filtered.write(merged_filtered_path, format="parquet", overwrite=True)
+    merged_grouped.write(merged_grouped_path, format="parquet", overwrite=True)
 
-    return merged_filtered
+    return merged_grouped
 
 
 def main():

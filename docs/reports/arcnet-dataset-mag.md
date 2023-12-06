@@ -725,7 +725,8 @@ ar['NOAA'] = ar['number']
 ar['target_time'] = ar['time']
 
 merged_filtered_path = Path(config["paths"]["data_root"]) / "04_final" / "mag" / "region_detection" / "region_detection_noaa-harp.parq"
-merged_filtered = QTable.read(merged_filtered_path)
+merged_filtered_data = QTable.read(merged_filtered_path)
+merged_filtered = merged_filtered_data[~merged_filtered_data['filtered']]
 ```
 
 ```{code-cell} python3
@@ -733,7 +734,7 @@ merged_filtered = QTable.read(merged_filtered_path)
 
 group = merged_filtered[merged_filtered['target_time'] == cotemporal_obs_date_time]
 
-sunpy_map = sunpy.map.Map(group['processed_path_image_hmi'][0])
+sunpy_map = sunpy.map.Map(group['processed_path'][0])
 regions = group
 
 fig = plt.figure(figsize=(10, 4))
@@ -777,10 +778,15 @@ from arccnet.catalogs.active_regions import HALE_CLASSES, MCINTOSH_CLASSES
 
 df_names = pd.DataFrame({'mcintosh_class': MCINTOSH_CLASSES})
 
-df = ar['target_time','mcintosh_class'].to_pandas()
+# !TODO investigate this. There are a small number of missing values in the `merged_filtered` compared
+# to the `ar` table, which may be due to the HARP-NOAA relationship
+# df = ar['target_time','mcintosh_class'].to_pandas()
+# dists_df = df['mcintosh_class'].value_counts(normalize=False)#
+df = merged_filtered_data['datetime','mcintosh_class','filtered'].to_pandas()
 dists_df = df['mcintosh_class'].value_counts(normalize=False)
 
-md_df = merged_filtered['datetime','mcintosh_class'].to_pandas()
+md_df = merged_filtered_data['datetime','mcintosh_class','filtered'].to_pandas()
+md_df = md_df[~md_df['filtered']]
 md_df = md_df['mcintosh_class'].value_counts(normalize=False)
 
 merged_df = pd.merge(dists_df, md_df, left_index=True, right_index=True, how='outer', suffixes=['_original', '_subset'])
@@ -804,10 +810,14 @@ glue("mcintosh_plot", fig, display=False)
 
 df_names = pd.DataFrame({'magnetic_class': HALE_CLASSES})
 
-df = ar['target_time','magnetic_class'].to_pandas()
+# !TODO investigate this. There are a small number of missing values in the `merged_filtered` compared
+# df = ar['target_time','magnetic_class'].to_pandas()
+# dists_df = df['magnetic_class'].value_counts(normalize=False)
+df = merged_filtered_data['datetime','magnetic_class','filtered'].to_pandas()
 dists_df = df['magnetic_class'].value_counts(normalize=False)
 
-md_df = merged_filtered['datetime','magnetic_class'].to_pandas()
+md_df = merged_filtered_data['datetime','magnetic_class','filtered'].to_pandas()
+md_df = md_df[~md_df['filtered']]
 md_df = md_df['magnetic_class'].value_counts(normalize=False)
 
 merged_df2 = pd.merge(dists_df, md_df, left_index=True, right_index=True, how='outer', suffixes=['_original', '_subset'])

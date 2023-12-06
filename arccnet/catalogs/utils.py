@@ -15,21 +15,28 @@ def retrieve_harp_noaa_mapping():
 
     # Split the data into lines and extract two columns
     lines = data.split("\n")[1:]  # Exclude the first line (header)
-    harps = []
-    noaas = []
-    num_commas = []
+    split_record_HARPNUM = []
+    split_record_NOAANUM = []
+    split_NOAA = []
 
     for line in lines:
         if line:
             harp, noaa = line.split()
-            harps.append(int(harp))
-            noaas.append(noaa)
             commas = noaa.split(",")
-            num_commas.append(len(commas))
 
-    # Create a QTable with two columns
+            # Create a new row for each NOAA value
+            for noaa_value in commas:
+                split_record_HARPNUM.append(int(harp))
+                split_NOAA.append(int(noaa_value))
+                split_record_NOAANUM.append(len(commas))
+
+    # Create a QTable with the split values
     table = QTable(
-        [Column(harps, name="record_HARPNUM_arc"), Column(noaas, name="NOAA"), Column(num_commas, name="NOAANUM")]
+        [
+            Column(split_record_HARPNUM, name="record_HARPNUM_arc"),
+            Column(split_NOAA, name="NOAA"),
+            Column(split_record_NOAANUM, name="NOAANUM"),
+        ]
     )
 
     return table
