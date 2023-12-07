@@ -758,9 +758,41 @@ for row in regions:
 glue("harp_noaa_hmi", fig, display=False)
 ```
 
-To obtain bounding boxes around NOAA active regions, we utilise the SHARP regions, and the NOAA-to-HARP mapping that is continually updated at <http://jsoc.stanford.edu/doc/data/hmi/harpnum_to_noaa/all_harps_with_noaa_ars.txt> (further work has been performed by {cite:t}`2020NatSD...7..227A` and references therein).
+To obtain bounding boxes exclusivley around NOAA active regions, we utilise the SHARP regions, and the NOAA-to-HARP mapping that is continually updated at <http://jsoc.stanford.edu/doc/data/hmi/harpnum_to_noaa/all_harps_with_noaa_ars.txt> (further work has been performed by {cite:t}`2020NatSD...7..227A` and references therein).
 
-As there is often a one-to-many relation between HARP and NOAA, in this version we subselect only those full-disk observations that contain a set of unique HARP-to-NOAA mappings. An example of this is shown below, where the full-disk HMI image is shown with a HARP cutout. In comparison to {numref}`fig:mag_region_detection`, all HARP regions not associated with NOAA active regions are not included.
+We load and modify the NOAA-to-HARP mapping to provide a single HARP-to-NOAA mapping per line, with an addition of a column to indicate how many NOAA regions are associated with a particular HARP. An example of a few lines is shown below:
+
+```{code-cell} python3
+:tags: [remove-input]
+rhnm = retrieve_harp_noaa_mapping()
+
+glue("rhnm", rhnm[0:2], display=True)
+glue("len_rhnm", len(rhnm), display=False)
+```
+
+where there are {glue:}`len_rhnm` HARP-NOAA combinations. This results in the following table
+
+```{code-cell} python3
+:tags: [hide-cell, remove-input]
+merged_filtered_data
+
+glue("merged_filtered_data", merged_filtered_data, display=True)
+glue("len_merged_filtered_data", len(merged_filtered_data), display=False)
+glue("len_merged_filtered", len(merged_filtered), display=False)
+```
+
+As there is often a one-to-many relation between HARP and NOAA, we subselect only those full-disk observations that contain a set of unique HARP-to-NOAA mappings. An example of this is shown below, where the full-disk HMI image is shown with a HARP cutout. In comparison to {numref}`fig:mag_region_detection`, all HARP regions not associated with NOAA active regions are not included. Programmatically, that is to say:
+
+```{code-block} python3
+# Identify dates to drop
+joined_table["filtered"] = False
+grouped_table = joined_table.group_by("processed_path")
+for date in grouped_table.groups:
+    if any(date["NOAANUM"] > 1):
+        date["filtered"] = True
+```
+
+The full table shown above (including regions and dates that contain multiple ) includes {glue:}`len_merged_filtered_data` rows, with {glue:}`len_merged_filtered` rows that correspond to HMI full-disk observations that only includes dates where the regions have a one-to-one mapping (e.g. the data is filtered on the `filtered` column).
 
 ```{glue:figure} harp_noaa_hmi
 :alt: "..."
