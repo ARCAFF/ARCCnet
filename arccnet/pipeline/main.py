@@ -758,9 +758,6 @@ def merge_noaa_harp(arclass, ardeten):
 
 
 def main():
-    root_logger = logging.getLogger()
-    root_logger.setLevel("DEBUG")
-
     logger.debug("Starting main")
     _, _, _, _, clean_catalog = process_srs(config)
     hmi_download_obj, sharps_download_obj = process_hmi(config)

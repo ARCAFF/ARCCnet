@@ -12,20 +12,8 @@ formatter = logging.Formatter(
     "%(asctime)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s"
 )  # can use `%(pathname)s` to get the full path
 
-# create console handler and set level to INFO
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-ch.setFormatter(formatter)
-logger.addHandler(ch)
-
 os.makedirs(config["paths"]["data_dir_logs"], exist_ok=True)
-data_logfile = f"{config['paths']['data_dir_logs']}{datetime.utcnow().strftime('%Y_%m_%d_%H%M%S')}.log"
-# create file handler and set level to INFO
-fh = logging.FileHandler(data_logfile)
-fh.setLevel(logging.INFO)
-fh.setFormatter(formatter)
-logger.addHandler(fh)
-
+data_logfile = f"{config['paths']['data_dir_logs']}/{datetime.utcnow().strftime('%Y_%m_%d_%H%M%S')}.log"
 
 def get_logger(name, level=logging.INFO):
     logger = logging.getLogger(name)
@@ -35,4 +23,10 @@ def get_logger(name, level=logging.INFO):
     console_handler.setLevel(level)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
+
+    file_handler = logging.FileHandler(data_logfile)
+    file_handler.setLevel(level)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
     return logger
