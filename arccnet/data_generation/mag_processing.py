@@ -442,7 +442,7 @@ class RegionExtractor:
 
             # pass regions to plotting
             self.summary_plots(regions, image_map, cutout_size[1], quicklook_filename)
-            
+
             del image_map
 
         # not sure about this, but want to convert to strings, not leave as objects
