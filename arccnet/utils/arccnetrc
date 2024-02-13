@@ -38,38 +38,7 @@ data_dir_intermediate = ${data_root}/02_intermediate
 data_dir_processed = ${data_root}/03_processed
 data_dir_final = ${data_root}/04_final
 
-mag_raw_dir = ${data_dir_raw}/mag
-
-hmi_mag_dir = ${mag_raw_dir}/hmi
-hmi_mag_raw_csv = ${mag_raw_dir}/raw.csv
-
-hmi_ic_dir = ${mag_raw_dir}/continuum
-hmi_ic_raw_csv = ${hmi_ic_dir}/raw.csv
-
-hmi_sharps_dir = ${mag_raw_dir}/sharps
-hmi_sharps_raw_csv = ${hmi_sharps_dir}/raw.csv
-mdi_smarps_dir = ${mag_raw_dir}/smarps
-mdi_smarps_raw_csv = ${mdi_smarps_dir}/raw.csv
-
-mdi_mag_dir = ${mag_raw_dir}/mdi
-mdi_mag_raw_csv = ${mdi_mag_dir}/raw.csv
-mag_raw_data_dir = ${mag_raw_dir}/fits
-mag_raw_sharp_data_dir = ${mag_raw_dir}/sharp_fits
-
-mag_intermediate_dir = ${data_dir_intermediate}/mag
-mag_intermediate_data_dir = ${mag_intermediate_dir}/fits
-mag_intermediate_hmimdi_data_csv = ${mag_intermediate_dir}/clean_catalog_hmimdi.csv
-mag_intermediate_hmimdi_processed_data_csv = ${mag_intermediate_dir}/clean_catalog_hmimdi_processed.csv
-mag_intermediate_hmisharps_data_csv =  ${mag_intermediate_dir}/clean_catalog_hmisharp.csv
-mag_intermediate_mdismarps_data_csv =  ${mag_intermediate_dir}/clean_catalog_mdismarp.csv
-
-mag_processed_dir = ${data_dir_processed}/mag
-mag_processed_fits_dir = ${mag_processed_dir}/fits
-mag_processed_summaryplots_dir = ${mag_processed_dir}/summary_plots
-mag_processed_qssummaryplots_dir = ${mag_processed_dir}/qs_summary_plots
-mag_processed_qsfits_dir = ${mag_processed_dir}qs_fits
-
-data_dir_logs = ${data_dir_raw}/logs
+data_dir_logs = ${data_root}/logs
 data_logfile = ${data_dir_logs}/data_processing_
 
 ;;;;;;;;;;;;
