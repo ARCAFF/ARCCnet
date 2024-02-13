@@ -15,6 +15,7 @@ formatter = logging.Formatter(
 os.makedirs(config["paths"]["data_dir_logs"], exist_ok=True)
 data_logfile = f"{config['paths']['data_dir_logs']}/{datetime.utcnow().strftime('%Y_%m_%d_%H%M%S')}.log"
 
+
 def get_logger(name, level=logging.INFO):
     logger = logging.getLogger(name)
     logger.setLevel(level)
