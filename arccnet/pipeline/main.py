@@ -792,12 +792,24 @@ def main():
     ardeten = region_detection(config, hmi_sharps, mdi_smarps)
     merged_table = merge_noaa_harp(arclass, ardeten)
 
-    RegionDetection(table=merged_table, col_group_path="processed_path", col_cutout_path="path_arc").summary_plots(
+    merged_table_quicklook = RegionDetection(
+        table=merged_table, col_group_path="processed_path", col_cutout_path="path_arc"
+    ).summary_plots(
         RegionDetectionTable(merged_table),
         Path(config["paths"]["data_root"]) / "04_final" / "data" / "region_detection" / "quicklook",
     )
 
-    logger.debug("Finished main")
+    merged_table_quicklook.replace_column("quicklook_path", [str(p) for p in merged_table_quicklook["quicklook_path"]])
+    merged_table_quicklook.write(
+        Path(config["paths"]["data_root"])
+        / "04_final"
+        / "data"
+        / "region_detection"
+        / "region_detection_noaa-harp.parq",
+        format="parquet",
+        overwrite=True,
+    )
+    print(merged_table_quicklook["quicklook_path"])
 
 
 if __name__ == "__main__":
