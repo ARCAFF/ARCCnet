@@ -20,7 +20,7 @@ from arccnet.data_generation.magnetograms.instruments import (
     MDILOSMagnetogram,
     MDISMARPs,
 )
-from arccnet.data_generation.region_detection import RegionDetection
+from arccnet.data_generation.region_detection import RegionDetection, RegionDetectionTable
 from arccnet.data_generation.utils.data_logger import get_logger
 
 logger = get_logger(__name__, logging.DEBUG)
@@ -790,8 +790,12 @@ def main():
 
     # bounding box locations of cutouts (in pixel space) on the full-disk images
     ardeten = region_detection(config, hmi_sharps, mdi_smarps)
+    merged_table = merge_noaa_harp(arclass, ardeten)
 
-    merge_noaa_harp(arclass, ardeten)
+    RegionDetection(table=merged_table, col_group_path="processed_path", col_cutout_path="path_arc").summary_plots(
+        RegionDetectionTable(merged_table),
+        Path(config["paths"]["data_root"]) / "04_final" / "data" / "region_detection" / "quicklook",
+    )
 
     logger.debug("Finished main")
 

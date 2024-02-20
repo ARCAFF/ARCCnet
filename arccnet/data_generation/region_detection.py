@@ -8,6 +8,7 @@ import sunpy.map
 from tqdm import tqdm
 
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 from astropy.table import MaskedColumn, QTable
 from astropy.time import Time
 
@@ -177,55 +178,54 @@ class RegionDetection:
         table: RegionDetectionTable,
         summary_plot_path: Path,
     ) -> None:
-        grouped_data = table.group_by("processed_path")
+        data = QTable(table)
 
-        for group in tqdm(grouped_data.groups, total=len(grouped_data.groups), desc="Processing"):
-            self._summary_plot(group, summary_plot_path)
+        # quick and dirty. remove
+        col = MaskedColumn(data=[Path()] * len(data), mask=[True] * len(data))
+        data.add_column(col, name="quicklook_path")
 
-        return
+        grouped_data = data.group_by("processed_path")
+
+        logger.info("region detection ")
+        for group in tqdm(grouped_data.groups, total=len(grouped_data.groups), desc="Plotting"):
+            fulldisk_path = group["processed_path"][0]
+            instrument = group["instrument"][0]
+
+            fulldisk_map = sunpy.map.Map(Path(fulldisk_path))
+
+            output_filename = (
+                summary_plot_path / f"{fulldisk_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{instrument}.png"
+            )  # need to add to the table
+
+            for row in group:
+                row["quicklook_path"] = output_filename
+
+            logger.info(group)
+
+            self._summary_plot(group, fulldisk_map, output_filename)
+
+        return grouped_data
 
     @staticmethod
     def _summary_plot(
         table: RegionDetectionTable,
-        summary_plot_path: Path,
+        sunpy_map: sunpy.map.Map,
+        output_filename: Path,
     ):
         """
         assumes a RegionDetectionTable that has been grouped by `processed_path`
-
         """
-        fulldisk_path = table["processed_path"][0]
-        instrument = table["instrument"][0]
-
-        if instrument == "HMI":
-            num_col_name = "record_HARPNUM_arc"
-            identifier = "HARP"
-        elif instrument == "MDI":
-            num_col_name = "record_TARPNUM_arc"
-            identifier = "TARP"
-        else:
-            raise NotImplementedError()
-
-        fulldisk_map = sunpy.map.Map(Path(fulldisk_path))
-
-        # save to file
-        output_filename = (
-            summary_plot_path
-            / f"{fulldisk_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{instrument}_{identifier}.png"
-        )
-
         # set up plot
         fig = plt.figure(figsize=(5, 5))
         # there may be an issue with this cmap and vmin/max (different gray values as background)
-        ax = fig.add_subplot(projection=fulldisk_map)
-        fulldisk_map.plot_settings["norm"].vmin = -1499
-        fulldisk_map.plot_settings["norm"].vmax = 1499
-        fulldisk_map.plot(axes=ax, cmap="hmimag")
-
-        text_objects = []
+        ax = fig.add_subplot(projection=sunpy_map)
+        sunpy_map.plot_settings["norm"].vmin = -1499
+        sunpy_map.plot_settings["norm"].vmax = 1499
+        sunpy_map.plot(axes=ax, cmap="hmimag")
 
         for row in table:
             # deal with boxes off the edge
-            fulldisk_map.draw_quadrangle(
+            sunpy_map.draw_quadrangle(
                 row["bottom_left_cutout"],
                 axes=ax,
                 top_right=row["top_right_cutout"],
@@ -233,16 +233,16 @@ class RegionDetection:
                 linewidth=1,
             )
 
-            text = ax.text(
-                row["bottom_left_cutout"][0].value
-                + (row["top_right_cutout"][0].value - row["bottom_left_cutout"][0].value) / 2,
-                row["bottom_left_cutout"][1].value
-                + (row["top_right_cutout"][1].value - row["bottom_left_cutout"][1].value) / 2,
-                row[num_col_name],
-                **{"size": "x-small", "color": "black", "ha": "center", "va": "center"},
+            ax.plot_coord(
+                SkyCoord(row["longitude"], row["latitude"], frame=sunpy.coordinates.frames.HeliographicStonyhurst),
+                marker="o",
+                linestyle="None",
+                markeredgecolor="k",
+                markersize=4,
+                label=f'NOAA {row["NOAA"]}',
             )
 
-            text_objects.append(text)
+            ax.legend()
 
         plt.savefig(
             output_filename,
@@ -250,8 +250,5 @@ class RegionDetection:
         )
 
         plt.close("all")
-
-        for text in text_objects:
-            text.remove()
 
         return
