@@ -203,10 +203,9 @@ class MagnetogramProcessor:
         # [astropy.io.fits.hdu.image]
         # 1. Load & Rotate
         single_map = sunpy.map.Map(file)
-        rotated_map = self._rotate_datum(single_map)
         # 2. set data off-disk to 0 (np.nan would be ideal, but deep learning)
-        rotated_map.data[~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(rotated_map))] = 0.0
-        # !TODO understand why this isn't working correctly with MDI (leaves a white ring around the disk)
+        single_map.data[~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(single_map))] = 0.0
+        rotated_map = self._rotate_datum(single_map)
         # 4. !TODO normalise radius to fixed value
         # 5. !TODO project to a certain location in space
         return rotated_map
