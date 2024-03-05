@@ -391,9 +391,9 @@ class RegionExtractor:
             # workaround for issues seen in processing
             data = image_map.data
             on_disk_nans = np.isnan(data)
-            if on_disk_nans.sum() > 0:
-                indices = np.where(on_disk_nans)
-                data[indices] = 0.0
+            # if on_disk_nans.sum() > 0:
+            #     indices = np.where(on_disk_nans)
+            #     data[indices] = 0.0
 
             regions = []
 
