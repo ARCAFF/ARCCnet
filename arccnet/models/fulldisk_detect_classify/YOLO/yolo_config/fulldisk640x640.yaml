@@ -1,0 +1,9 @@
+train: /ARCAFF/full_disk/YOLO/yolo640x640/images/train/
+val: /ARCAFF/full_disk/YOLO/yolo640x640/images/val/
+nc: 5
+names:
+- Alpha
+- Beta
+- Beta-Gamma
+- Beta-Delta
+- Beta-Gamma-Delta
