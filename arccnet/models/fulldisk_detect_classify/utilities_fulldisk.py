@@ -64,7 +64,6 @@ def process_and_save_fits(dataframe, base_dir, dataset_type, resize_dim=(640, 64
         with fits.open(current_image_path) as image:
             image.verify('fix')
             data = image[1].data  # Adjust as necessary
-            data = np.flipud(data)
             
             # Normalize and scale the image data
             data = (data - np.min(data)) / (np.max(data) - np.min(data))
