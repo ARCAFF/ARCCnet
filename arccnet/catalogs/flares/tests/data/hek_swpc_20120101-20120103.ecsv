@@ -1,0 +1,186 @@
+# %ECSV 1.0
+# ---
+# datatype:
+# - {name: gs_thumburl, datatype: string}
+# - {name: comment_count, datatype: string}
+# - {name: hpc_bbox, datatype: string}
+# - {name: frm_humanflag, datatype: string}
+# - {name: hgc_coord, datatype: string}
+# - {name: event_coordsys, datatype: string}
+# - {name: obs_levelnum, datatype: string, subtype: json}
+# - {name: hpc_coord, datatype: string}
+# - {name: event_npixels, datatype: string, subtype: json}
+# - {name: gs_imageurl, datatype: string}
+# - {name: ar_polarity, datatype: string, subtype: json}
+# - {name: frm_paramset, datatype: string}
+# - {name: hrc_coord, datatype: string}
+# - {name: event_starttime, datatype: string}
+# - {name: ar_mtwilsoncls, datatype: string}
+# - {name: event_type, datatype: string}
+# - {name: intensmin, datatype: string, subtype: json}
+# - {name: fl_fluence, datatype: string, subtype: json}
+# - {name: obs_meanwavel, datatype: float64}
+# - {name: frm_url, datatype: string}
+# - {name: skel_chaincode, datatype: string}
+# - {name: bound_chaincode, datatype: string}
+# - {name: noposition, datatype: string}
+# - {name: fl_fluenceunit, datatype: string}
+# - {name: active, datatype: string}
+# - {name: intensmax, datatype: string, subtype: json}
+# - {name: frm_versionnumber, datatype: string, subtype: json}
+# - {name: fl_peaktempunit, datatype: string}
+# - {name: fl_halphaclass, datatype: string}
+# - {name: area_uncert, datatype: string, subtype: json}
+# - {name: obs_dataprepurl, datatype: string}
+# - {name: hpc_geom, datatype: string}
+# - {name: hgc_bbox, datatype: string}
+# - {name: intensmedian, datatype: string, subtype: json}
+# - {name: chaincodetype, datatype: string}
+# - {name: obs_channelid, datatype: string}
+# - {name: event_clippedspatial, datatype: string}
+# - {name: ar_noaaclass, datatype: string}
+# - {name: SOL_standard, datatype: string}
+# - {name: event_avg_rating, datatype: string, subtype: json}
+# - {name: eventtype, datatype: string}
+# - {name: intensunit, datatype: string}
+# - {name: hpc_boundcc, datatype: string}
+# - {name: event_mapurl, datatype: string}
+# - {name: frm_contact, datatype: string}
+# - {name: ar_penumbracls, datatype: string}
+# - {name: intensmean, datatype: string, subtype: json}
+# - {name: bound_ccstartc1, datatype: string, subtype: json}
+# - {name: frm_name, datatype: string}
+# - {name: area_atdiskcenter, datatype: string, subtype: json}
+# - {name: frm_identifier, datatype: string}
+# - {name: obs_observatory, datatype: string}
+# - {name: event_description, datatype: string}
+# - {name: boundbox_c2ur, datatype: float64}
+# - {name: obs_firstprocessingdate, datatype: string}
+# - {name: boundbox_c2ll, datatype: float64}
+# - {name: frm_institute, datatype: string}
+# - {name: hrc_bbox, datatype: string}
+# - {name: refs_orig, datatype: string}
+# - {name: ar_mcintoshcls, datatype: string}
+# - {name: event_maskurl, datatype: string}
+# - {name: bound_ccstartc2, datatype: string, subtype: json}
+# - {name: gs_movieurl, datatype: string}
+# - {name: event_score, datatype: string}
+# - {name: skel_startc2, datatype: string, subtype: json}
+# - {name: skel_startc1, datatype: string, subtype: json}
+# - {name: fl_efoldtime, datatype: string, subtype: json}
+# - {name: event_expires, datatype: string}
+# - {name: fl_efoldtimeunit, datatype: string}
+# - {name: hrc_boundcc, datatype: string}
+# - {name: event_probability, datatype: string, subtype: json}
+# - {name: intensvar, datatype: string, subtype: json}
+# - {name: frm_daterun, datatype: string}
+# - {name: event_coordunit, datatype: string}
+# - {name: hpc_y, datatype: float64}
+# - {name: hpc_x, datatype: float64}
+# - {name: search_instrument, datatype: string}
+# - {name: ar_numspots, datatype: string, subtype: json}
+# - {name: kb_archivdate, datatype: string}
+# - {name: kb_archivist, datatype: string}
+# - {name: intenstotal, datatype: string, subtype: json}
+# - {name: sum_overlap_scores, datatype: string}
+# - {name: hgs_boundcc, datatype: string}
+# - {name: intensskew, datatype: string, subtype: json}
+# - {name: obs_includesnrt, datatype: string}
+# - {name: rasterscan, datatype: string}
+# - {name: obs_wavelunit, datatype: string}
+# - {name: kb_archivid, datatype: string}
+# - {name: search_frm_name, datatype: string}
+# - {name: boundbox_c1ur, datatype: float64}
+# - {name: ar_noaanum, datatype: int64}
+# - {name: area_atdiskcenteruncert, datatype: string, subtype: json}
+# - {name: boundbox_c1ll, datatype: float64}
+# - {name: event_importance_num_ratings, datatype: string}
+# - {name: ar_compactnesscls, datatype: string}
+# - {name: skel_curvature, datatype: string, subtype: json}
+# - {name: event_testflag, datatype: string}
+# - {name: event_c2error, datatype: int64}
+# - {name: hrc_r, datatype: float64}
+# - {name: skel_nsteps, datatype: string, subtype: json}
+# - {name: hgs_y, datatype: int64}
+# - {name: obs_title, datatype: string}
+# - {name: fl_peakemunit, datatype: string}
+# - {name: hgs_x, datatype: int64}
+# - {name: hcr_checked, datatype: string}
+# - {name: frm_specificid, datatype: string}
+# - {name: event_title, datatype: string}
+# - {name: obs_instrument, datatype: string}
+# - {name: event_c1error, datatype: int64}
+# - {name: revision, datatype: string}
+# - {name: hpc_radius, datatype: string}
+# - {name: event_endtime, datatype: string}
+# - {name: event_importance, datatype: string, subtype: json}
+# - {name: event_coord2, datatype: int64}
+# - {name: event_coord3, datatype: string, subtype: json}
+# - {name: event_coord1, datatype: int64}
+# - {name: search_observatory, datatype: string}
+# - {name: area_raw, datatype: string, subtype: json}
+# - {name: concept, datatype: string}
+# - {name: event_pixelunit, datatype: string}
+# - {name: hgc_boundcc, datatype: string}
+# - {name: fl_peakflux, datatype: string, subtype: json}
+# - {name: hgc_x, datatype: float64}
+# - {name: hrc_a, datatype: float64}
+# - {name: event_peaktime, datatype: string}
+# - {name: hgc_y, datatype: int64}
+# - {name: gs_galleryid, datatype: string}
+# - {name: fl_goescls, datatype: string}
+# - {name: hgs_coord, datatype: string}
+# - {name: ar_zurichcls, datatype: string}
+# - {name: bound_ccnsteps, datatype: string, subtype: json}
+# - {name: intenskurt, datatype: string, subtype: json}
+# - {name: event_clippedtemporal, datatype: string}
+# - {name: fl_peakfluxunit, datatype: string}
+# - {name: fl_peakem, datatype: string, subtype: json}
+# - {name: rasterscantype, datatype: string}
+# - {name: search_channelid, datatype: string}
+# - {name: fl_peaktemp, datatype: string, subtype: json}
+# - {name: hgs_bbox, datatype: string}
+# - {name: area_unit, datatype: string}
+# - {name: obs_lastprocessingdate, datatype: string}
+# - {name: refs, datatype: string, subtype: json}
+# meta: !!omap
+# - __attributes__: {}
+# - __serialized_columns__:
+#     event_endtime:
+#       __class__: astropy.time.core.Time
+#       format: iso
+#       in_subfmt: '*'
+#       out_subfmt: '*'
+#       precision: 3
+#       scale: utc
+#       value: !astropy.table.SerializedColumn {name: event_endtime}
+#     event_peaktime:
+#       __class__: astropy.time.core.Time
+#       format: iso
+#       in_subfmt: '*'
+#       out_subfmt: '*'
+#       precision: 3
+#       scale: utc
+#       value: !astropy.table.SerializedColumn {name: event_peaktime}
+#     event_starttime:
+#       __class__: astropy.time.core.Time
+#       format: iso
+#       in_subfmt: '*'
+#       out_subfmt: '*'
+#       precision: 3
+#       scale: utc
+#       value: !astropy.table.SerializedColumn {name: event_starttime}
+# schema: astropy-2.0
+gs_thumburl comment_count hpc_bbox frm_humanflag hgc_coord event_coordsys obs_levelnum hpc_coord event_npixels gs_imageurl ar_polarity frm_paramset hrc_coord event_starttime ar_mtwilsoncls event_type intensmin fl_fluence obs_meanwavel frm_url skel_chaincode bound_chaincode noposition fl_fluenceunit active intensmax frm_versionnumber fl_peaktempunit fl_halphaclass area_uncert obs_dataprepurl hpc_geom hgc_bbox intensmedian chaincodetype obs_channelid event_clippedspatial ar_noaaclass SOL_standard event_avg_rating eventtype intensunit hpc_boundcc event_mapurl frm_contact ar_penumbracls intensmean bound_ccstartc1 frm_name area_atdiskcenter frm_identifier obs_observatory event_description boundbox_c2ur obs_firstprocessingdate boundbox_c2ll frm_institute hrc_bbox refs_orig ar_mcintoshcls event_maskurl bound_ccstartc2 gs_movieurl event_score skel_startc2 skel_startc1 fl_efoldtime event_expires fl_efoldtimeunit hrc_boundcc event_probability intensvar frm_daterun event_coordunit hpc_y hpc_x search_instrument ar_numspots kb_archivdate kb_archivist intenstotal sum_overlap_scores hgs_boundcc intensskew obs_includesnrt rasterscan obs_wavelunit kb_archivid search_frm_name boundbox_c1ur ar_noaanum area_atdiskcenteruncert boundbox_c1ll event_importance_num_ratings ar_compactnesscls skel_curvature event_testflag event_c2error hrc_r skel_nsteps hgs_y obs_title fl_peakemunit hgs_x hcr_checked frm_specificid event_title obs_instrument event_c1error revision hpc_radius event_endtime event_importance event_coord2 event_coord3 event_coord1 search_observatory area_raw concept event_pixelunit hgc_boundcc fl_peakflux hgc_x hrc_a event_peaktime hgc_y gs_galleryid fl_goescls hgs_coord ar_zurichcls bound_ccnsteps intenskurt event_clippedtemporal fl_peakfluxunit fl_peakem rasterscantype search_channelid fl_peaktemp hgs_bbox area_unit obs_lastprocessingdate refs
+"" 0 "POLYGON((0.000085 -974.16,-0.000085 -974.16,0 973.686,0 973.686,0.000085 -974.16))" false "POINT(115.15019 0)" UTC-HGS-TOPO null "POINT(0 50.74254)" null "" null - "POINT(0.052031337498558 0)" "2012-01-01 04:45:00.000" "" FL null null 5e-08 http://www.swpc.noaa.gov/ "" "" true "" true null null "" "" null "" "" "POLYGON((25.25018 -89.9,-154.94982 -89.9,-154.94982 89.9,25.25018 89.9,25.25018 -89.9))" null "" XRA "" "" SOL2012-01-01T04:45:00L115C090 null 9 "" "" "" SWPC.Webmaster@noaa.gov "" null null SWPC null SWPC GOES "" 90.0 "" -90.0 "U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center" "POLYGON((0.998902 180.000005,0.998902 179.999995,0.998416 0,0.998416 0,0.998902 180.000005))" "" "" "" null "" 0.361999999999999988 null null null "" "" "" null null 2012-01-01T00:00:00 degrees 50.74254 0.0 GOES null 2014-01-09T23:24:38 cheung_mark null 0 "" null "" "" cm ivo://helio-informatics.org/FL_SECstandard_20120111_193753_20120101044500 SWPC 90.0 0 null -90.0 "" "" null false 90 0.052031337498558 null 0 "" "" 0 true "" "" GOES 90 2 50.7425400000000053 "2012-01-01 04:57:00.000" null 0 null 0 GOES null Flare "" "" null 115.15019 0.0 "2012-01-01 04:50:00.000" 0 "" B8.1 "POINT(0 0)" "" null null "" "" null "" XRA null "POLYGON((-89.9 -89.9,89.9 -89.9,89.9 89.9,-89.9 89.9,-89.9 -89.9))" "" "" "[{""ref_name"":""XRT Flare Catalog"",""ref_type"":""url"",""ref_url"":""http://xrt.cfa.harvard.edu/flare_catalog/2012.html?search=052380""},{""ref_name"":""FRM_URL"",""ref_type"":""unknown"",""ref_url"":""http://www.swpc.noaa.gov/""}]"
+"" 0 "POLYGON((-496.1268 -398.5818,-483.4728 -398.1534,-487.6194 -382.5054,-500.3814 -382.938,-496.1268 -398.5818))" false "POINT(79.69593 -26)" UTC-HGS-TOPO null "POINT(-491.9376 -390.5586)" null "" null - "POINT(0.644075102614585 128.446728075923)" "2012-01-01 07:24:00.000" "" FL null null 5e-08 http://www.swpc.noaa.gov/ "" "" false "" true null null "" "" null "" 01030000000100000005000000D6C56D34806780C0BBB88D06F0787AC0D6C56D34806780C0BBB88D06F05876C0AC8BDB6800AF7CC0BBB88D06F05876C0AC8BDB6800AF7CC0BBB88D06F0787AC0D6C56D34806780C0BBB88D06F0787AC0 "POLYGON((79.19593 -26.5,80.19593 -26.5,80.19593 -25.5,79.19593 -25.5,79.19593 -26.5))" null "" XRA "" "" SOL2012-01-01T07:24:00L079C116 null 9 "" "" "" SWPC.Webmaster@noaa.gov "" null null SWPC null SWPC GOES "" -25.5 "" -26.5 "U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center" "POLYGON((0.652566 128.777941,0.642222 129.472412,0.635484 128.111855,0.6461 127.42655,0.652566 128.777941))" "" "" "" null "" 0.464000000000000024 null null null "" "" "" null null 2012-01-01T00:00:00 degrees -390.5586 -491.9376 GOES null 2014-05-29T00:34:39 cheung_mark null 1 "" null "" "" cm ivo://helio-informatics.org/FL_SECstandard_20120111_193754_20120101072400 SWPC -33.5 11389 null -34.5 "" "" null false 1 0.644075102614585 null -26 "" "" -34 true "" "" GOES 1 3 628.123094884848115 "2012-01-01 07:44:00.000" null -26 null -34 GOES null Flare "" "" null 79.69593 128.446728075923 "2012-01-01 07:34:00.000" -26 "" C3.2 "POINT(-34 -26)" "" null null "" "" null "" XRA null "POLYGON((-34.5 -26.5,-33.5 -26.5,-33.5 -25.5,-34.5 -25.5,-34.5 -26.5))" "" "" "[{""ref_name"":""XRT Flare Catalog"",""ref_type"":""url"",""ref_url"":""http://xrt.cfa.harvard.edu/flare_catalog/2012.html?search=052390""},{""ref_name"":""FRM_URL"",""ref_type"":""unknown"",""ref_url"":""http://www.swpc.noaa.gov/""}]"
+"" 0 "POLYGON((0.000085 -974.136,-0.000085 -974.136,0 973.65,0 973.65,0.000085 -974.136))" false "POINT(110.42158 0)" UTC-HGS-TOPO null "POINT(0 51.46212)" null "" null - "POINT(0.052768795694244 0)" "2012-01-01 13:22:00.000" "" FL null null 5e-08 http://www.swpc.noaa.gov/ "" "" true "" true null null "" "" null "" "" "POLYGON((20.52158 -89.9,-159.67842 -89.9,-159.67842 89.9,20.52158 89.9,20.52158 -89.9))" null "" XRA "" "" SOL2012-01-01T13:22:00L110C090 null 9 "" "" "" SWPC.Webmaster@noaa.gov "" null null SWPC null SWPC GOES "" 90.0 "" -90.0 "U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center" "POLYGON((0.99887 180.000005,0.99887 179.999995,0.998372 0,0.998372 0,0.99887 180.000005))" "" "" "" null "" 0.359999999999999987 null null null "" "" "" null null 2012-01-01T00:00:00 degrees 51.46212 0.0 GOES null 2014-01-09T23:24:40 cheung_mark null 0 "" null "" "" cm ivo://helio-informatics.org/FL_SECstandard_20120111_193755_20120101132200 SWPC 90.0 0 null -90.0 "" "" null false 90 0.052768795694244 null 0 "" "" 0 true "" "" GOES 90 2 51.4621199999999988 "2012-01-01 13:33:00.000" null 0 null 0 GOES null Flare "" "" null 110.42158 0.0 "2012-01-01 13:26:00.000" 0 "" B8.0 "POINT(0 0)" "" null null "" "" null "" XRA null "POLYGON((-89.9 -89.9,89.9 -89.9,89.9 89.9,-89.9 89.9,-89.9 -89.9))" "" "" "[{""ref_name"":""FRM_URL"",""ref_type"":""unknown"",""ref_url"":""http://www.swpc.noaa.gov/""}]"
+"" 0 "POLYGON((0.000085 -974.118,-0.000085 -974.118,0 973.626,0 973.626,0.000085 -974.118))" false "POINT(107.38504 0)" UTC-HGS-TOPO null "POINT(0 51.92304)" null "" null - "POINT(0.053241179805507 0)" "2012-01-01 18:54:00.000" "" FL null null 5e-08 http://www.swpc.noaa.gov/ "" "" true "" true null null "" "" null "" "" "POLYGON((17.48504 -89.9,-162.71496 -89.9,-162.71496 89.9,17.48504 89.9,17.48504 -89.9))" null "" XRA "" "" SOL2012-01-01T18:54:00L107C090 null 9 "" "" "" SWPC.Webmaster@noaa.gov "" null null SWPC null SWPC GOES "" 90.0 "" -90.0 "U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center" "POLYGON((0.998847 180.000005,0.998847 179.999995,0.998343 0,0.998343 0,0.998847 180.000005))" "" "" "" null "" 0.378000000000000003 null null null "" "" "" null null 2012-01-01T00:00:00 degrees 51.92304 0.0 GOES null 2014-01-09T23:24:41 cheung_mark null 0 "" null "" "" cm ivo://helio-informatics.org/FL_SECstandard_20120111_193756_20120101185400 SWPC 90.0 0 null -90.0 "" "" null false 90 0.053241179805507 null 0 "" "" 0 true "" "" GOES 90 2 51.9230400000000003 "2012-01-01 19:06:00.000" null 0 null 0 GOES null Flare "" "" null 107.38504 0.0 "2012-01-01 18:59:00.000" 0 "" B8.9 "POINT(0 0)" "" null null "" "" null "" XRA null "POLYGON((-89.9 -89.9,89.9 -89.9,89.9 89.9,-89.9 89.9,-89.9 -89.9))" "" "" "[{""ref_name"":""FRM_URL"",""ref_type"":""unknown"",""ref_url"":""http://www.swpc.noaa.gov/""}]"
+"" 0 "POLYGON((0.000085 -974.1,-0.000085 -974.1,0 973.608,0 973.608,0.000085 -974.1))" false "POINT(104.87899 0)" UTC-HGS-TOPO null "POINT(0 52.30278)" null "" null - "POINT(0.053630372520249 0)" "2012-01-01 23:28:00.000" "" FL null null 5e-08 http://www.swpc.noaa.gov/ "" "" true "" true null null "" "" null "" "" "POLYGON((14.97899 -89.9,-165.22101 -89.9,-165.22101 89.9,14.97899 89.9,14.97899 -89.9))" null "" XRA "" "" SOL2012-01-01T23:28:00L104C090 null 9 "" "" "" SWPC.Webmaster@noaa.gov "" null null SWPC null SWPC GOES "" 90.0 "" -90.0 "U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center" "POLYGON((0.998825 180.000005,0.998825 179.999995,0.998321 0,0.998321 0,0.998825 180.000005))" "" "" "" null "" 0.426000000000000045 null null null "" "" "" null null 2012-01-01T00:00:00 degrees 52.30278 0.0 GOES null 2014-01-09T23:24:42 cheung_mark null 0 "" null "" "" cm ivo://helio-informatics.org/FL_SECstandard_20120111_193757_20120101232800 SWPC 90.0 0 null -90.0 "" "" null false 90 0.053630372520249 null 0 "" "" 0 true "" "" GOES 90 2 52.3027799999999985 "2012-01-01 23:46:00.000" null 0 null 0 GOES null Flare "" "" null 104.87899 0.0 "2012-01-01 23:36:00.000" 0 "" C1.3 "POINT(0 0)" "" null null "" "" null "" XRA null "POLYGON((-89.9 -89.9,89.9 -89.9,89.9 89.9,-89.9 89.9,-89.9 -89.9))" "" "" "[{""ref_name"":""XRT Flare Catalog"",""ref_type"":""url"",""ref_url"":""http://xrt.cfa.harvard.edu/flare_catalog/2012.html?search=052420""},{""ref_name"":""FRM_URL"",""ref_type"":""unknown"",""ref_url"":""http://www.swpc.noaa.gov/""}]"
+"" 0 "POLYGON((0.000085 -974.088,-0.000085 -974.088,0 973.596,0 973.596,0.000085 -974.088))" false "POINT(102.98575 0)" UTC-HGS-TOPO null "POINT(0 52.58928)" null "" null - "POINT(0.053924009233508 0)" "2012-01-02 02:55:00.000" "" FL null null 5e-08 http://www.swpc.noaa.gov/ "" "" true "" true null null "" "" null "" "" "POLYGON((13.08574 -89.9,-167.11426 -89.9,-167.11426 89.9,13.08574 89.9,13.08574 -89.9))" null "" XRA "" "" SOL2012-01-02T02:55:00L102C090 null 9 "" "" "" SWPC.Webmaster@noaa.gov "" null null SWPC null SWPC GOES "" 90.0 "" -90.0 "U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center" "POLYGON((0.998811 180.000005,0.998811 179.999995,0.998306 0,0.998306 0,0.998811 180.000005))" "" "" "" null "" 0.35199999999999998 null null null "" "" "" null null 2012-01-02T00:00:00 degrees 52.58928 0.0 GOES null 2014-01-09T23:38:05 cheung_mark null 0 "" null "" "" cm ivo://helio-informatics.org/FL_SECstandard_20120111_193758_20120102025500 SWPC 90.0 0 null -90.0 "" "" null false 90 0.053924009233508 null 0 "" "" 0 true "" "" GOES 90 2 52.5892800000000022 "2012-01-02 03:07:00.000" null 0 null 0 GOES null Flare "" "" null 102.98575 0.0 "2012-01-02 03:00:00.000" 0 "" B7.6 "POINT(0 0)" "" null null "" "" null "" XRA null "POLYGON((-89.9 -89.9,89.9 -89.9,89.9 89.9,-89.9 89.9,-89.9 -89.9))" "" "" "[{""ref_name"":""FRM_URL"",""ref_type"":""unknown"",""ref_url"":""http://www.swpc.noaa.gov/""}]"
+"" 0 "POLYGON((-316.869 -328.5762,-302.0376 -328.2936,-304.1826 -312.1512,-319.1196 -312.4356,-316.869 -328.5762))" false "POINT(81.63212 -22)" UTC-HGS-TOPO null "POINT(-310.5762 -320.3748)" null "" null - "POINT(0.45752749369528 135.889725664649)" "2012-01-02 05:23:00.000" "" FL null null 5e-08 http://www.swpc.noaa.gov/ "" "" false "" true null null "" "" null "" 0103000000010000000500000048BF7D1D383975C0A7E8482EFFD575C048BF7D1D383975C0A7E8482EFF3572C048BF7D1D389971C0A7E8482EFF3572C048BF7D1D389971C0A7E8482EFFD575C048BF7D1D383975C0A7E8482EFFD575C0 "POLYGON((81.13212 -22.5,82.13212 -22.5,82.13212 -21.5,81.13212 -21.5,81.13212 -22.5))" null "" XRA "" "" SOL2012-01-02T05:23:00L081C112 null 9 "" "" "" SWPC.Webmaster@noaa.gov "" null null SWPC null SWPC GOES "" -21.5 "" -22.5 "U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center" "POLYGON((0.468058 136.039127,0.457419 137.385236,0.446911 135.740738,0.457936 134.393639,0.468058 136.039127))" "" "" "" null "" 0.432000000000000051 null null null "" "" "" null null 2012-01-02T00:00:00 degrees -320.3748 -310.5762 GOES null 2014-05-29T00:34:40 cheung_mark null 0 "" null "" "" cm ivo://helio-informatics.org/FL_SECstandard_20120111_193759_20120102052300 SWPC -19.5 11389 null -20.5 "" "" null false 1 0.45752749369528 null -22 "" "" -20 true "" "" GOES 1 3 446.203528091699411 "2012-01-02 05:34:00.000" null -22 null -20 GOES null Flare "" "" null 81.63212 135.889725664649 "2012-01-02 05:28:00.000" -22 "" C1.6 "POINT(-20 -22)" "" null null "" "" null "" XRA null "POLYGON((-20.5 -22.5,-19.5 -22.5,-19.5 -21.5,-20.5 -21.5,-20.5 -22.5))" "" "" "[{""ref_name"":""FRM_URL"",""ref_type"":""unknown"",""ref_url"":""http://www.swpc.noaa.gov/""}]"
+"" 0 "POLYGON((0.000085 -974.076,-0.000085 -974.076,0 973.578,0 973.578,0.000085 -974.076))" false "POINT(100.69922 0)" UTC-HGS-TOPO null "POINT(0 52.93476)" null "" null - "POINT(0.054278100654275 0)" "2012-01-02 07:05:00.000" "" FL null null 5e-08 http://www.swpc.noaa.gov/ "" "" true "" true null null "" "" null "" "" "POLYGON((10.79922 -89.9,-169.40078 -89.9,-169.40078 89.9,10.79922 89.9,10.79922 -89.9))" null "" XRA "" "" SOL2012-01-02T07:05:00L100C090 null 9 "" "" "" SWPC.Webmaster@noaa.gov "" null null SWPC null SWPC GOES "" 90.0 "" -90.0 "U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center" "POLYGON((0.998795 180.000005,0.998795 179.999995,0.998285 0,0.998285 0,0.998795 180.000005))" "" "" "" null "" 0.430000000000000049 null null null "" "" "" null null 2012-01-02T00:00:00 degrees 52.93476 0.0 GOES null 2014-01-09T23:38:07 cheung_mark null 0 "" null "" "" cm ivo://helio-informatics.org/FL_SECstandard_20120111_193801_20120102070500 SWPC 90.0 11389 null -90.0 "" "" null false 90 0.054278100654275 null 0 "" "" 0 true "" "" GOES 90 2 52.9347599999999971 "2012-01-02 07:32:00.000" null 0 null 0 GOES null Flare "" "" null 100.69922 0.0 "2012-01-02 07:24:00.000" 0 "" C1.5 "POINT(0 0)" "" null null "" "" null "" XRA null "POLYGON((-89.9 -89.9,89.9 -89.9,89.9 89.9,-89.9 89.9,-89.9 -89.9))" "" "" "[{""ref_name"":""XRT Flare Catalog"",""ref_type"":""url"",""ref_url"":""http://xrt.cfa.harvard.edu/flare_catalog/2012.html?search=052450""},{""ref_name"":""FRM_URL"",""ref_type"":""unknown"",""ref_url"":""http://www.swpc.noaa.gov/""}]"
+"" 0 "POLYGON((0.000085 -974.07,-0.000085 -974.07,0 973.572,0 973.572,0.000085 -974.07))" false "POINT(100.23277 0)" UTC-HGS-TOPO null "POINT(0 53.0052)" null "" null - "POINT(0.054350297579189 0)" "2012-01-02 07:56:00.000" "" FL null null 5e-08 http://www.swpc.noaa.gov/ "" "" true "" true null null "" "" null "" "" "POLYGON((10.33277 -89.9,-169.86723 -89.9,-169.86723 89.9,10.33277 89.9,10.33277 -89.9))" null "" XRA "" "" SOL2012-01-02T07:56:00L100C090 null 9 "" "" "" SWPC.Webmaster@noaa.gov "" null null SWPC null SWPC GOES "" 90.0 "" -90.0 "U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center" "POLYGON((0.998789 180.000005,0.998789 179.999995,0.998278 0,0.998278 0,0.998789 180.000005))" "" "" "" null "" 0.367999999999999994 null null null "" "" "" null null 2012-01-02T00:00:00 degrees 53.0052 0.0 GOES null 2014-01-09T23:38:07 cheung_mark null 0 "" null "" "" cm ivo://helio-informatics.org/FL_SECstandard_20120111_193802_20120102075600 SWPC 90.0 0 null -90.0 "" "" null false 90 0.054350297579189 null 0 "" "" 0 true "" "" GOES 90 2 53.0052000000000021 "2012-01-02 08:09:00.000" null 0 null 0 GOES null Flare "" "" null 100.23277 0.0 "2012-01-02 08:02:00.000" 0 "" B8.4 "POINT(0 0)" "" null null "" "" null "" XRA null "POLYGON((-89.9 -89.9,89.9 -89.9,89.9 89.9,-89.9 89.9,-89.9 -89.9))" "" "" "[{""ref_name"":""FRM_URL"",""ref_type"":""unknown"",""ref_url"":""http://www.swpc.noaa.gov/""}]"
+"" 0 "POLYGON((-315.375 -423.1158,-301.362 -422.835,-304.1814 -407.3736,-318.3252 -407.6574,-315.375 -423.1158))" false "POINT(78.400477 -28)" UTC-HGS-TOPO null "POINT(-309.8346 -415.2594)" null "" null - "POINT(0.531257271116569 143.272533044848)" "2012-01-02 09:27:00.000" "" FL null null 5e-08 http://www.swpc.noaa.gov/ "" "" false "" true null null "" "" null "" 01030000000100000005000000DD9387855AED74C051499D8026847BC0DD9387855AED74C051499D80266478C0DD9387855ACD71C051499D80266478C0DD9387855ACD71C051499D8026847BC0DD9387855AED74C051499D8026847BC0 "POLYGON((77.900477 -28.5,78.900477 -28.5,78.900477 -27.5,77.900477 -27.5,77.900477 -28.5))" null "" XRA "" "" SOL2012-01-02T09:27:00L078C118 null 9 "" "" "" SWPC.Webmaster@noaa.gov "" null null SWPC null SWPC GOES "" -27.5 "" -28.5 "U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center" "POLYGON((0.541111 143.300505,0.532414 144.521854,0.52131 143.251706,0.530344 142.014985,0.541111 143.300505))" "" "" "" null "" 0.322000000000000008 null null null "" "" "" null null 2012-01-02T00:00:00 degrees -415.2594 -309.8346 GOES null 2014-05-29T00:34:41 cheung_mark null 0.834812000000000665 "" null "" "" cm ivo://helio-informatics.org/FL_SECstandard_20120111_193803_20120102092700 SWPC -20.5 11389 null -21.5 "" "" null false 1 0.531257271116569 null -28 "" "" -21 true "" "" GOES 1 3 518.109880860730073 "2012-01-02 09:32:00.000" null -28 null -21 GOES null Flare "" "" null 78.400477 143.272533044848 "2012-01-02 09:30:00.000" -28 "" B6.1 "POINT(-21 -28)" "" null null "" "" null "" XRA null "POLYGON((-21.5 -28.5,-20.5 -28.5,-20.5 -27.5,-21.5 -27.5,-21.5 -28.5))" "" "" "[{""ref_name"":""XRT Flare Catalog"",""ref_type"":""url"",""ref_url"":""http://xrt.cfa.harvard.edu/flare_catalog/2012.html?search=052470""},{""ref_name"":""FRM_URL"",""ref_type"":""unknown"",""ref_url"":""http://www.swpc.noaa.gov/""}]"
+"" 0 "POLYGON((0.000085 -974.064,-0.000085 -974.064,0 973.56,0 973.56,0.000085 -974.064))" false "POINT(98.449286 0)" UTC-HGS-TOPO null "POINT(0 53.27424)" null "" null - "POINT(0.054626049543904 0)" "2012-01-02 11:11:00.000" "" FL null null 5e-08 http://www.swpc.noaa.gov/ "" "" true "" true null null "" "" null "" "" "POLYGON((8.549285 -89.9,-171.650715 -89.9,-171.650715 89.9,8.549285 89.9,8.549285 -89.9))" null "" XRA "" "" SOL2012-01-02T11:11:00L098C090 null 9 "" "" "" SWPC.Webmaster@noaa.gov "" null null SWPC null SWPC GOES "" 90.0 "" -90.0 "U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center" "POLYGON((0.99878 180.000005,0.99878 179.999995,0.998264 0,0.998264 0,0.99878 180.000005))" "" "" "" null "" 0.36399999999999999 null null null "" "" "" null null 2012-01-02T00:00:00 degrees 53.27424 0.0 GOES null 2014-01-09T23:38:09 cheung_mark null 0 "" null "" "" cm ivo://helio-informatics.org/FL_SECstandard_20120111_193804_20120102111100 SWPC 90.0 0 null -90.0 "" "" null false 90 0.054626049543904 null 0 "" "" 0 true "" "" GOES 90 2 53.2742399999999989 "2012-01-02 11:26:00.000" null 0 null 0 GOES null Flare "" "" null 98.449286 0.0 "2012-01-02 11:18:00.000" 0 "" B8.2 "POINT(0 0)" "" null null "" "" null "" XRA null "POLYGON((-89.9 -89.9,89.9 -89.9,89.9 89.9,-89.9 89.9,-89.9 -89.9))" "" "" "[{""ref_name"":""FRM_URL"",""ref_type"":""unknown"",""ref_url"":""http://www.swpc.noaa.gov/""}]"
+"" 0 "POLYGON((0.000085 -974.052,-0.000085 -974.052,0 973.548,0 973.548,0.000085 -974.052))" false "POINT(96.620076 0)" UTC-HGS-TOPO null "POINT(0 53.54988)" null "" null - "POINT(0.054908570616476 0)" "2012-01-02 14:31:00.000" "" FL null null 5e-08 http://www.swpc.noaa.gov/ "" "" true "" true null null "" "" null "" "" "POLYGON((6.720075 -89.9,-173.479925 -89.9,-173.479925 89.9,6.720075 89.9,6.720075 -89.9))" null "" XRA "" "" SOL2012-01-02T14:31:00L096C090 null 9 "" "" "" SWPC.Webmaster@noaa.gov "" null null SWPC null SWPC GOES "" 90.0 "" -90.0 "U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center" "POLYGON((0.998766 180.000005,0.998766 179.999995,0.998249 0,0.998249 0,0.998766 180.000005))" "" "" "" null "" 0.448000000000000009 null null null "" "" "" null null 2012-01-02T00:00:00 degrees 53.54988 0.0 GOES null 2014-01-09T23:38:10 cheung_mark null 0 "" null "" "" cm ivo://helio-informatics.org/FL_SECstandard_20120111_193806_20120102143100 SWPC 90.0 0 null -90.0 "" "" null false 90 0.054908570616476 null 0 "" "" 0 true "" "" GOES 90 2 53.5498800000000017 "2012-01-02 16:04:00.000" null 0 null 0 GOES null Flare "" "" null 96.620076 0.0 "2012-01-02 15:24:00.000" 0 "" C2.4 "POINT(0 0)" "" null null "" "" null "" XRA null "POLYGON((-89.9 -89.9,89.9 -89.9,89.9 89.9,-89.9 89.9,-89.9 -89.9))" "" "" "[{""ref_name"":""FRM_URL"",""ref_type"":""unknown"",""ref_url"":""http://www.swpc.noaa.gov/""}]"

@@ -1,0 +1,95 @@
+# %ECSV 1.0
+# ---
+# datatype:
+# - name: hec_id
+#   datatype: int32
+#   description: Event identification number (HEC internal number)
+#   meta: !!omap
+#   - {ucd: meta.record}
+#   - values: {'null': -2147483648}
+# - name: time_start
+#   datatype: string
+#   description: Start time of flare
+#   meta: !!omap
+#   - {ucd: time.start}
+#   - {utype: 'helio:time_period.time_start'}
+#   - {xtype: iso8601}
+#   - {_votable_string_dtype: char}
+#   subtype: json
+# - name: time_peak
+#   datatype: string
+#   description: Peak time of flare
+#   meta: !!omap
+#   - {ucd: time.phase}
+#   - {utype: 'helio:time.time_peak'}
+#   - {xtype: iso8601}
+#   - {_votable_string_dtype: char}
+#   subtype: json
+# - name: time_end
+#   datatype: string
+#   description: End time of flare
+#   meta: !!omap
+#   - {ucd: time.end}
+#   - {utype: 'helio:time_period.time_end'}
+#   - {xtype: iso8601}
+#   - {_votable_string_dtype: char}
+#   subtype: json
+# - name: nar
+#   datatype: int32
+#   description: NOAA active region index
+#   meta: !!omap
+#   - {ucd: meta.id.cross}
+#   - {utype: 'helio:flare.nar'}
+#   - values: {'null': -2147483648}
+# - name: lat_hg
+#   datatype: float32
+#   description: Heliographic latitude of event
+#   meta: !!omap
+#   - {ucd: pos.bodyrc.lat;pos.heliographic}
+#   - {utype: 'helio:location.lat_hg'}
+# - name: long_hg
+#   datatype: float32
+#   description: Stonyhurst longitude of active region
+#   meta: !!omap
+#   - {ucd: pos.bodyrc.long;pos.heliographic}
+#   - {utype: 'helio:location.long_hg'}
+# - name: long_carr
+#   datatype: float32
+#   description: Carrington longitude of active region
+#   meta: !!omap
+#   - {ucd: pos}
+#   - {utype: 'helio:location.long_carr'}
+# - name: xray_class
+#   datatype: string
+#   description: Importance of flare at X-ray wavelengths -- the peak flux measured at Earth in the 0.1 to 0.8 nm range in units of Watts/sq
+#     meter.  (See the 'X-ray Class' in the HEC glossary for the specification of this field)
+#   meta: !!omap
+#   - {ucd: meta.code.class;em.X-ray}
+#   - {utype: 'helio:flare.magnitude.xray_class'}
+#   - {_votable_string_dtype: char}
+#   subtype: json
+# - name: optical_class
+#   datatype: string
+#   description: Average optical importance of flare -- a measurement of flare size and brilliance.  (See the 'Optical Class' in the HEC
+#     glossary for the specification of this field)
+#   meta: !!omap
+#   - {ucd: meta.code.class;em.opt}
+#   - {utype: 'helio:flare.magnitude.optical_class'}
+#   - {_votable_string_dtype: char}
+#   subtype: json
+# meta: !!omap
+# - __attributes__: {display_keys: null, hide_keys: null}
+# schema: astropy-2.0
+hec_id time_start time_peak time_end nar lat_hg long_hg long_carr xray_class optical_class
+71829 """2012-01-01T04:45:00""" """2012-01-01T04:50:00""" """2012-01-01T04:57:00""" "" "" "" "" """B8.1""" """"""
+71830 """2012-01-01T07:24:00""" """2012-01-01T07:34:00""" """2012-01-01T07:44:00""" 11389 -26.0 -34.0 79.7 """C3.2""" """SF"""
+71831 """2012-01-01T13:22:00""" """2012-01-01T13:26:00""" """2012-01-01T13:33:00""" "" "" "" "" """B8.0""" """"""
+71832 """2012-01-01T18:54:00""" """2012-01-01T18:59:00""" """2012-01-01T19:06:00""" "" "" "" "" """B8.9""" """"""
+71833 """2012-01-01T23:28:00""" """2012-01-01T23:36:00""" """2012-01-01T23:46:00""" "" "" "" "" """C1.3""" """"""
+71834 """2012-01-02T02:55:00""" """2012-01-02T03:00:00""" """2012-01-02T03:07:00""" "" "" "" "" """B7.6""" """"""
+71835 """2012-01-02T05:23:00""" """2012-01-02T05:28:00""" """2012-01-02T05:34:00""" 11389 -22.0 -20.0 81.6 """C1.6""" """SF"""
+71836 """2012-01-02T07:05:00""" """2012-01-02T07:24:00""" """2012-01-02T07:32:00""" 11389 "" "" "" """C1.5""" """"""
+71837 """2012-01-02T07:56:00""" """2012-01-02T08:02:00""" """2012-01-02T08:09:00""" "" "" "" "" """B8.4""" """"""
+71838 """2012-01-02T09:27:00""" """2012-01-02T09:30:00""" """2012-01-02T09:32:00""" 11389 -28.0 -21.0 78.4 """B6.1""" """SF"""
+71839 """2012-01-02T11:11:00""" """2012-01-02T11:18:00""" """2012-01-02T11:26:00""" "" "" "" "" """B8.2""" """"""
+71840 """2012-01-02T14:31:00""" """2012-01-02T15:24:00""" """2012-01-02T16:04:00""" "" "" "" "" """C2.4""" """"""

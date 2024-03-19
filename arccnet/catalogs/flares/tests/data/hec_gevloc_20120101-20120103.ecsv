@@ -1,0 +1,74 @@
+# %ECSV 1.0
+# ---
+# datatype:
+# - name: time_start
+#   datatype: string
+#   description: Start time of flare
+#   meta: !!omap
+#   - {xtype: iso8601}
+#   - {_votable_string_dtype: char}
+#   subtype: json
+# - name: time_peak
+#   datatype: string
+#   description: Peak time of flare
+#   meta: !!omap
+#   - {xtype: iso8601}
+#   - {_votable_string_dtype: char}
+#   subtype: json
+# - name: time_end
+#   datatype: string
+#   description: End time of flare
+#   meta: !!omap
+#   - {xtype: iso8601}
+#   - {_votable_string_dtype: char}
+#   subtype: json
+# - name: nar
+#   datatype: int32
+#   description: NOAA active region index
+#   meta: !!omap
+#   - values: {'null': -2147483648}
+# - name: lat_hg
+#   datatype: int32
+#   description: Heliographic latitude of event
+#   meta: !!omap
+#   - values: {'null': -2147483648}
+# - name: long_hg
+#   datatype: int32
+#   description: Stonyhurst longitude of active region
+#   meta: !!omap
+#   - values: {'null': -2147483648}
+# - {name: long_carr, datatype: float64, description: Carrington longitude of active region}
+# - name: xray_class
+#   datatype: string
+#   meta: !!omap
+#   - {_votable_string_dtype: char}
+#   subtype: json
+# - name: ename
+#   datatype: string
+#   meta: !!omap
+#   - {_votable_string_dtype: char}
+#   subtype: json
+# - name: url_nar
+#   datatype: string
+#   meta: !!omap
+#   - {_votable_string_dtype: char}
+#   subtype: json
+# - name: url_flare
+#   datatype: string
+#   meta: !!omap
+#   - {_votable_string_dtype: char}
+#   subtype: json
+# schema: astropy-2.0
+time_start time_peak time_end nar lat_hg long_hg long_carr xray_class ename url_nar url_flare
+"""2012-01-02T11:11:00""" """2012-01-02T11:18:00""" """2012-01-02T11:26:00""" 11391 11 -89 9.45 """B8.2""" """gev_20120102_1111""" """http://www.solarmonitor.org/region.php?date=20120102&region=11391""" """http://www.lmsal.com/solarsoft/latest_events_archive/events_summary/2012/01/02/gev_20120102_1111/index.html"""
+"""2012-01-01T18:54:00""" """2012-01-01T18:59:00""" """2012-01-01T19:06:00""" 11384 8 89 196.39 """B8.9""" """gev_20120101_1854""" """http://www.solarmonitor.org/region.php?date=20120101&region=11384""" """http://www.lmsal.com/solarsoft/latest_events_archive/events_summary/2012/01/01/gev_20120101_1854/index.html"""
+"""2012-01-01T07:24:00""" """2012-01-01T07:34:00""" """2012-01-01T07:44:00""" 11389 -25 -34 79.7 """C3.2""" """gev_20120101_0724""" """http://www.solarmonitor.org/region.php?date=20120101&region=11389""" """http://www.lmsal.com/solarsoft/latest_events_archive/events_summary/2012/01/01/gev_20120101_0724/index.html"""
+"""2012-01-02T07:05:00""" """2012-01-02T07:24:00""" """2012-01-02T07:32:00""" 11389 -27 -22 78.7 """C1.5""" """gev_20120102_0705""" """http://www.solarmonitor.org/region.php?date=20120102&region=11389""" """http://www.lmsal.com/solarsoft/latest_events_archive/events_summary/2012/01/02/gev_20120102_0705/index.html"""
+"""2012-01-01T04:45:00""" """2012-01-01T04:50:00""" """2012-01-01T04:57:00""" 11389 -25 -35 80.15 """B8.1""" """gev_20120101_0445""" """http://www.solarmonitor.org/region.php?date=20120101&region=11389""" """http://www.lmsal.com/solarsoft/latest_events_archive/events_summary/2012/01/01/gev_20120101_0445/index.html"""
+"""2012-01-02T09:27:00""" """2012-01-02T09:30:00""" """2012-01-02T09:32:00""" 11389 -26 -21 78.4 """B6.1""" """gev_20120102_0927""" """http://www.solarmonitor.org/region.php?date=20120102&region=11389""" """http://www.lmsal.com/solarsoft/latest_events_archive/events_summary/2012/01/02/gev_20120102_0927/index.html"""
+"""2012-01-02T02:55:00""" """2012-01-02T03:00:00""" """2012-01-02T03:07:00""" 11391 12 -89 13.99 """B7.6""" """gev_20120102_0255""" """http://www.solarmonitor.org/region.php?date=20120102&region=11391""" """http://www.lmsal.com/solarsoft/latest_events_archive/events_summary/2012/01/02/gev_20120102_0255/index.html"""
+"""2012-01-01T13:22:00""" """2012-01-01T13:26:00""" """2012-01-01T13:33:00""" 11384 14 88 198.42 """B8.0""" """gev_20120101_1322""" """http://www.solarmonitor.org/region.php?date=20120101&region=11384""" """http://www.lmsal.com/solarsoft/latest_events_archive/events_summary/2012/01/01/gev_20120101_1322/index.html"""
+"""2012-01-02T14:31:00""" """2012-01-02T15:24:00""" """2012-01-02T16:04:00""" 11384 7 89 185.62 """C2.4""" """gev_20120102_1431""" """http://www.solarmonitor.org/region.php?date=20120102&region=11384""" """http://www.lmsal.com/solarsoft/latest_events_archive/events_summary/2012/01/02/gev_20120102_1431/index.html"""
+"""2012-01-01T23:28:00""" """2012-01-01T23:36:00""" """2012-01-01T23:46:00""" 11389 -27 -27 77.88 """C1.3""" """gev_20120101_2328""" """http://www.solarmonitor.org/region.php?date=20120101&region=11389""" """http://www.lmsal.com/solarsoft/latest_events_archive/events_summary/2012/01/01/gev_20120101_2328/index.html"""
+"""2012-01-02T05:23:00""" """2012-01-02T05:28:00""" """2012-01-02T05:34:00""" 11391 11 -89 12.63 """C1.6""" """gev_20120102_0523""" """http://www.solarmonitor.org/region.php?date=20120102&region=11391""" """http://www.lmsal.com/solarsoft/latest_events_archive/events_summary/2012/01/02/gev_20120102_0523/index.html"""
+"""2012-01-02T07:56:00""" """2012-01-02T08:02:00""" """2012-01-02T08:09:00""" 11391 12 -89 11.23 """B8.4""" """gev_20120102_0756""" """http://www.solarmonitor.org/region.php?date=20120102&region=11391""" """http://www.lmsal.com/solarsoft/latest_events_archive/events_summary/2012/01/02/gev_20120102_0756/index.html"""
