@@ -24,11 +24,6 @@ COPY requirements.txt /tmp/
 RUN python3 -m pip install --upgrade pip && \
     pip install --no-cache-dir -r /tmp/requirements.txt
 
-# GitHub setup
-RUN git config --global --add safe.directory /workspaces/ARCAFF && \
-    git config --global user.email "edoardo.legnaro@gmail.com" && \
-    git config --global user.name "Edoardo Legnaro"
-
 # Cleanup
 RUN pip3 cache purge && \
     apt-get autoremove -y && \
