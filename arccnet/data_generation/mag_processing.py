@@ -304,11 +304,13 @@ class ARClassification(QTable):
 
     """
     required_column_types = {
-        "time": Time,
+        "target_time": Time,
         "number": int,
         "latitude": u.deg,
         "longitude": u.deg,
         "processed_path_image": str,
+        "filtered": bool,
+        "filter_reason": str,
     }
 
     def __init__(self, *args, **kwargs):
@@ -324,7 +326,17 @@ class ARClassification(QTable):
             raise ValueError("base_table must be an instance of ARClassification")
 
         # Check if additional columns already exist
-        existing_columns = set(base_table.colnames).intersection(["top_right", "bottom_left"])
+        existing_columns = set(base_table.colnames).intersection(
+            [
+                "top_right_cutout",
+                "bottom_left_cutout",
+                "path_image_cutout",
+                "dim_image_cutout",
+                "sum_ondisk_nans",
+                "quicklook_path",
+                "region_type",
+            ]
+        )
         if existing_columns:
             raise ValueError(f"Columns {existing_columns} already exist in base_table.")
 
@@ -351,14 +363,15 @@ class RegionExtractor:
         self,
         table: QTable,
     ) -> None:
-        self._table = ARClassification(table[~table["processed_path_image"].mask])  # this doesn't deal with the None...
+        # self._table = ARClassification(table[~table["processed_path_image"].mask])  # this doesn't deal with the None...
+        self._table = ARClassification(table)  # this doesn't deal with the None...
 
     def extract_regions(self, cutout_size, data_path, summary_plot_path, qs_random_attempts=10, qs_max_iter=20):
         result_table = QTable(ARClassification.augment_table(self._table))
-        table_by_target_time = result_table.group_by("time")
+        table_by_target_time = result_table.group_by("target_time")
 
         qs_table = result_table[:0][
-            "time",
+            "target_time",
             "number",
             "path_image_cutout",
             "top_right_cutout",
@@ -370,6 +383,8 @@ class RegionExtractor:
             "sum_ondisk_nans",
             "quicklook_path",
             "region_type",
+            "filtered",
+            "filter_reason",
         ].copy()
 
         # iterate through groups
@@ -377,7 +392,13 @@ class RegionExtractor:
             if len(np.unique(tbtt["processed_path_image"])) != 1:
                 raise ValueError("len(image_file) is not 1")
 
-            if tbtt["processed_path_image"][0] == "None":  # I hate QTable
+            if np.any(tbtt["processed_path_image"].mask):
+                continue
+
+            if np.any(tbtt["filtered"] is True):
+                continue
+
+            if tbtt["processed_path_image"][0] == "None":
                 continue
 
             image_file = tbtt["processed_path_image"][0]
@@ -386,15 +407,15 @@ class RegionExtractor:
                 summary_plot_path
                 / f"{image_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{image_map.instrument.replace(' ', '_')}.png"
             )
-            time_catalog = tbtt["time"][0].to_datetime()
+            time_catalog = tbtt["target_time"][0].to_datetime()
 
             # set nan values in the map to zero
             # workaround for issues seen in processing
             data = image_map.data
             on_disk_nans = np.isnan(data)
-            if on_disk_nans.sum() > 0:
-                indices = np.where(on_disk_nans)
-                data[indices] = 0.0
+            # if on_disk_nans.sum() > 0:
+            #     indices = np.where(on_disk_nans)
+            #     data[indices] = 0.0
 
             regions = []
 
@@ -425,7 +446,7 @@ class RegionExtractor:
                 for qsreg in quiet_regions:
                     # update dataframe
                     new_row = {
-                        "time": Time(time_catalog),
+                        "target_time": Time(time_catalog),
                         "number": qsreg.identifier,
                         "path_image_cutout": qsreg.filepath,
                         "top_right_cutout": qsreg.top_right,
@@ -456,7 +477,7 @@ class RegionExtractor:
         qst.replace_column("quicklook_path", [str(p) for p in qst["quicklook_path"]])
 
         all_regions = ARClassification(vstack([QTable(ttt), QTable(qst)]))
-        all_regions.sort("time")
+        all_regions.sort("target_time")
 
         return ttt, qst, all_regions
 

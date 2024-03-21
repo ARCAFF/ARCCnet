@@ -36,6 +36,8 @@ class RegionDetectionTable(QTable):
         "target_time": Time,
         "processed_path": str,
         "path_arc": str,
+        "filtered": bool,
+        "filter_reason": str,
     }
 
     def __init__(self, *args, **kwargs):
@@ -51,7 +53,7 @@ class RegionDetectionTable(QTable):
             raise ValueError("base_table must be an instance of RegionDetectionTable")
 
         # Check if additional columns already exist
-        existing_columns = set(base_table.colnames).intersection(["top_right", "bottom_left"])
+        existing_columns = set(base_table.colnames).intersection(["top_right_cutout", "bottom_left_cutout"])
         if existing_columns:
             raise ValueError(f"Columns {existing_columns} already exist in base_table.")
 
@@ -109,6 +111,9 @@ class RegionDetection:
             fulldisk_map = sunpy.map.Map(Path(fulldisk_path))
 
             for row in group:
+                if np.any(row["filtered"] is True):
+                    continue
+
                 cutout_map = sunpy.map.Map(row[self._col_cutout])
 
                 # rotate with missing, the value to use for pixels in the output map that are beyond the extent of the input map,

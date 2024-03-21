@@ -118,7 +118,7 @@ class ClassificationCatalog(QTable):
     Active region classification catalog.
     """
     required_column_types = {
-        "time": Time,
+        "target_time": Time,
         "longitude": u.deg,
         "latitude": u.deg,
         "magnetic_class": str,
@@ -303,7 +303,7 @@ class SWPCCatalog:
             file_info = QTable(
                 [
                     {
-                        "time": info["start_time"],
+                        "target_time": info["start_time"],
                         "path": filepath,
                         "filename": filepath.name,
                         "url": info["url"].astype(str),
@@ -482,9 +482,13 @@ def filter_srs(
     active_regions_df["filtered"] = False
     active_regions_df["filter_reason"] = ""
 
+    load_success = active_regions_df.loaded_successfully is True
+    active_regions_df.loc[~load_success, "filtered"] = True
+    active_regions_df.loc[~load_success, "filter_reason"] = "load_unsuccessful,"
+
     ar_mask = catalog_df.id == "I"
     active_regions_df.loc[~ar_mask, "filtered"] = True
-    active_regions_df.loc[~ar_mask, "filter_reason"] = "not_ar,"
+    active_regions_df.loc[~ar_mask, "filter_reason"] += "not_ar,"
 
     valid_classes = {"magnetic_class": HALE_CLASSES, "mcintosh_class": MCINTOSH_CLASSES}
     for col, vals in valid_classes.items():
@@ -499,7 +503,7 @@ def filter_srs(
     synodic_rate = (360 * u.degree) / mean_synodic_period
 
     for number, group in active_regions_df.groupby("number"):
-        dt = group.time.diff().dt.days.values << u.day
+        dt = group.target_time.diff().dt.days.values << u.day
         dlat = group.latitude.diff().values << u.degree
         dlon = group.longitude.diff().values << u.degree
 
