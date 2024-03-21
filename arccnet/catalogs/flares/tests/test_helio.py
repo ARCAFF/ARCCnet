@@ -9,9 +9,8 @@ from astropy.table import Table
 
 from arccnet.catalogs.flares.helio import HECFlareCatalog
 
-# For testing, create a mock client which doesn't test for live network connection
 
-
+# For testing, create a test client which doesn't test for live network connection
 class HECClientTest(HECClient):
     def __init__(self):
         pass
