@@ -369,6 +369,7 @@ class RegionExtractor:
         result_table = QTable(ARClassification.augment_table(self._table))
         table_by_target_time = result_table.group_by("target_time")
 
+        ar_table = result_table[:0].copy()
         qs_table = result_table[:0][
             "target_time",
             "number",
@@ -394,19 +395,36 @@ class RegionExtractor:
             if np.any(tbtt["processed_path_image"].mask):
                 continue
 
-            if np.any(tbtt["filtered"] is True):
+            # if np.any(tbtt["filtered"] == True):
+            # only want to run if all regions in an image are not `not_ar,invalid_magnetic_class,invalid_mcintosh_class,`
+            # e.g. all regions in an image have bad_lat_rate/bad_lon_rate?
+            condition_met = (tbtt["filtered"] is True) & (
+                tbtt["filter_reason"] != "not_ar,invalid_magnetic_class,invalid_mcintosh_class,"
+            )
+            if np.all(condition_met):
+                for tbttrw in tbtt:
+                    ar_table.add_row(tbttrw)
+                continue
+
+            # probably need to split the tbtt into filtered etc. to keep them in
+            rows = tbtt[tbtt["filtered"] is False].copy()
+            rows_filtered = tbtt[tbtt["filtered"] is True].copy()
+
+            if len(rows) == 0:  # only filtered rows
+                for rw in rows_filtered:
+                    ar_table.add_row(rw)
                 continue
 
             if tbtt["processed_path_image"][0] == "None":
                 continue
 
-            image_file = tbtt["processed_path_image"][0]
+            image_file = rows["processed_path_image"][0]
             image_map = sunpy.map.Map(image_file)
             quicklook_filename = (
                 summary_plot_path
                 / f"{image_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{image_map.instrument.replace(' ', '_')}.png"
             )
-            time_catalog = tbtt["target_time"][0].to_datetime()
+            time_catalog = rows["target_time"][0].to_datetime()
 
             # set nan values in the map to zero
             # workaround for issues seen in processing
@@ -419,10 +437,11 @@ class RegionExtractor:
             regions = []
 
             # add active regions to regions list
-            active_regions = self._activeregion_extraction(tbtt, image_map, cutout_size, path=data_path)
+            active_regions = self._activeregion_extraction(rows, image_map, cutout_size, path=data_path)
             regions.extend(active_regions)
+
             # ... update the table
-            for r, reg in zip(tbtt, regions):
+            for r, reg in zip(rows, regions):
                 r["top_right_cutout"] = reg.top_right
                 r["bottom_left_cutout"] = reg.bottom_left
                 r["sum_ondisk_nans"] = on_disk_nans.sum()
@@ -430,6 +449,11 @@ class RegionExtractor:
                 r["path_image_cutout"] = reg.filepath
                 r["quicklook_path"] = quicklook_filename
                 r["region_type"] = "AR"
+
+                ar_table.add_row(r)
+
+            for rw in rows_filtered:
+                ar_table.add_row(rw)
 
             # if quiet_sun, attempt to extract `num_random_attempts` regions and append
             if qs_random_attempts > 0:
@@ -467,7 +491,7 @@ class RegionExtractor:
 
         # not sure about this, but want to convert to strings, not leave as objects
         # Add a region_type, vstack, and sort by time.
-        ttt = ARClassification(table_by_target_time)
+        ttt = ARClassification(ar_table)
         ttt.replace_column("path_image_cutout", [str(p) for p in ttt["path_image_cutout"]])
         ttt.replace_column("quicklook_path", [str(p) for p in ttt["quicklook_path"]])
 

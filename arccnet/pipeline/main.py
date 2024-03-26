@@ -367,6 +367,9 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     # attempting to remove the object
     catalog_mdi.replace_column("path_catalog", [str(pc) for pc in catalog_mdi["path_catalog"]])
     catalog_mdi.rename_column("processed_path", "processed_path_image")
+    catalog_mdi["filtered"][catalog_mdi["processed_path_image"].mask] = True
+    # we need to add the filter reason... but having issues with string concatenation
+    # catalog_mdi['filtered' == True]['filter_reason'] += "no_magnetogram,"
     catalog_mdi.write(srs_mdi_merged_file, format="parquet", overwrite=True)
 
     catalog_hmi = join(
@@ -378,6 +381,9 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     # attempting to remove the object
     catalog_hmi.replace_column("path_catalog", [str(pc) for pc in catalog_hmi["path_catalog"]])
     catalog_hmi.rename_column("processed_path", "processed_path_image")
+    catalog_hmi["filtered"][catalog_hmi["processed_path_image"].mask] = True
+    # we need to add the filter reason... but having issues with string concatenation
+    # catalog_hmi['filtered' == True]['filter_reason'] += "no_magnetogram,"
     catalog_hmi.write(srs_hmi_merged_file, format="parquet", overwrite=True)
 
     # # There must be a better way to rename columns
@@ -556,6 +562,8 @@ def region_cutouts(config, srs_hmi, srs_mdi):
             "dim_image_cutout",
             "sum_ondisk_nans",
             "quicklook_path",
+            "filtered",
+            "filter_reason",
         ]
 
         ar_classification_hmi_mdi = join(
@@ -589,7 +597,6 @@ def region_cutouts(config, srs_hmi, srs_mdi):
         ar_classification_hmi_mdi["number_of_sunspots"] = _combine_columns(
             ar_classification_hmi_mdi["number_of_sunspots_hmi"], ar_classification_hmi_mdi["number_of_sunspots_mdi"]
         )
-
         # List of columns to remove
         columns_to_remove = [
             "region_type_hmi",
