@@ -50,7 +50,7 @@ def test_hek_ssw_latest_short(mock_fido_search, hek_ssw_search):
 
 @mock.patch("arccnet.catalogs.flares.hek.Fido.search")
 def test_hek_ssw_latest_long(mock_fido_search, hek_ssw_search):
-    mock_fido_search.side_effect = [hek_ssw_search] * 2
+    mock_fido_search.side_effect = [hek_ssw_search] * 4
     ssw_latest = HEKFlareCatalog(catalog="ssw_latest")
     ssw_latest_flares = ssw_latest.search("2012-01-01T00:00", "2014-06-03")
 
@@ -68,8 +68,8 @@ def test_hek_ssw_latest_long(mock_fido_search, hek_ssw_search):
     assert ssw_latest_flares[-1]["hgs_x"] == 89
     assert ssw_latest_flares[-1]["hgs_y"] == 7
 
-    assert len(ssw_latest_flares) == 26
-    assert mock_fido_search.call_count == 2
+    assert len(ssw_latest_flares) == 52
+    assert mock_fido_search.call_count == 4
 
 
 def test_hek_ssw_create_catalog(hek_ssw_search):
@@ -103,7 +103,7 @@ def test_hek_swpc_short(mock_fido_search, hek_swpc_search):
 
 @mock.patch("arccnet.catalogs.flares.hek.Fido.search")
 def test_hek_swpc_long(mock_fido_search, hek_swpc_search):
-    mock_fido_search.side_effect = [hek_swpc_search] * 2
+    mock_fido_search.side_effect = [hek_swpc_search] * 4
     swpc_catalog = HEKFlareCatalog(catalog="swpc")
     swpc_flares = swpc_catalog.search("2012-01-01T00:00", "2014-06-03")
 
@@ -121,7 +121,7 @@ def test_hek_swpc_long(mock_fido_search, hek_swpc_search):
     assert swpc_flares[-1]["hgs_x"] == 0
     assert swpc_flares[-1]["hgs_y"] == 0
 
-    assert len(swpc_flares) == 24
+    assert len(swpc_flares) == 48
 
 
 def test_hek_swpc_create_catalog(hek_swpc_search):
