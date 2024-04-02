@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import astropy.units as u
 from astropy.table import QTable
 from astropy.time import Time
@@ -35,43 +33,10 @@ class FlareCatalog(QTable):
         Read the catalog from a file.
         """
         table = QTable.read(*args, **kwargs)
-        paths = [Path(p) for p in table["path"]]
-        table.replace_column("path", paths)
         return cls(table)
 
     def write(self, *args, **kwargs) -> None:
         r"""
         Write the catalog to a file.
         """
-        paths = [str(p) for p in self["path"]]
-        self["path"] = paths
         return super(QTable, self).write(*args, **kwargs)
-
-
-def _generate_intervals(start: Time, end: Time, num_intervals: int):
-    r"""
-    Split a time range in roughly n intervals.
-
-    Parameters
-    ----------
-    start : `Time`
-        Start time
-    end : `Time`
-        End time
-    num_intervals : `int`
-        Number of intervals
-
-    Returns
-    -------
-
-    """
-    timedelta = (end - start) / num_intervals
-    starts = []
-    ends = []
-    for i in range(num_intervals):
-        cur_start = start + (i * timedelta)
-        cur_end = start + ((i + 1) * timedelta)
-        starts.append(cur_start)
-        ends.append(cur_end)
-
-    return starts, ends

@@ -6,10 +6,13 @@ from datetime import timedelta
 import numpy as np
 
 import astropy.units as u
-from astropy.table import MaskedColumn, QTable, join, vstack
+from astropy.table import MaskedColumn, QTable, Table, join, vstack
 
 from arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
+from arccnet.catalogs.flares.common import FlareCatalog
+from arccnet.catalogs.flares.hek import HEKFlareCatalog
+from arccnet.catalogs.flares.helio import HECFlareCatalog
 from arccnet.catalogs.utils import remove_columns_with_suffix, retrieve_harp_noaa_mapping
 from arccnet.data_generation.data_manager import DataManager
 from arccnet.data_generation.data_manager import Query as MagQuery
@@ -22,6 +25,7 @@ from arccnet.data_generation.magnetograms.instruments import (
 )
 from arccnet.data_generation.region_detection import RegionDetection, RegionDetectionTable
 from arccnet.data_generation.utils.data_logger import get_logger
+from arccnet.version import __version__
 
 logger = get_logger(__name__, logging.DEBUG)
 
@@ -86,6 +90,65 @@ def process_srs(config):
         srs_processed_catalog,
         srs_clean_catalog,
     )
+
+
+def process_flares(config):
+    logger.info(f"Processing Flare with config: {config}")  # should print_config()
+
+    catalogs = [
+        HEKFlareCatalog(catalog="swpc"),
+        HEKFlareCatalog(catalog="ssw_latest"),
+        HECFlareCatalog(catalog="gevloc"),
+        HECFlareCatalog(catalog="goes"),
+    ]
+
+    data_dir_raw = Path(config["paths"]["data_dir_raw"])
+    data_dir_intermediate = Path(config["paths"]["data_dir_intermediate"])
+    data_dir_processed = Path(config["paths"]["data_dir_processed"])
+    Path(config["paths"]["data_dir_final"])
+
+    flare_catalogs = {c.catalog: None for c in catalogs}
+
+    for catalog in catalogs:
+        version = __version__ if "dev" not in __version__ else "dev"  # unless it's a release use dev
+        file_name = (
+            f"{catalog.catalog}_{config['general']['start_date']}-{config['general']['end_date']}_{version}.parq"
+        )
+
+        flare_query_file = data_dir_raw / "metadata" / "flares" / file_name
+        flare_raw_catalog_file = data_dir_intermediate / "metadata" / "flares" / file_name
+        flare_processed_catalog_file = data_dir_processed / "metadata" / "flares" / file_name
+
+        flare_query_file.parent.mkdir(exist_ok=True, parents=True)
+        flare_raw_catalog_file.parent.mkdir(exist_ok=True, parents=True)
+        flare_processed_catalog_file.parent.mkdir(exist_ok=True, parents=True)
+
+        if flare_query_file.exists():  # this is fine only if the query agrees
+            try:
+                flare_query = Table.read(flare_query_file)
+            except ValueError as e:
+                if "No include_names specified" in str(e):  # Astropy bug (#16236) can't read empty table from parquet
+                    flare_query = Table()
+
+        else:
+            flare_query = catalog.search(
+                start_time=config["general"]["start_date"], end_time=config["general"]["end_date"]
+            )
+            flare_query.write(flare_query_file, format="parquet")
+
+        if flare_raw_catalog_file.exists():
+            try:
+                flare_raw_catalog = FlareCatalog.read(flare_raw_catalog_file)
+            except ValueError as e:
+                if "No include_names specified" in str(e):  # Astropy bug (#16236) can't read empty table from parquet
+                    flare_raw_catalog = Table()
+        else:
+            flare_raw_catalog = catalog.create_catalog(flare_query)
+            flare_raw_catalog.write(flare_raw_catalog_file, format="parquet", overwrite=True)
+
+            flare_catalogs[catalog.catalog] = {"query": flare_query, "catalog": flare_raw_catalog}
+
+    return flare_catalogs
 
 
 def process_hmi(config):
@@ -832,7 +895,8 @@ def merge_noaa_harp(arclass, ardeten):
 
 def main():
     logger.debug("Starting main")
-    _, _, _, processed_catalog, _ = process_srs(config)
+    process_flares(config)
+    _, _, _, _, clean_catalog = process_srs(config)
     hmi_download_obj, sharps_download_obj = process_hmi(config)
     mdi_download_obj, smarps_download_obj = process_mdi(config)
 
@@ -843,7 +907,7 @@ def main():
     #   MDI-SMARPS: merge HMI and SHARPs (null datetime dropped before merge)
     srs_hmi, srs_mdi, hmi_sharps, mdi_smarps = merge_mag_tables(
         config,
-        srs=processed_catalog,
+        srs=clean_catalog,
         hmi=hmi_download_obj,
         mdi=mdi_download_obj,
         sharps=sharps_download_obj,
@@ -857,7 +921,9 @@ def main():
     ardeten = region_detection(config, hmi_sharps, mdi_smarps)
     merged_table = merge_noaa_harp(arclass, ardeten)
 
-    merged_table_quicklook = RegionDetection.summary_plots(
+    merged_table_quicklook = RegionDetection(
+        table=merged_table, col_group_path="processed_path", col_cutout_path="path_arc"
+    ).summary_plots(
         RegionDetectionTable(merged_table),
         Path(config["paths"]["data_root"]) / "04_final" / "data" / "region_detection" / "quicklook",
     )
@@ -872,6 +938,8 @@ def main():
         format="parquet",
         overwrite=True,
     )
+    print(merged_table_quicklook["quicklook_path"])
+
 
 
 if __name__ == "__main__":

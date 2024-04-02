@@ -1,9 +1,10 @@
 from typing import Union, Optional
 from datetime import datetime
 
+import numpy as np
 from sunpy.net import Fido
 from sunpy.net import attrs as a
-from sunpy.net.hek import HEKClient, HEKTable
+from sunpy.net.hek import HEKTable
 from sunpy.time import TimeRange
 
 from astropy.table import Table, vstack
@@ -15,7 +16,7 @@ from arccnet.data_generation.utils.data_logger import get_logger
 __all__ = ["HEKFlareCatalog"]
 
 
-logger = get_logger(__name__)
+logger = get_logger(__name__, level="DEBUG")
 
 # Supported catalogs
 CATALOGS = {
@@ -38,7 +39,7 @@ COLUM_MAPPINGS = {
 
 class HEKFlareCatalog:
     r"""
-    SSW Latest Events Catalog provided by HEK
+    HEK Flare Catalog
     """
 
     def __init__(self, catalog: str):
@@ -56,19 +57,14 @@ class HEKFlareCatalog:
         r"""
         Search the HEK SSW Latest Events catalog for flares between the start and end times.
 
-        Note
-        ----
-        Seems to be a hard limit on HEC server side of ~20,000 results so split into ~year chunks.
-
         Parameters
         ----------
-        n_splits
         start_time :
             Start time
         end_time
             End time
-        n_splits : optional int
-            Number of windows to split the time range over, by default ~6-months windows.
+        n_splits : int, optional
+            Number of windows to split the time range over, by default spits into ~6-months windows.
 
         Returns
         -------
@@ -80,40 +76,72 @@ class HEKFlareCatalog:
             if n_splits == 0:
                 windows = [time_range]
             else:
-                windows = time_range.split(
-                    min(2, n_splits * 2)
-                )  # slit into ~6-month intervals to keep queries reasonable
+                n_splits = n_splits * 2
+                windows = time_range.split(max(2, n_splits))  # slit into ~6-month intervals to keep queries reasonable
+            logger.debug(f"Splitting query from {time_range.start} to {time_range.end} into {n_splits} windows.")
 
         flares = []
-        for window in windows:
+        for i, window in enumerate(windows):
+            logger.debug(f"Searching for flares {i}: {window.start} - {window.end}")
             cur_flares = Fido.search(a.Time(window.start, window.end), *self.query)
             flares.append(cur_flares["hek"])
 
         # Remove meta (can't stack otherwise)
         for flare in flares:
             flare.meta = None
-        stacked_flares = vstack(flares)
+            # 'refs' can be serialised, sometimes it has different shapes
+            # 'event_probability' is sometimes None so drop - could replace with -1 if need in future
+            # 'event_avg_rating', 'event_importance' are sometimes None or 1
+            for col_to_remove in ["refs", "event_probability", "event_avg_rating", "event_importance"]:
+                try:
+                    flare.remove_column(col_to_remove)
+                except KeyError:
+                    logger.debug(f"No {col_to_remove} column in: {flare.columns}, len: {len(flare)}")
 
-        return HEKTable(stacked_flares, client=HEKClient())
+        stacked_flares = vstack([f for f in flares if len(f) > 0])  # In case some time windows are empty
+
+        # Remove columns which are all none
+        col_to_remove = []
+        for col in stacked_flares.columns:
+            if np.all(stacked_flares[col] is None):
+                col_to_remove.append(col)
+        if len(col_to_remove) > 0:
+            logger.debug(f"Dropping columns {col_to_remove} as are all None")
+            stacked_flares.remove_columns(col_to_remove)
+
+        return Table(stacked_flares.as_array())
 
     def create_catalog(self, query: HEKTable) -> FlareCatalog:
         r"""
-        Create a FlareCatalog from the give HEK query.
+        Create a FlareCatalog from the give Fido query.
 
-        Essentially a map column name and types into common format
+        Essentially map column names and types into common format `arccnet.catalogs.flares.common.FlareCatalog`
 
         Parameters
         ----------
-        query
-
+        query :
+            The search query
         Returns
         -------
 
         """
         query.meta = None
-        query.rename_columns(list(COLUM_MAPPINGS.keys()), list(COLUM_MAPPINGS.values()))
+        # Could be an empty table
+        if len(query.columns) > 0:
+            query.rename_columns(list(COLUM_MAPPINGS.keys()), list(COLUM_MAPPINGS.values()))
         query["source"] = self.catalog
         return FlareCatalog(query)
 
     def clean_catalog(self, catalog: Table) -> FlareCatalog:
+        r"""
+        Clean the given catalog.
+
+        Parameters
+        ----------
+        catalog
+
+        Returns
+        -------
+
+        """
         pass
