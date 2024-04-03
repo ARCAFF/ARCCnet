@@ -483,7 +483,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     logger.debug(f"Writing {mdi_smarps_merged_file}")
     mdi_smarps_table2.write(mdi_smarps_merged_file, format="parquet", overwrite=True)
 
-    return catalog_hmi, catalog_mdi, hmi_sharps_table, mdi_smarps_table
+    return catalog_hmi, catalog_mdi, hmi_sharps_table2, mdi_smarps_table2
 
 
 def region_cutouts(config, srs_hmi, srs_mdi):
@@ -683,7 +683,7 @@ def region_detection(config, hmi_sharps, mdi_smarps):
 
     if mdi_ar_det_file.exists():
         logger.debug(f"reading {mdi_ar_det_file}")
-        mdi_ar_det_file = QTable.read(mdi_ar_det_file)
+        mdi_smarps_detection_table = QTable.read(mdi_ar_det_file)
     else:
         mdidetection = RegionDetection(table=mdi_smarps, col_group_path="processed_path", col_cutout_path="path_arc")
         mdi_smarps_detection_table, mdi_smarps_detection_bboxes = mdidetection.get_bboxes()
@@ -706,6 +706,8 @@ def region_detection(config, hmi_sharps, mdi_smarps):
             "path_arc",
             "top_right_cutout",
             "bottom_left_cutout",
+            "filtered",
+            "filter_reason",
         ]
 
         # subset of columns
@@ -739,22 +741,27 @@ def merge_noaa_harp(arclass, ardeten):
     ar = arclass[arclass["region_type"] == "AR"]
     ar = ar[~ar["quicklook_path_hmi"].mask]
     ar["NOAA"] = ar["number"]
-    ar["target_time"] = ar["time"]
+    # ar["target_time"] = ar["time"]
 
     ardeten_hmi = ardeten[ardeten["instrument"] == "HMI"]
 
     harp_noaa_map = retrieve_harp_noaa_mapping()
 
-    joined_table = join(ardeten_hmi, harp_noaa_map, keys="record_HARPNUM_arc")
-
+    joined_table = join(ardeten_hmi[~ardeten_hmi["filtered"]], harp_noaa_map, keys="record_HARPNUM_arc")
     # Identify dates to drop
-    joined_table["filtered"] = False
+    # joined_table["filtered"] = False
     grouped_table = joined_table.group_by("processed_path")
     for date in grouped_table.groups:
         if any(date["NOAANUM"] > 1):
             date["filtered"] = True
+            # date["filter_reason"] += "any(date[NOAANUM] > 1),"
+            # need to add in the reason
 
     merged_grouped = join(grouped_table, ar, keys=["target_time", "NOAA"])
+
+    # add back in the filtered...
+    merged_grouped = vstack([merged_grouped, ardeten_hmi[ardeten_hmi["filtered"]]])
+    merged_grouped.sort("target_time")
 
     logger.info("Generating `Region Detection` dataset")
     data_root = config["paths"]["data_root"]
@@ -766,7 +773,7 @@ def merge_noaa_harp(arclass, ardeten):
     # remove columns; !TODO drop these earlier
     cols_to_remove = [
         "record_TARPNUM_arc",
-        "time",
+        # "time",
         "number",
         "processed_path_image_hmi",
         "top_right_cutout_hmi",
@@ -815,16 +822,11 @@ def main():
     # extract AR/QS regions from HMI and MDI
     arclass = region_cutouts(config, srs_hmi, srs_mdi)
 
-    if True:
-        exit()
-
     # bounding box locations of cutouts (in pixel space) on the full-disk images
     ardeten = region_detection(config, hmi_sharps, mdi_smarps)
     merged_table = merge_noaa_harp(arclass, ardeten)
 
-    merged_table_quicklook = RegionDetection(
-        table=merged_table, col_group_path="processed_path", col_cutout_path="path_arc"
-    ).summary_plots(
+    merged_table_quicklook = RegionDetection.summary_plots(
         RegionDetectionTable(merged_table),
         Path(config["paths"]["data_root"]) / "04_final" / "data" / "region_detection" / "quicklook",
     )
@@ -839,7 +841,6 @@ def main():
         format="parquet",
         overwrite=True,
     )
-    print(merged_table_quicklook["quicklook_path"])
 
 
 if __name__ == "__main__":

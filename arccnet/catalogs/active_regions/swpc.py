@@ -482,9 +482,9 @@ def filter_srs(
     active_regions_df["filtered"] = False
     active_regions_df["filter_reason"] = ""
 
-    load_success = active_regions_df.loaded_successfully is True
+    load_success = active_regions_df.loaded_successfully == True  # noqa
     active_regions_df.loc[~load_success, "filtered"] = True
-    active_regions_df.loc[~load_success, "filter_reason"] = "load_unsuccessful,"
+    active_regions_df.loc[~load_success, "filter_reason"] += "load_unsuccessful,"
 
     ar_mask = catalog_df.id == "I"
     active_regions_df.loc[~ar_mask, "filtered"] = True
