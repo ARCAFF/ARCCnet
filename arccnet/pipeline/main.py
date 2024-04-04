@@ -394,7 +394,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     # attempting to remove the object
     catalog_hmi.replace_column("path_catalog", [str(pc) for pc in catalog_hmi["path_catalog"]])
     catalog_hmi.rename_column("processed_path", "processed_path_image")
-    catalog_hmi["filtered"][catalog_hmi["processed_path_image"].mask] = True
+    # catalog_hmi["filtered"][catalog_hmi["processed_path_image"].mask] = True
     # we need to add the filter reason... but having issues with string concatenation
     # catalog_hmi['filtered' == True]['filter_reason'] += "no_magnetogram,"
 
