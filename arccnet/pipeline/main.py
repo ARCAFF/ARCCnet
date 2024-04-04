@@ -751,11 +751,20 @@ def merge_noaa_harp(arclass, ardeten):
     # Identify dates to drop
     # joined_table["filtered"] = False
     grouped_table = joined_table.group_by("processed_path")
+
+    # this is all QTable madness
+    filter_reason_column = np.array(list(grouped_table["filter_reason"]), dtype=object)
+    assert np.unique(filter_reason_column) == ""  # ensure that these are only empty strings.
+
     for date in grouped_table.groups:
         if any(date["NOAANUM"] > 1):
             date["filtered"] = True
-            # date["filter_reason"] += "any(date[NOAANUM] > 1),"
-            # need to add in the reason
+            indices = np.where(joined_table["processed_path"] == date["processed_path"][0])[0]
+            for idx in indices:
+                filter_reason_column[idx] += "any(date[NOAANUM] > 1),"
+
+    # Replace the "filter_reason" list in the grouped table
+    grouped_table["filter_reason"] = [str(fr) for fr in filter_reason_column]
 
     merged_grouped = join(grouped_table, ar, keys=["target_time", "NOAA"])
 
