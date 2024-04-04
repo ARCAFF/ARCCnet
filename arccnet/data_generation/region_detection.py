@@ -238,15 +238,12 @@ class RegionDetection:
                 row["quicklook_path"] = output_filename
                 result_table.add_row(row)
 
-                print(len(result_table), result_table[-1]["quicklook_path"])
-
             logger.info(group)
 
             RegionDetection._summary_plot(group, fulldisk_map, output_filename)
 
         assert len(result_table) == len(data)
 
-        print(result_table)
         return result_table
 
     @staticmethod
