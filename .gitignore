@@ -231,3 +231,10 @@ docs/whatsnew/latest_changelog.txt
 *.log
 
 data/**
+
+# ML logging folders
+arccnet/models/cutout_classification/custom_CNN/.neptune
+arccnet/models/cutout_classification/custom_CNN/wandb
+
+# Trained weights
+arccnet/models/cutout_classification/ResNet/weights

@@ -6,18 +6,19 @@ repos:
       - id: ruff
         args: ["--fix"]
 
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black", "--sp", "setup.cfg"]
+        exclude: ".*(.fits|.fts|.fit|.header|.txt|tca.*|extern.*|.rst|.md|cm/__init__.py|sunpy/extern|docs/conf.py)$"
+
   - repo: https://github.com/psf/black
     rev: 23.3.0
     hooks:
       - id: black
         exclude: ".*(.fits|.fts|.fit|.txt|.csv)$"
 
-  - repo: https://github.com/PyCQA/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-        args: ["--sp", "setup.cfg"]
-        exclude: ".*(.fits|.fts|.fit|.header|.txt|tca.*|extern.*|.rst|.md|cm/__init__.py|sunpy/extern|docs/conf.py)$"
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0

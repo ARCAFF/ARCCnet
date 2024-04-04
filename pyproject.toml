@@ -76,3 +76,6 @@ exclude = '''
   | docs/conf.py
 )
 '''
+
+[tool.isort]
+profile = "black"
