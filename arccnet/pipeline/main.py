@@ -367,7 +367,20 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     # attempting to remove the object
     catalog_mdi.replace_column("path_catalog", [str(pc) for pc in catalog_mdi["path_catalog"]])
     catalog_mdi.rename_column("processed_path", "processed_path_image")
-    catalog_mdi["filtered"][catalog_mdi["processed_path_image"].mask] = True
+    # catalog_mdi["filtered"][catalog_mdi["processed_path_image"].mask] = True
+
+    # Convert the "filter_reason" column to a numpy array of dtype=object
+    filter_reason_column = np.array(catalog_mdi["filter_reason"], dtype=object)
+    print(np.unique(filter_reason_column))
+    # Now, update the "filter_reason" column only for masked rows
+    for idx, row in enumerate(catalog_mdi):
+        if catalog_mdi["processed_path_image"].mask[idx]:
+            row["filtered"] = True
+            filter_reason_column[row.index] += "no_magnetogram,"
+    # Add the updated "filter_reason" list as a new column to the catalog_mdi table
+    catalog_mdi["filter_reason"] = [str(fr) for fr in filter_reason_column]
+    print(np.unique(catalog_mdi["filter_reason"]))
+
     # we need to add the filter reason... but having issues with string concatenation
     # catalog_mdi['filtered' == True]['filter_reason'] += "no_magnetogram,"
     catalog_mdi.write(srs_mdi_merged_file, format="parquet", overwrite=True)
@@ -384,6 +397,17 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     catalog_hmi["filtered"][catalog_hmi["processed_path_image"].mask] = True
     # we need to add the filter reason... but having issues with string concatenation
     # catalog_hmi['filtered' == True]['filter_reason'] += "no_magnetogram,"
+
+    # Convert the "filter_reason" column to a numpy array of dtype=object
+    filter_reason_column = np.array(catalog_hmi["filter_reason"], dtype=object)
+    # Now, update the "filter_reason" column only for masked rows
+    for idx, row in enumerate(catalog_hmi):
+        if catalog_hmi["processed_path_image"].mask[idx]:
+            row["filtered"] = True
+            filter_reason_column[row.index] += "no_magnetogram,"
+    # Add the updated "filter_reason" list as a new column to the catalog_hmi table
+    catalog_hmi["filter_reason"] = [str(fr) for fr in filter_reason_column]
+
     catalog_hmi.write(srs_hmi_merged_file, format="parquet", overwrite=True)
 
     # # There must be a better way to rename columns
