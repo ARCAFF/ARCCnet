@@ -371,7 +371,6 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
 
     # Convert the "filter_reason" column to a numpy array of dtype=object
     filter_reason_column = np.array(catalog_mdi["filter_reason"], dtype=object)
-    print(np.unique(filter_reason_column))
     # Now, update the "filter_reason" column only for masked rows
     for idx, row in enumerate(catalog_mdi):
         if catalog_mdi["processed_path_image"].mask[idx]:
@@ -379,7 +378,6 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
             filter_reason_column[row.index] += "no_magnetogram,"
     # Add the updated "filter_reason" list as a new column to the catalog_mdi table
     catalog_mdi["filter_reason"] = [str(fr) for fr in filter_reason_column]
-    print(np.unique(catalog_mdi["filter_reason"]))
 
     # we need to add the filter reason... but having issues with string concatenation
     # catalog_mdi['filtered' == True]['filter_reason'] += "no_magnetogram,"
