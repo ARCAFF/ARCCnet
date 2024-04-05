@@ -407,8 +407,8 @@ class RegionExtractor:
                 continue
 
             # probably need to split the tbtt into filtered etc. to keep them in
-            rows = tbtt[tbtt["filtered"] is False].copy()
-            rows_filtered = tbtt[tbtt["filtered"] is True].copy()
+            rows = tbtt[tbtt["filtered"] == False].copy()  # noqa
+            rows_filtered = tbtt[tbtt["filtered"] == True].copy()  # noqa
 
             if len(rows) == 0:  # only filtered rows
                 for rw in rows_filtered:
