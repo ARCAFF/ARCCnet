@@ -176,7 +176,7 @@ def test_filter_srs():
             "longitude": [40, 10, 40, 20, 34, -75, -61, -47, 10, 10],
             "number": [0, 1, 1, 2, 2, 3, 3, 3, 4, 5],
             "number_of_sunspots": [2] * 10,
-            "time": [
+            "target_time": [
                 datetime(2023, 1, 1),
                 datetime(2023, 1, 1),
                 datetime(2023, 1, 2),
@@ -190,6 +190,7 @@ def test_filter_srs():
             ],
             "path": ["a"] * 10,
             "url": ["b"] * 10,
+            "loaded_successfully": [True] * 10,
         }
     )
     processed = filter_srs(QTable.from_pandas(catalog))
