@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from arccnet import config
 from arccnet.data_generation.magnetograms.instruments.hmi import HMILOSMagnetogram, HMISHARPs
 from arccnet.data_generation.magnetograms.instruments.mdi import MDILOSMagnetogram, MDISMARPs
 
@@ -136,14 +135,13 @@ def test_fetch_metadata_v_batch(magnetogram_class, batch_frequency, start_date, 
         start_date=start_date,
         end_date=end_date,
         batch_frequency=batch_frequency,
-        to_csv="False",
+        dynamic_columns=["url"],
     ).drop(
         columns="url"
     )  # drop 'url' as it's dynamic
     batched_query = magnetogram.fetch_metadata_batch(
         start_date=start_date,
         end_date=end_date,
-        to_csv="False",
     ).drop(
         columns="url"
     )  # drop 'url' as it's dynamic
@@ -168,9 +166,6 @@ class TestHMILOSProperties:
     def test_segment_column_name(self, hmi_instance):
         assert hmi_instance.segment_column_name == "magnetogram"
 
-    def test_metadata_save_location(self, hmi_instance):
-        assert hmi_instance.metadata_save_location == config["paths"]["hmi_mag_raw_csv"]
-
     def test_type(self, hmi_instance):
         assert hmi_instance._type == hmi_instance.__class__.__name__
 
@@ -189,9 +184,6 @@ class TestHMISHARPsProperties:
 
     def test_segment_column_name(self, sharp_instance):
         assert sharp_instance.segment_column_name == "bitmap"
-
-    def test_metadata_save_location(self, sharp_instance):
-        assert sharp_instance.metadata_save_location == config["paths"]["hmi_sharps_raw_csv"]
 
     def test_type(self, sharp_instance):
         assert sharp_instance._type == sharp_instance.__class__.__name__
@@ -213,9 +205,6 @@ class TestMDILOSProperties:
     def test_segment_column_name(self, mdi_instance):
         assert mdi_instance.segment_column_name == "data"
 
-    def test_metadata_save_location(self, mdi_instance):
-        assert mdi_instance.metadata_save_location == config["paths"]["mdi_mag_raw_csv"]
-
     def test_type(self, mdi_instance):
         assert mdi_instance._type == mdi_instance.__class__.__name__
 
@@ -234,9 +223,6 @@ class TestMDISMARPsProperties:
 
     def test_segment_column_name(self, smarp_instance):
         assert smarp_instance.segment_column_name == "bitmap"
-
-    def test_metadata_save_location(self, smarp_instance):
-        assert smarp_instance.metadata_save_location == config["paths"]["mdi_smarps_raw_csv"]
 
     def test_type(self, smarp_instance):
         assert smarp_instance._type == smarp_instance.__class__.__name__
