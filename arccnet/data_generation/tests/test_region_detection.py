@@ -12,6 +12,7 @@ import sunpy.map
 
 import astropy.units as u
 from astropy.coordinates import SkyCoord
+from astropy.table import QTable
 
 from arccnet.data_generation.region_detection import RegionDetection
 
@@ -38,6 +39,7 @@ def sunpy_hmi_copies(temp_path_fixture):
     n = 10
     fulldisk_copies = []
     cutout_copies = []
+    target_times = []
 
     for _ in range(n // 2):
         hmi_data = sunpy.map.Map(sunpy.data.sample.HMI_LOS_IMAGE)
@@ -46,6 +48,7 @@ def sunpy_hmi_copies(temp_path_fixture):
         file_path = temp_path_fixture[1] / filename
         hmi_data.save(file_path)
         fulldisk_copies.append(file_path)
+        target_times.append(hmi_data.date.to_datetime())
 
     for _ in range(n // 2):
         hmi_data = sunpy.map.Map(sunpy.data.sample.HMI_LOS_IMAGE)
@@ -67,28 +70,39 @@ def sunpy_hmi_copies(temp_path_fixture):
         submap.save(file_path)
         cutout_copies.append(file_path)
 
-    return fulldisk_copies, cutout_copies
+    return target_times, fulldisk_copies, cutout_copies
 
 
 @pytest.fixture
-def pd_dataframe(sunpy_hmi_copies):
+def qtable_object(sunpy_hmi_copies):
     data = {
-        "download_path": sunpy_hmi_copies[0],
-        "download_path_arc": sunpy_hmi_copies[1],
+        "target_time": sunpy_hmi_copies[0],
+        "processed_path": sunpy_hmi_copies[1],
+        "path_arc": sunpy_hmi_copies[2],
     }
 
+    data["processed_path"] = [str(dpth) for dpth in data["processed_path"]]
+    data["path_arc"] = [str(dpth_a) for dpth_a in data["path_arc"]]
+
     df = pd.DataFrame(data)
-    return df
+    qt = QTable.from_pandas(df)  # RegionDetectionTable?
+    return qt
 
 
 @pytest.fixture
-def region_detection_fixture(temp_path_fixture, pd_dataframe):
+def region_detection_fixture(temp_path_fixture, qtable_object):
     # Create a temporary test CSV file with the test data
-    test_csv_path = temp_path_fixture[0] / "test_data.csv"
-    pd_dataframe.to_csv(test_csv_path, index=False)
+    test_parq_path = temp_path_fixture[0] / "test_data.parq"
+    test_parq_path.parent.mkdir(exist_ok=True, parents=True)
+    qtable_object.write(test_parq_path, format="parquet", overwrite=True)
 
     # Initialize RegionDetection with the test CSV file
-    region_detection = RegionDetection(filename=test_csv_path)
+    test_table = QTable.read(test_parq_path)
+    region_detection = RegionDetection(
+        table=test_table,
+        col_group_path="processed_path",
+        col_cutout_path="path_arc",
+    )
 
     return region_detection
 
@@ -97,15 +111,11 @@ def region_detection_fixture(temp_path_fixture, pd_dataframe):
 @pytest.mark.remote_data
 def test_initialization(region_detection_fixture):
     # Test if RegionDetection initializes correctly
-    assert region_detection_fixture.loaded_data is not None
+    assert region_detection_fixture._loaded_data is not None
 
 
 @pytest.mark.remote_data
-def test_get_bboxes(region_detection_fixture, pd_dataframe):
+def test_get_bboxes(region_detection_fixture, qtable_object):
     # Test the get_bboxes method using the fixture
-    bboxes = region_detection_fixture.get_bboxes(
-        region_detection_fixture.loaded_data, "download_path", "download_path_arc"
-    )
-
-    # Add your assertions here to validate the results
-    assert len(bboxes) == len(pd_dataframe["download_path_arc"])
+    bboxes = region_detection_fixture.get_bboxes()
+    assert len(bboxes[0]) == len(qtable_object["path_arc"])

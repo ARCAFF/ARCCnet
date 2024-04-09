@@ -70,7 +70,10 @@ class MagnetogramProcessor:
         return self._column_name
 
     def process(
-        self, use_multiprocessing: bool = True, merge_col_prefix: str = "processed_", overwrite: bool = True
+        self,
+        use_multiprocessing: bool = True,
+        merge_col_prefix: str = "processed_",
+        overwrite: bool = True,
     ) -> dict:
         r"""
         Process data using multiprocessing.
