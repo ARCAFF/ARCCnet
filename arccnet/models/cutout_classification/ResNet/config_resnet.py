@@ -16,6 +16,7 @@ to_RGB = False
 model_name = "resnet34"
 pretrained = True
 batch_size = 128
+loss = "focal_loss"  #'cross_entropy'
 learning_rate = 1e-5
 
 # Training

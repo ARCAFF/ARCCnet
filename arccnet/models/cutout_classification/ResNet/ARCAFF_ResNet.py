@@ -1,8 +1,9 @@
 # %%
-# Import configuration
+# isort:skip_file
 import os
 import sys
 
+sys.path.insert(0, "../")
 import config_resnet as config
 import numpy as np
 import torch
@@ -16,10 +17,11 @@ from torchvision import models
 from tqdm import tqdm
 
 os.environ["CUDA_VISIBLE_DEVICES"] = config.cuda_visible_devices
-sys.path.insert(0, "../")
 run_comet = Experiment(project_name=config.project_name, workspace=config.workspace)
 run_comet.log_code("ARCAFF_ResNet.py")
 run_comet.log_code("config_resnet.py")
+run_comet.add_tags([config.model_name, config.loss])
+
 
 # %%
 loaded_data = np.load("/ARCAFF/data/sgkf_split.npz")
@@ -115,10 +117,30 @@ val_dataset = TensorDataset(X_val_tensor, Y_val_tensor)
 train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False)
 
-criterion = torch.nn.CrossEntropyLoss()
+# %%
+# compute class weights by taking the inverse of the class frequencies,
+# then normalizes the weights so they sum up to the number of classes.
+class_sample_count = np.array([len(np.where(Y_train_encoded == t)[0]) for t in np.unique(Y_train_encoded)])
+class_weights = 1.0 / class_sample_count
+normalized_weights = class_weights / np.sum(class_weights) * len(np.unique(Y_train_encoded))
+
+alpha_tensor = torch.tensor(normalized_weights, dtype=torch.float).to(device)  # Move alpha to device
+
+if config.loss == "focal_loss":
+    focal_loss = torch.hub.load(
+        "adeelh/pytorch-multi-class-focal-loss",
+        model="FocalLoss",
+        alpha=alpha_tensor,
+        gamma=2,
+        reduction="mean",
+        force_reload=False,
+    )
+    criterion = focal_loss
+else:
+    criterion = torch.nn.CrossEntropyLoss()
+
 optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 # %%
-
 best_val_accuracy = 0.0  # Best validation accuracy observed
 patience = config.patience  # Number of epochs to wait for improvement before stopping
 patience_counter = 0  # Counter to track epochs without improvement
@@ -270,3 +292,5 @@ for epoch in range(num_epochs):
     )
 
 run_comet.end()
+
+# %%

@@ -1,32 +1,61 @@
 # %%
+# isort:skip_file
 import io
 import os
 import sys
+import time
 import tempfile
 from datetime import datetime
 
+import config_CNN as config
 import matplotlib.pyplot as plt
-import neptune
+
+sys.path.insert(0, "../")
+import utilities_cutout as ut
+
+logging = config.logging
+if isinstance(logging, str):
+    logging = [logging]
+
+# Logging initialization
+if "wandb" in logging:
+    import wandb
+    from wandb.keras import WandbCallback
+
+    wandb.login()
+    run = wandb.init(project=config.project_name, entity=config.entity)
+    wandb.save("ARCAFF_CNN.py")
+    wandb.save("config_CNN.py")
+
+if "neptune" in logging:
+    import neptune
+    from neptune.integrations.tensorflow_keras import NeptuneCallback
+
+    run_neptune = neptune.init_run(project=config.project_name)
+    neptune_callback = NeptuneCallback(run=run_neptune)
+
+if "comet" in logging:
+    from comet_ml import Experiment
+
+    run_comet = Experiment(project_name=config.project_name, workspace=config.workspace)
+    run_comet.add_tags([config.model_name, config.loss])
+
 import numpy as np
 import seaborn as sns
 import tensorflow as tf
-import utilities_cutout as ut
-import wandb
-from comet_ml import Experiment
 from keras import regularizers
 from keras.callbacks import EarlyStopping
 from keras.layers import Activation, BatchNormalization, Conv2D, Dense, Dropout, Flatten, MaxPooling2D
 from keras.models import Sequential
 from keras.optimizers import Adam
 from keras.utils import to_categorical
-from neptune.integrations.tensorflow_keras import NeptuneCallback
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import class_weight
-from wandb.keras import WandbCallback
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # Only use one GPU
-sys.path.insert(0, "../")
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"  # Only use one GPU
+
+
 # %%
 gpus = tf.config.experimental.list_physical_devices("GPU")
 
@@ -52,71 +81,63 @@ X_val = loaded_data["X_val"]
 Y_val = loaded_data["Y_val"]
 
 # %%
-### Remove bars from images
-# Train dataset
-valid_matrices_labels = [
-    (matrix, Y_train[i])
-    for i, matrix in enumerate(X_train)
-    if ut.count_and_check_consecutive_zero_lines(matrix)[1] <= 5
-]
-valid_matrices, valid_labels = zip(*valid_matrices_labels)
-X_train = np.array(valid_matrices)
-Y_train = np.array(valid_labels)
+# PREPROCESSING
+start_time = time.time()
+print("start preprocessing...\n")
 
-# Val dataset
-valid_matrices_labels = [
-    (matrix, Y_val[i]) for i, matrix in enumerate(X_val) if ut.count_and_check_consecutive_zero_lines(matrix)[1] <= 5
-]
-valid_matrices, valid_labels = zip(*valid_matrices_labels)
-X_val = np.array(valid_matrices)
-Y_val = np.array(valid_labels)
+# remove bars
+X_train, Y_train = ut.remove_bars(X_train, Y_train)
+X_val, Y_val = ut.remove_bars(X_val, Y_val)
+num_classes = len(np.unique(Y_train))
 
-# %%
-config_dict = {
-    "number_of_conv_layers": 5,
-    "conv_layers_units": [128, 128, 128, 128, 128, 128, 128],
-    "kernel_sizes": [(7, 7), (5, 5), (3, 3), (3, 3), (3, 3)],
-    "padding_types": "same",
-    "epochs": 2000,
-    "regularization_lambda": 0.02,
-    "initializer": "glorot_uniform",
-    "learning_rate": 1e-4,
-    "optimizer": "adam",
-    "loss_function": "categorical_crossentropy",
-    "batch_size": 512,
-    "dropout_rate": 0.25,
-    "dataset_name": "sgkf_split",
-    "num_classes": len(np.unique(Y_train)),
-    "MLP_layers": [1024, 512, 256, 128],
-    "MLP_activation": "relu",
-    "early_stopping_patience": 200,
-}
+if config.normalize:
+    if config.normalize_type == "each_image":
+        # Normalize training images
+        X_train_min = X_train.min(axis=(1, 2), keepdims=True)
+        X_train_max = X_train.max(axis=(1, 2), keepdims=True)
+        X_train_range = X_train_max - X_train_min
+        X_train = (X_train - X_train_min) / X_train_range
 
-# %%
-# Logging initialization
-# W&B
-wandb.login()
-run = wandb.init(project="Active Region Cutout Classification", entity="arcaff", config=config_dict)
-config = wandb.config
+        # Normalize validation images
+        X_val_min = X_val.min(axis=(1, 2), keepdims=True)
+        X_val_max = X_val.max(axis=(1, 2), keepdims=True)
+        X_val_range = X_val_max - X_val_min
+        X_val = (X_val - X_val_min) / X_val_range
 
-# Neptune
-run_neptune = neptune.init_run(project="ARCAFF/Active-Region-Cutout-Classification")
-neptune_callback = NeptuneCallback(run=run_neptune)
+    if config.normalize_type == "dataset":
+        # Compute the global minimum and maximum values from the training dataset
+        global_min = X_train.min()
+        global_max = X_train.max()
 
-# Comet
-run_comet = Experiment(project_name="active-region-cutout-classification", workspace="arcaff")
+        # Normalize the training dataset
+        X_train = (X_train - global_min) / (global_max - global_min)
 
-# %%
-# vertical and horizontal flip of the images
-data_augment = True
-if data_augment:
-    print("Performing data augmentation ... \n")
+        # Normalize the validation dataset using the same global minimum and maximum
+        X_val = (X_val - global_min) / (global_max - global_min)
+
+if config.augmentation:
     X_train, Y_train = ut.augment_data(X_train, Y_train)
-    print("Flipping done.\n")
 
+print(f"Size of X_train: {sys.getsizeof(X_train)/ (1024.0 ** 2)/1000:.2f} GB")
+
+# Convert labels to numbers
+label_encoder = LabelEncoder()
+Y_train_encoded = label_encoder.fit_transform(Y_train)
+Y_val_encoded = label_encoder.transform(Y_val)  # ensures encoding for both training and validation labels is consistent
+
+# On-Hot encoding
+Y_train_onehot = to_categorical(Y_train_encoded, num_classes)
+Y_val_onehot = to_categorical(Y_val_encoded, num_classes)
+
+end_time = time.time()
+
+print(f"done in {end_time - start_time:.2f}s\n")
 
 # %%
-print(f"Size of X_train: {sys.getsizeof(X_train)/ (1024.0 ** 2)/1000:.2f} GB")
+# Compute class weights
+class_weights = class_weight.compute_class_weight("balanced", classes=np.unique(Y_train_encoded), y=Y_train_encoded)
+class_weights_dict = dict(enumerate(class_weights))
+
 # %%
 number_channels = 1
 input_shape = (X_train.shape[1], X_train.shape[2], number_channels)
@@ -131,7 +152,7 @@ for i in range(config.number_of_conv_layers):
             Conv2D(
                 config.conv_layers_units[i],
                 config.kernel_sizes[i],
-                strides=(2, 2),
+                strides=(1, 1),
                 padding=config.padding_types,
                 kernel_regularizer=regularizers.l2(config.regularization_lambda),
                 kernel_initializer=config.initializer,
@@ -147,7 +168,7 @@ for i in range(config.number_of_conv_layers):
             Conv2D(
                 config.conv_layers_units[i],
                 config.kernel_sizes[i],
-                strides=(2, 2),
+                strides=(1, 1),
                 padding=config.padding_types,
                 kernel_regularizer=regularizers.l2(config.regularization_lambda),
                 kernel_initializer=config.initializer,
@@ -161,15 +182,27 @@ for i in range(config.number_of_conv_layers):
 model.add(Flatten())
 for units in config.MLP_layers:
     model.add(Dense(units, activation=config.MLP_activation))
-    model.add(Dropout(wandb.config.dropout_rate))
+    model.add(Dropout(config.dropout_rate))
 
 # output
-num_classes = config.num_classes
 model.add(Dense(num_classes, activation="softmax"))
 
 optimizer = Adam(learning_rate=config.learning_rate)
 
-loss = config.loss_function
+if config.loss == "focal_loss":
+    loss = tf.keras.losses.CategoricalFocalCrossentropy(
+        alpha=class_weights,
+        gamma=config.gamma,
+        from_logits=False,
+        label_smoothing=0.0,
+        axis=-1,
+        reduction="sum_over_batch_size",
+        name="categorical_focal_crossentropy",
+    )
+elif config.loss == "cross_entropy":
+    loss = tf.keras.losses.CategoricalCrossentropy(
+        from_logits=False, label_smoothing=0.0, reduction="sum_over_batch_size", name="categorical_crossentropy"
+    )
 
 model.compile(loss=loss, optimizer=optimizer, metrics="accuracy", run_eagerly=True)
 
@@ -215,45 +248,45 @@ with plt.style.context("seaborn-v0_8-darkgrid"):
         tmp_file.write(buf.read())
         tmp_file_path = tmp_file.name
     # Upload the temporary file
-    run_neptune["heatmaps/train_dataset_histogram"].upload(tmp_file_path)
-    wandb.log({"train_dataset_histogram": wandb.Image(tmp_file_path)})
-    run_comet.log_image(tmp_file_path, name="train_dataset_histogram")
+    if "wandb" in logging:
+        wandb.log({"train_dataset_histogram": wandb.Image(tmp_file_path)})
+    if "neptune" in logging:
+        run_neptune["heatmaps/train_dataset_histogram"].upload(tmp_file_path)
+    if "comet" in logging:
+        run_comet.log_image(tmp_file_path, name="train_dataset_histogram")
 
 # %%
-# Convert labels to numbers
-label_encoder = LabelEncoder()
-Y_train_encoded = label_encoder.fit_transform(Y_train)
-Y_val_encoded = label_encoder.fit_transform(Y_val)
+early_stopper = EarlyStopping(patience=config.patience, restore_best_weights=True)
 
-# On-Hot encoding
-Y_train_onehot = to_categorical(Y_train_encoded, config.num_classes)
-Y_val_onehot = to_categorical(Y_val_encoded, config.num_classes)
-
-# %%
-# Compute class weights
-class_weights = class_weight.compute_class_weight("balanced", classes=np.unique(Y_train_encoded), y=Y_train_encoded)
-class_weights_dict = dict(enumerate(class_weights))
-
-# %%
-early_stopper = EarlyStopping(patience=config.early_stopping_patience, restore_best_weights=True)
+callbacks = []
+if "comet" in logging:
+    comet_callback = run_comet.get_callback("keras")
+    callbacks.append(comet_callback)
+if "wandb" in logging:
+    callbacks.append(WandbCallback(save_model=False))
+if "neptune" in logging:
+    callbacks.append(neptune_callback)
+callbacks.append(early_stopper)
 
 history = model.fit(
     X_train,
     Y_train_onehot,
     validation_data=(X_val, Y_val_onehot),
     epochs=config.epochs,
-    callbacks=[early_stopper, WandbCallback(save_model=False), neptune_callback, run_comet.get_callback("keras")],
-    class_weight=class_weights_dict,
+    callbacks=callbacks,
     batch_size=config.batch_size,
+    class_weight=class_weights_dict if config.loss == "cross_entropy" else None,
 )
 
 # %%
 # save the model
 model_filename = f'/ARCAFF/models/CNN_{datetime.now().strftime("%Y%m%d-%H%M")}---{run.id}.keras'
 model.save(model_filename)
-artifact = wandb.Artifact(name="model", type="model", description="ARCAFF CNN")
-artifact.add_file(model_filename)
-wandb.log_artifact(artifact)
+
+if "wandb" in logging:
+    artifact = wandb.Artifact(name="model", type="model", description="ARCAFF CNN")
+    artifact.add_file(model_filename)
+    wandb.log_artifact(artifact)
 
 # %%
 ### Test Dataset ###
@@ -264,20 +297,21 @@ Y_test_pred_encoded = [np.argmax(y_test_pred[j]) for j in range(len(y_test_pred)
 # %%
 # Classification report
 report_dict = classification_report(Y_val_encoded, Y_test_pred_encoded, target_names=lbls_test, output_dict=True)
-# Log the classification report to WandB
-wandb.log({"classification_report_test": report_dict})
+
+if "wandb" in logging:
+    wandb.log({"classification_report_test": report_dict})
+    wandb.log(
+        {
+            "confusion_matrix_test": wandb.plot.confusion_matrix(
+                y_true=Y_val_encoded, preds=Y_test_pred_encoded, class_names=lbls_test
+            )
+        }
+    )
 
 # %%
 # Confusion Matrix
-wandb.log(
-    {
-        "confusion_matrix_test": wandb.plot.confusion_matrix(
-            y_true=Y_val_encoded, preds=Y_test_pred_encoded, class_names=lbls_test
-        )
-    }
-)
-
-run_comet.log_confusion_matrix(y_true=Y_val_encoded, y_predicted=Y_test_pred_encoded, labels=lbls_test)
+if "comet" in logging:
+    run_comet.log_confusion_matrix(y_true=Y_val_encoded, y_predicted=Y_test_pred_encoded, labels=lbls_test)
 
 # %%
 greek_lbls = ["QS", r"$\alpha$", r"$\beta$", r"$\beta-\delta$", r"$\beta-\gamma$", r"$\beta-\gamma-\delta$"]
@@ -346,9 +380,13 @@ with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
     tmp_file_path = tmp_file.name
 
 # Log binary confusion matrix
-run_neptune["heatmaps/binary_confusion_matrix"].upload(tmp_file_path)
-wandb.log({"binary_confusion_matrix": wandb.Image(tmp_file_path)})
-run_comet.log_image(tmp_file_path, name="binary_confusion_matrix")
+if "wandb" in logging:
+    wandb.log({"binary_confusion_matrix": wandb.Image(tmp_file_path)})
+if "neptune" in logging:
+    run_neptune["heatmaps/binary_confusion_matrix"].upload(tmp_file_path)
+if "comet" in logging:
+    run_comet.log_image(tmp_file_path, name="binary_confusion_matrix")
+
 
 # %%
 [[TN, FP], [FN, TP]] = conf_matrix.copy()
@@ -365,9 +403,11 @@ for name, score in formatted_scores:
 
 print(table)
 
-# log binary metrics table
-table_data = [["Metric", "Value"]] + list(formatted_scores)
-wandb.log({"Binary_Metrics": wandb.Table(data=table_data, columns=["Metric", "Value"])})
-for name, score in formatted_scores:
-    Experiment.log_metric(f"Binary_Metrics/{name}", score)
-    run[f"Binary_Metrics/{name}"].log(score)
+if "wandb" in logging:
+    # log binary metrics table
+    table_data = [["Metric", "Value"]] + list(formatted_scores)
+    wandb.log({"Binary_Metrics": wandb.Table(data=table_data, columns=["Metric", "Value"])})
+if "comet" in logging:
+    for name, score in formatted_scores:
+        Experiment.log_metric(f"Binary_Metrics/{name}", score)
+        run[f"Binary_Metrics/{name}"].log(score)
