@@ -413,7 +413,7 @@ class BaseMagnetogram(ABC):
         if len(all_metadata) > 0:
             combined_metadata = pd.concat(all_metadata, ignore_index=True)  # test this
         else:
-            logger.warn("No metadata from this query")
+            logger.warning("No metadata from this query")
             return None
 
         # Check for duplicated rows in the combined metadata because we might be doing this accidentally
@@ -475,7 +475,7 @@ class BaseMagnetogram(ABC):
         keys, _ = self._query_jsoc(query)
         if len(keys) == 0:
             # return None if there are no results
-            logger.warn(query_string + f"returned {len(keys)} results")
+            logger.warning(query_string + f"returned {len(keys)} results")
             return None
         else:
             logger.info(query_string + f"returned {len(keys)} results")
@@ -502,7 +502,7 @@ class BaseMagnetogram(ABC):
         # Check for duplicated rows of merge_columns/column_names pairs
         if keys_merged.duplicated(subset=column_names + merge_columns).any():
             duplicate_count = keys_merged.duplicated(subset=column_names).sum()
-            logger.warn(f"There are {duplicate_count} duplicated rows in the DataFrame.")
+            logger.warning(f"There are {duplicate_count} duplicated rows in the DataFrame.")
 
         datetime_column = pd.to_datetime(  # if 'coerce', then invalid parsing will be set as NaT.
             keys_merged["DATE-OBS"], format=self.date_format, errors="coerce"
