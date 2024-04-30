@@ -238,3 +238,4 @@ arccnet/models/cutout_classification/custom_CNN/wandb
 
 # Trained weights
 arccnet/models/cutout_classification/ResNet/weights
+arccnet/models/cutout_classification/timm/weights

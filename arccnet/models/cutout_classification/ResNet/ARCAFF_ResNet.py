@@ -1,13 +1,9 @@
 # %%
 # isort:skip_file
 import os
-import sys
-
-sys.path.insert(0, "../")
 import config_resnet as config
 import numpy as np
 import torch
-import utilities_cutout as ut
 from comet_ml import Experiment
 from joblib import Parallel, delayed
 from sklearn.metrics import confusion_matrix, precision_score, recall_score
@@ -15,6 +11,8 @@ from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import DataLoader, TensorDataset
 from torchvision import models
 from tqdm import tqdm
+
+from arccnet.models.cutout_classification import utilities_cutout as ut
 
 os.environ["CUDA_VISIBLE_DEVICES"] = config.cuda_visible_devices
 run_comet = Experiment(project_name=config.project_name, workspace=config.workspace)
@@ -24,7 +22,7 @@ run_comet.add_tags([config.model_name, config.loss])
 
 
 # %%
-loaded_data = np.load("/ARCAFF/data/sgkf_split.npz")
+loaded_data = np.load(config.data_path)
 X_train = loaded_data["X_train"]
 Y_train = loaded_data["Y_train"]
 X_val = loaded_data["X_val"]
