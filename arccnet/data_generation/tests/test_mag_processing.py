@@ -80,7 +80,7 @@ def test_process_data(data_qtable, temp_path_fixture, use_multiprocessing):
         column_name="path",
     )
 
-    merged_table = mp.process(use_multiprocessing=False, merge_col_prefix="processed_", overwrite=True)
+    merged_table = mp.process(use_multiprocessing=use_multiprocessing, merge_col_prefix="processed_", overwrite=True)
 
     raw_paths = merged_table["path"]
     processed_paths = merged_table["processed_path"]

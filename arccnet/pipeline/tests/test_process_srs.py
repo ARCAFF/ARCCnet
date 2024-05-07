@@ -7,7 +7,13 @@ from arccnet.pipeline.main import process_hmi, process_mdi, process_srs
 
 
 @pytest.fixture(scope="session")
-def data_dir(tmp_path_factory):
+def data_dir(tmp_path_factory):  # , request):
+    # unsure if the cleanup is unnecessary
+    # def cleanup():
+    #     shutil.rmtree(temp_dir)  # Clean up the temporary directory
+
+    # request.addfinalizer(cleanup)  # noqa PT021
+
     return tmp_path_factory.mktemp("arccnet_testing")
 
 
