@@ -279,6 +279,19 @@ class RegionDetection:
                 label=f'NOAA {row["NOAA"]}',
             )
 
+            delta_lon = row["longitudinal_extent"] / 2.0 * u.deg
+            start = row["longitude"] - delta_lon
+            end = row["longitude"] + delta_lon
+
+            constant_lon = SkyCoord(
+                np.linspace(start, end, 2),
+                row["latitude"],
+                frame=sunpy.coordinates.frames.HeliographicStonyhurst,
+                obstime=sunpy_map.date,
+            )
+
+            ax.plot_coord(constant_lon, color="k")
+
             ax.legend()
 
         plt.savefig(

@@ -13,7 +13,11 @@ from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, R
 from arccnet.catalogs.flares.common import FlareCatalog
 from arccnet.catalogs.flares.hek import HEKFlareCatalog
 from arccnet.catalogs.flares.helio import HECFlareCatalog
-from arccnet.catalogs.utils import remove_columns_with_suffix, retrieve_harp_noaa_mapping
+from arccnet.catalogs.utils import (
+    remove_columns_with_suffix,
+    retrieve_harp_noaa_mapping,
+    retrieve_tarp_noaa_mapping,
+)
 from arccnet.data_generation.data_manager import DataManager
 from arccnet.data_generation.data_manager import Query as MagQuery
 from arccnet.data_generation.mag_processing import MagnetogramProcessor, RegionExtractor
@@ -862,50 +866,142 @@ def merge_noaa_harp(arclass, ardeten):
     """
     merge noaa and harp on a one-to-one basis
     """
-    ar = arclass[arclass["region_type"] == "AR"]
-    ar = ar[~ar["quicklook_path_hmi"].mask]
-    ar["NOAA"] = ar["number"]
-    # ar["target_time"] = ar["time"]
+    ar_hmi = arclass[arclass["region_type"] == "AR"]
+    ar_hmi = ar_hmi[~ar_hmi["quicklook_path_hmi"].mask]
+    ar_hmi["NOAA"] = ar_hmi["number"]
+    # ar_hmi["target_time"] = ar_hmi["time"]
 
     ardeten_hmi = ardeten[ardeten["instrument"] == "HMI"]
 
     harp_noaa_map = retrieve_harp_noaa_mapping()
 
-    joined_table = join(ardeten_hmi[~ardeten_hmi["filtered"]], harp_noaa_map, keys="record_HARPNUM_arc")
+    print(harp_noaa_map)
+    print(ardeten_hmi[~ardeten_hmi["filtered"]])
+
+    joined_table_hmi = join(ardeten_hmi[~ardeten_hmi["filtered"]], harp_noaa_map, keys="record_HARPNUM_arc")
     # Identify dates to drop
     # joined_table["filtered"] = False
-    grouped_table = joined_table.group_by("processed_path")
+    grouped_table_hmi = joined_table_hmi.group_by("processed_path")
 
     # this is all QTable madness
-    filter_reason_column = np.array(list(grouped_table["filter_reason"]), dtype=object)
+    filter_reason_column = np.array(list(grouped_table_hmi["filter_reason"]), dtype=object)
     assert np.unique(filter_reason_column) == ""  # ensure that these are only empty strings.
 
-    for date in grouped_table.groups:
+    for date in grouped_table_hmi.groups:
         if any(date["NOAANUM"] > 1):
             date["filtered"] = True
-            indices = np.where(joined_table["processed_path"] == date["processed_path"][0])[0]
+            indices = np.where(joined_table_hmi["processed_path"] == date["processed_path"][0])[0]
             for idx in indices:
                 filter_reason_column[idx] += "any(date[NOAANUM] > 1),"
 
     # Replace the "filter_reason" list in the grouped table
-    grouped_table["filter_reason"] = [str(fr) for fr in filter_reason_column]
+    grouped_table_hmi["filter_reason"] = [str(fr) for fr in filter_reason_column]
 
-    merged_grouped = join(grouped_table, ar, keys=["target_time", "NOAA"])
+    merged_grouped_hmi = join(grouped_table_hmi, ar_hmi, keys=["target_time", "NOAA"])
 
     # add back in the filtered...
-    merged_grouped = vstack([merged_grouped, ardeten_hmi[ardeten_hmi["filtered"]]])
-    merged_grouped.sort("target_time")
+    merged_grouped_hmi = vstack([merged_grouped_hmi, ardeten_hmi[ardeten_hmi["filtered"]]])
+    merged_grouped_hmi.sort("target_time")
 
     logger.info("Generating `Region Detection` dataset")
     data_root = config["paths"]["data_root"]
     merged_grouped_path = Path(data_root) / "04_final" / "data" / "region_detection" / "region_detection_noaa-harp.parq"
 
+    cols_to_rename = {
+        "latitude_hmi": "latitude",
+        "longitude_hmi": "longitude",
+        "sum_ondisk_nans_hmi": "sum_ondisk_nans",
+        "NOAANUM": "number_noaa_per_harp",
+    }
+    for k, v in cols_to_rename.items():
+        merged_grouped_hmi.rename_column(k, v)
+
     # Remove columns ending with "_mdi"
-    merged_grouped = remove_columns_with_suffix(merged_grouped, "_mdi")
+    merged_grouped_hmi = remove_columns_with_suffix(merged_grouped_hmi, "_mdi")
+
+    # # remove columns; !TODO drop these earlier
+    # cols_to_remove = [
+    #     "record_TARPNUM_arc",
+    #     # "time",
+    #     "number",
+    #     "processed_path_image_hmi",
+    #     "top_right_cutout_hmi",
+    #     "bottom_left_cutout_hmi",
+    #     "path_image_cutout_hmi",
+    #     "dim_image_cutout_hmi",
+    #     "quicklook_path_hmi",
+    # ]
+    # merged_grouped_hmi.remove_columns(cols_to_remove)
+
+    # # rename columns; !TODO do this earlier
+    # cols_to_rename = {
+    #     "latitude_hmi": "latitude",
+    #     "longitude_hmi": "longitude",
+    #     "sum_ondisk_nans_hmi": "sum_ondisk_nans",
+    #     "NOAANUM": "number_noaa_per_harp",
+    # }
+    # for k, v in cols_to_rename.items():
+    #     merged_grouped_hmi.rename_column(k, v)
+
+    # --- MDI
+
+    ar_mdi = arclass[arclass["region_type"] == "AR"]
+    ar_mdi = ar_mdi[~ar_mdi["quicklook_path_hmi"].mask]
+    ar_mdi["NOAA"] = ar_mdi["number"]
+
+    ardeten_mdi = ardeten[ardeten["instrument"] == "MDI"]
+
+    harp_noaa_map = retrieve_tarp_noaa_mapping()
+
+    joined_table_mdi = join(ardeten_mdi[~ardeten_mdi["filtered"]], harp_noaa_map, keys="record_TARPNUM_arc")
+    # Identify dates to drop
+    # joined_table["filtered"] = False
+    grouped_table_mdi = joined_table_mdi.group_by("processed_path")
+
+    # this is all QTable madness
+    filter_reason_column = np.array(list(grouped_table_mdi["filter_reason"]), dtype=object)
+    assert np.unique(filter_reason_column) == ""  # ensure that these are only empty strings.
+
+    for date in grouped_table_mdi.groups:
+        if any(date["NOAANUM"] > 1):
+            date["filtered"] = True
+            indices = np.where(joined_table_mdi["processed_path"] == date["processed_path"][0])[0]
+            for idx in indices:
+                filter_reason_column[idx] += "any(date[NOAANUM] > 1),"
+
+    # Replace the "filter_reason" list in the grouped table
+    grouped_table_mdi["filter_reason"] = [str(fr) for fr in filter_reason_column]
+
+    merged_grouped_mdi = join(grouped_table_mdi, ar_mdi, keys=["target_time", "NOAA"])
+
+    cols_to_rename = {
+        "latitude_mdi": "latitude",
+        "longitude_mdi": "longitude",
+        "sum_ondisk_nans_mdi": "sum_ondisk_nans",
+        "NOAANUM": "number_noaa_per_harp",
+    }
+    for k, v in cols_to_rename.items():
+        merged_grouped_mdi.rename_column(k, v)
+
+    # add back in the filtered...
+    merged_grouped_mdi = vstack([merged_grouped_mdi, ardeten_mdi[ardeten_mdi["filtered"]]])
+    merged_grouped_mdi.sort("target_time")
+
+    logger.info("Generating `Region Detection` dataset")
+    data_root = config["paths"]["data_root"]
+
+    # Remove columns ending with "_mdi"
+    merged_grouped_mdi = remove_columns_with_suffix(merged_grouped_mdi, "_hmi")
+
+    # --- Writing
+
+    print(merged_grouped_hmi)
+    print(merged_grouped_mdi)
+    merged_grouped = vstack([merged_grouped_hmi, merged_grouped_mdi])
 
     # remove columns; !TODO drop these earlier
     cols_to_remove = [
-        "record_TARPNUM_arc",
+        # "record_TARPNUM_arc",
         # "time",
         "number",
         "processed_path_image_hmi",
@@ -914,18 +1010,14 @@ def merge_noaa_harp(arclass, ardeten):
         "path_image_cutout_hmi",
         "dim_image_cutout_hmi",
         "quicklook_path_hmi",
+        "processed_path_image_mdi",
+        "top_right_cutout_mdi",
+        "bottom_left_cutout_mdi",
+        "path_image_cutout_mdi",
+        "dim_image_cutout_mdi",
+        "quicklook_path_mdi",
     ]
     merged_grouped.remove_columns(cols_to_remove)
-
-    # rename columns; !TODO do this earlier
-    cols_to_rename = {
-        "latitude_hmi": "latitude",
-        "longitude_hmi": "longitude",
-        "sum_ondisk_nans_hmi": "sum_ondisk_nans",
-        "NOAANUM": "number_noaa_per_harp",
-    }
-    for k, v in cols_to_rename.items():
-        merged_grouped.rename_column(k, v)
 
     merged_grouped.write(merged_grouped_path, format="parquet", overwrite=True)
 
