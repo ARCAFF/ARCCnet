@@ -789,11 +789,9 @@ def region_detection(config, hmi_sharps, mdi_smarps):
     region_detection_path = Path(data_root) / "04_final" / "data" / "region_detection"
 
     region_detection_fits_path = region_detection_path / "quicklook"
-    region_detection_quicklook_path = region_detection_path / "cutouts"
 
     region_detection_path_intermediate.mkdir(exist_ok=True, parents=True)
     region_detection_fits_path.mkdir(exist_ok=True, parents=True)
-    region_detection_quicklook_path.mkdir(exist_ok=True, parents=True)
 
     hmi_ar_det_file = region_detection_path_intermediate / "hmi_region_detection.parq"
     mdi_ar_det_file = region_detection_path_intermediate / "mdi_region_detection.parq"
@@ -866,17 +864,14 @@ def merge_noaa_harp(arclass, ardeten):
     """
     merge noaa and harp on a one-to-one basis
     """
-    ar_hmi = arclass[arclass["region_type"] == "AR"]
-    ar_hmi = ar_hmi[~ar_hmi["quicklook_path_hmi"].mask]
-    ar_hmi["NOAA"] = ar_hmi["number"]
-    # ar_hmi["target_time"] = ar_hmi["time"]
+    ar = arclass[arclass["region_type"] == "AR"]
+    ar = ar[~ar["quicklook_path_hmi"].mask]
+    ar["NOAA"] = ar["number"]
+    # ar["target_time"] = ar["time"]
 
     ardeten_hmi = ardeten[ardeten["instrument"] == "HMI"]
 
     harp_noaa_map = retrieve_harp_noaa_mapping()
-
-    print(harp_noaa_map)
-    print(ardeten_hmi[~ardeten_hmi["filtered"]])
 
     joined_table_hmi = join(ardeten_hmi[~ardeten_hmi["filtered"]], harp_noaa_map, keys="record_HARPNUM_arc")
     # Identify dates to drop
@@ -897,7 +892,7 @@ def merge_noaa_harp(arclass, ardeten):
     # Replace the "filter_reason" list in the grouped table
     grouped_table_hmi["filter_reason"] = [str(fr) for fr in filter_reason_column]
 
-    merged_grouped_hmi = join(grouped_table_hmi, ar_hmi, keys=["target_time", "NOAA"])
+    merged_grouped_hmi = join(grouped_table_hmi, ar, keys=["target_time", "NOAA"])
 
     # add back in the filtered...
     merged_grouped_hmi = vstack([merged_grouped_hmi, ardeten_hmi[ardeten_hmi["filtered"]]])
@@ -945,15 +940,11 @@ def merge_noaa_harp(arclass, ardeten):
 
     # --- MDI
 
-    ar_mdi = arclass[arclass["region_type"] == "AR"]
-    ar_mdi = ar_mdi[~ar_mdi["quicklook_path_hmi"].mask]
-    ar_mdi["NOAA"] = ar_mdi["number"]
-
     ardeten_mdi = ardeten[ardeten["instrument"] == "MDI"]
 
-    harp_noaa_map = retrieve_tarp_noaa_mapping()
+    tarp_noaa_map = retrieve_tarp_noaa_mapping()
 
-    joined_table_mdi = join(ardeten_mdi[~ardeten_mdi["filtered"]], harp_noaa_map, keys="record_TARPNUM_arc")
+    joined_table_mdi = join(ardeten_mdi[~ardeten_mdi["filtered"]], tarp_noaa_map, keys="record_TARPNUM_arc")
     # Identify dates to drop
     # joined_table["filtered"] = False
     grouped_table_mdi = joined_table_mdi.group_by("processed_path")
@@ -972,7 +963,7 @@ def merge_noaa_harp(arclass, ardeten):
     # Replace the "filter_reason" list in the grouped table
     grouped_table_mdi["filter_reason"] = [str(fr) for fr in filter_reason_column]
 
-    merged_grouped_mdi = join(grouped_table_mdi, ar_mdi, keys=["target_time", "NOAA"])
+    merged_grouped_mdi = join(grouped_table_mdi, ar, keys=["target_time", "NOAA"])
 
     cols_to_rename = {
         "latitude_mdi": "latitude",
@@ -995,8 +986,6 @@ def merge_noaa_harp(arclass, ardeten):
 
     # --- Writing
 
-    print(merged_grouped_hmi)
-    print(merged_grouped_mdi)
     merged_grouped = vstack([merged_grouped_hmi, merged_grouped_mdi])
 
     # remove columns; !TODO drop these earlier
