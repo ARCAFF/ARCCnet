@@ -10,6 +10,8 @@ import arccnet
 
 __all__ = ["NestedChainMap", "parser", "main"]
 
+from arccnet.pipeline.main import process_flares
+
 
 class NestedChainMap(ChainMap):
     r"""
@@ -48,16 +50,17 @@ def parser(args=None):
     root_parser.add_argument("--data-root", type=Path, dest="paths.data_root")
     commands = root_parser.add_subparsers(title="Commands", help="Commands", required=True)
 
-    dataset_parser = commands.add_parser("datasets", help="Dataset generation and download")
-    dataset_commands = dataset_parser.add_subparsers(required=True, dest="dataset_command")
+    catalog_parser = commands.add_parser("catalog", help="Catalog generation and download")
+    catlog_commands = catalog_parser.add_subparsers(
+        required=True,
+        dest="catalog",
+    )
 
     # Create
-    dataset_generation = dataset_commands.add_parser(
+    dataset_generation = catlog_commands.add_parser(
         "generate", help="Create generate datasets by downloading and processing raw data and metadata"
     )
-    dataset_generation.add_argument(
-        "dataset", choices=["cutout_classification", "region_detection", "all"], help="Type of dataset to create."
-    )
+    dataset_generation.add_argument("dataset", choices=["ars", "flares"], help="Type of dataset to create.")
     dataset_generation.add_argument(
         "--start-date", type=datetime.fromisoformat, help="Start date for data (ISO format)", dest="general.start_date"
     )
@@ -69,7 +72,7 @@ def parser(args=None):
     )
 
     # Download
-    dataset_downlaod = dataset_commands.add_parser("download", help="Download preprocessed datasets")
+    dataset_downlaod = catlog_commands.add_parser("download", help="Download preprocessed datasets")
     dataset_downlaod.add_argument(
         "dataset", choices=["cutout_classification", "region_detection", "all"], help="Type of dataset to create"
     )
@@ -80,13 +83,19 @@ def parser(args=None):
     eval_parser = commands.add_parser("eval", help="Evaluate models on given data")
     eval_parser.add_subparsers(dest="eval")
 
-    options = root_parser.parse_args(args)
+    options, rest = root_parser.parse_known_args(args)
 
     options_dict = vars(options)
     if "train" in options_dict or "eval" in options_dict:
         raise NotImplementedError("Please wait 'train' and 'eval' commands have not been implemented")
 
     return options_dict
+
+
+def catalog_commands(options):
+    if options["catalog"] == "generate":
+        if options["dataset"] == "flares":
+            process_flares(options)
 
 
 def main(args=None):
@@ -114,4 +123,5 @@ def main(args=None):
         cli_config = config_reader.read(config_file)
 
     combined = NestedChainMap(nested_cli_options, cli_config, arccnet.config._sections)
-    return combined
+    if "catalog" in combined:
+        catalog_commands(combined)
