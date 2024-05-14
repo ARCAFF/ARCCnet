@@ -20,7 +20,7 @@ from astropy.table import MaskedColumn, QTable, join, vstack
 from astropy.time import Time
 
 from arccnet.catalogs.active_regions import HALE_CLASSES, MCINTOSH_CLASSES
-from arccnet.data_generation.utils.data_logger import get_logger
+from arccnet.utils.logging import get_logger
 
 logger = get_logger(__name__, logging.DEBUG)
 

@@ -23,10 +23,8 @@ def test_config(data_dir):
     rep = pickle.dumps(arccnet.config)
     config = pickle.loads(rep)
     config.set("paths", "data_root", str(data_dir))
-    config.set("general", "start_date", "2010-04-15T00:00:00")
-    config.set("general", "end_date", "2010-05-15T00:00:00")
-    # !TODO this shouldn't need to be a month of data to run
-    # understand why we can't use just a day.
+    config.set("general", "start_date", "2010-06-01T00:00:00")
+    config.set("general", "end_date", "2010-06-02T00:00:00")
     return config
 
 

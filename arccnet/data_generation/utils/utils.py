@@ -8,7 +8,7 @@ from sklearn.model_selection import StratifiedGroupKFold
 
 import astropy.io
 
-from arccnet.data_generation.utils.data_logger import logger
+from arccnet.utils.logging import logger
 
 __all__ = [
     "is_point_far_from_point",

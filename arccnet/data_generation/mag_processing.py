@@ -16,8 +16,8 @@ from astropy.table import MaskedColumn, QTable, vstack
 from astropy.time import Time
 
 from arccnet.data_generation.data_manager import Result as MagResult
-from arccnet.data_generation.utils.data_logger import logger
 from arccnet.data_generation.utils.utils import is_point_far_from_point, save_compressed_map
+from arccnet.utils.logging import logger
 
 matplotlib.use("Agg")
 

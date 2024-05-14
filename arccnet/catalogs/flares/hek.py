@@ -11,7 +11,7 @@ from astropy.table import Table, vstack
 from astropy.time import Time
 
 from arccnet.catalogs.flares.common import FlareCatalog
-from arccnet.data_generation.utils.data_logger import get_logger
+from arccnet.utils.logging import get_logger
 
 __all__ = ["HEKFlareCatalog"]
 
@@ -84,6 +84,7 @@ class HEKFlareCatalog:
         for i, window in enumerate(windows):
             logger.debug(f"Searching for flares {i}: {window.start} - {window.end}")
             cur_flares = Fido.search(a.Time(window.start, window.end), *self.query)
+            logger.debug(f"Found {len(cur_flares['hek'])} flares {i}: {window.start} - {window.end}")
             flares.append(cur_flares["hek"])
 
         # Remove meta (can't stack otherwise)
@@ -103,7 +104,7 @@ class HEKFlareCatalog:
         # Remove columns which are all none
         col_to_remove = []
         for col in stacked_flares.columns:
-            if np.all(stacked_flares[col] is None):
+            if np.all(stacked_flares[col] == None):  # noqa
                 col_to_remove.append(col)
         if len(col_to_remove) > 0:
             logger.debug(f"Dropping columns {col_to_remove} as are all None")

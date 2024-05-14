@@ -11,7 +11,7 @@ from astropy.table import MaskedColumn, QTable
 from astropy.time import Time
 
 from arccnet.data_generation.magnetograms.base_magnetogram import BaseMagnetogram
-from arccnet.data_generation.utils.data_logger import get_logger
+from arccnet.utils.logging import get_logger
 
 # from arccnet.data_generation.utils.data_logger import logger # move to get_logger
 

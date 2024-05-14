@@ -12,7 +12,7 @@ from astropy.table import QTable, vstack
 from astropy.time import Time
 
 from arccnet.catalogs.flares.common import FlareCatalog
-from arccnet.data_generation.utils.data_logger import get_logger
+from arccnet.utils.logging import get_logger
 
 __all__ = ["HECFlareCatalog"]
 

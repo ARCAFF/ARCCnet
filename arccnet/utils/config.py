@@ -5,6 +5,7 @@
 
 import configparser
 from pathlib import Path
+from datetime import datetime
 
 from platformdirs import PlatformDirs
 
@@ -27,7 +28,8 @@ def load_config():
 
     If one does not exist in the user's home directory, then read in the defaults from "arccnet/utils/arccnet".
     """
-    config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
+    converters = {"_date": datetime.fromisoformat}
+    config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation(), converters=converters)
 
     # Get locations of ARCCnet configuration files to be loaded
     config_files = _find_config_files()
@@ -35,7 +37,8 @@ def load_config():
     # Read in configuration files
     config.read(config_files)
 
-    config.set("paths", "data_root", str(Path(dirs.user_data_dir) / "arccnet"))
+    if config.get("paths", "data_root", fallback=None) is None:
+        config.set("paths", "data_root", str(Path(dirs.user_data_dir) / "arccnet"))
 
     return config
 
@@ -66,6 +69,10 @@ def _find_config_files():
     # config file
     if CONFIG_DIR.joinpath(config_filename).exists():
         config_files.append(str(config_path.joinpath(config_filename)))
+
+    user_conf = Path.home() / config_filename
+    if user_conf.exists():
+        config_files.append(str(user_conf))
 
     return config_files
 

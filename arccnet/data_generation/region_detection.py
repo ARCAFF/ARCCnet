@@ -12,7 +12,7 @@ from astropy.coordinates import SkyCoord
 from astropy.table import MaskedColumn, QTable
 from astropy.time import Time
 
-from arccnet.data_generation.utils.data_logger import logger
+from arccnet.utils.logging import logger
 
 matplotlib.use("Agg")
 

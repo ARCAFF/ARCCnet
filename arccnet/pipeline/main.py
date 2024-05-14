@@ -1,7 +1,7 @@
 import sys
 import logging
 from pathlib import Path
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import numpy as np
 
@@ -24,7 +24,7 @@ from arccnet.data_generation.magnetograms.instruments import (
     MDISMARPs,
 )
 from arccnet.data_generation.region_detection import RegionDetection, RegionDetectionTable
-from arccnet.data_generation.utils.data_logger import get_logger
+from arccnet.utils.logging import get_logger
 from arccnet.version import __version__
 
 logger = get_logger(__name__, logging.DEBUG)
@@ -93,7 +93,7 @@ def process_srs(config):
 
 
 def process_flares(config):
-    logger.info(f"Processing Flare with config: {config}")  # should print_config()
+    logger.info("Processing Flare with config")
 
     catalogs = [
         HEKFlareCatalog(catalog="swpc"),
@@ -111,8 +111,13 @@ def process_flares(config):
 
     for catalog in catalogs:
         version = __version__ if "dev" not in __version__ else "dev"  # unless it's a release use dev
+        start = config["general"]["start_date"].isoformat()
+        end = config["general"]["end_date"].isoformat()
+        start = start if isinstance(start, datetime) else datetime.fromisoformat(start)
+        end = end if isinstance(end, datetime) else datetime.fromisoformat(end)
         file_name = (
-            f"{catalog.catalog}_{config['general']['start_date']}-{config['general']['end_date']}_{version}.parq"
+            f"{catalog.catalog}_{config['general']['start_date'].isoformat()}"
+            f"-{config['general']['end_date'].isoformat()}_{version}.parq"
         )
 
         flare_query_file = data_dir_raw / "metadata" / "flares" / file_name
@@ -939,7 +944,6 @@ def main():
         overwrite=True,
     )
     print(merged_table_quicklook["quicklook_path"])
-
 
 
 if __name__ == "__main__":

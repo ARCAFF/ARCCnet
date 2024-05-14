@@ -8,7 +8,7 @@ import drms
 import pandas as pd
 
 from arccnet import config
-from arccnet.data_generation.utils.data_logger import logger
+from arccnet.utils.logging import logger
 
 __all__ = ["BaseMagnetogram"]
 

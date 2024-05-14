@@ -1,16 +1,19 @@
 import sys
 import argparse
 import configparser
+from io import StringIO
 from pathlib import Path
 from datetime import datetime
 from collections import ChainMap, defaultdict
 from collections.abc import Mapping
 
-import arccnet
-
-__all__ = ["NestedChainMap", "parser", "main"]
-
+from arccnet import load_config
 from arccnet.pipeline.main import process_flares
+from arccnet.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+__all__ = ["NestedChainMap", "parser", "combine_args", "main"]
 
 
 class NestedChainMap(ChainMap):
@@ -89,7 +92,7 @@ def parser(args=None):
     if "train" in options_dict or "eval" in options_dict:
         raise NotImplementedError("Please wait 'train' and 'eval' commands have not been implemented")
 
-    return options_dict
+    return options_dict, rest
 
 
 def catalog_commands(options):
@@ -98,8 +101,21 @@ def catalog_commands(options):
             process_flares(options)
 
 
-def main(args=None):
-    cli_options = parser(args or sys.argv[1:])
+def combine_args(args=None):
+    r"""
+    Combines command line arguments, user config and default values into single config.
+
+    Order of precedence CLI -> CONFIG -> DEFAULT.
+
+    Parameters
+    ----------
+    args
+
+    Returns
+    -------
+
+    """
+    cli_options, rest = parser(args or sys.argv[1:])
 
     # Drop None and convert to nested dict based on key e.g. `paths.data_root = a` -> `['paths']['data_root'] = a`
     # to match configparser format
@@ -122,6 +138,22 @@ def main(args=None):
         config_reader = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
         cli_config = config_reader.read(config_file)
 
-    combined = NestedChainMap(nested_cli_options, cli_config, arccnet.config._sections)
+    config = load_config()
+    combined = NestedChainMap(nested_cli_options, cli_config, config)
+
+    config_str = StringIO()
+    for section, conf in combined.items():
+        if isinstance(conf, Mapping):
+            print(section, file=config_str)
+            for key, value in conf.items():
+                print(f"\t{key}:\t{value}", file=config_str)
+        else:
+            print(f"\t{section}:\t{conf}", file=config_str)
+    logger.info("\n" + config_str.getvalue())
+    return combined
+
+
+def main(args=None):
+    combined = combine_args(args)
     if "catalog" in combined:
         catalog_commands(combined)
