@@ -279,6 +279,13 @@ class ARBox(RegionBox):
         super().__init__(*args, **kwargs)
 
 
+class FilteredBox(RegionBox):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.filepath = None
+
+
 class QSBox(RegionBox):
     def __init__(self, sunpy_map: sunpy.map.Map, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -441,6 +448,7 @@ class RegionExtractor:
 
             # add active regions to regions list
             active_regions = self._activeregion_extraction(rows, image_map, cutout_size, path=data_path)
+            filtered_regions = self._filteredregion_extraction(rows_filtered, image_map, cutout_size)
             regions.extend(active_regions)
 
             # ... update the table
@@ -460,6 +468,7 @@ class RegionExtractor:
 
             # if quiet_sun, attempt to extract `num_random_attempts` regions and append
             if qs_random_attempts > 0:
+                regions.extend(filtered_regions)
                 quiet_regions = self._quietsun_extraction(
                     sunpy_map=image_map,
                     cutout_size=cutout_size,
@@ -548,6 +557,46 @@ class RegionExtractor:
 
             del hmi_smap
         return ar_objs
+
+    def _filteredregion_extraction(self, group, sunpy_map, cutout_size) -> list[FilteredBox]:
+        """
+        given a table `group` that share the same `sunpy_map`, return ARBox objects with a determined cutout_size
+        """
+        region_objs = []
+        xsize, ysize = cutout_size
+        for row in group:
+            """
+            iterate through group, extracting active regions from lat/lon into image pixels
+            """
+            top_right, bottom_left, ar_pos_pixels = extract_region_lonlat(
+                sunpy_map,
+                row["latitude"],
+                row["longitude"],
+                xsize=xsize,
+                ysize=ysize,
+            )
+
+            identifier = row["id"] + " " + str(row["number"])
+
+            try:
+                smap = sunpy_map.submap(bottom_left, top_right=top_right)
+
+                # store info in ARBox
+                region_objs.append(
+                    FilteredBox(
+                        top_right=top_right,
+                        bottom_left=bottom_left,
+                        shape=smap.data.shape * u.pix,
+                        ar_pos_pixels=ar_pos_pixels,
+                        identifier=identifier,
+                    )
+                )
+
+                del smap
+            except Exception as e:
+                logger.warn(e)
+
+        return region_objs
 
     def _quietsun_extraction(
         self,
@@ -650,6 +699,8 @@ class RegionExtractor:
                 rectangle_cr = "red"
             elif isinstance(box_info, QSBox):
                 rectangle_cr = "blue"
+            elif isinstance(box_info, FilteredBox):
+                rectangle_cr = "black"
             else:
                 raise ValueError("Unsupported box type")
 
