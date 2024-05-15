@@ -13,8 +13,6 @@ from astropy.time import Time
 from arccnet.data_generation.magnetograms.base_magnetogram import BaseMagnetogram
 from arccnet.utils.logging import get_logger
 
-# from arccnet.data_generation.utils.data_logger import logger # move to get_logger
-
 logger = get_logger(__name__, logging.DEBUG)
 
 __all__ = ["DataManager"]
