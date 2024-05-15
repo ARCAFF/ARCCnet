@@ -1,4 +1,5 @@
 import random
+import logging
 import multiprocessing
 from typing import Union
 from pathlib import Path
@@ -16,8 +17,14 @@ from astropy.table import MaskedColumn, QTable, vstack
 from astropy.time import Time
 
 from arccnet.data_generation.data_manager import Result as MagResult
+<<<<<<< HEAD
+=======
+from arccnet.data_generation.utils.data_logger import get_logger
+>>>>>>> 369446d (fix logging to file/terminal)
 from arccnet.data_generation.utils.utils import is_point_far_from_point, save_compressed_map
 from arccnet.utils.logging import logger
+
+logger = get_logger(__name__, logging.DEBUG)
 
 matplotlib.use("Agg")
 
