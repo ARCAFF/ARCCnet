@@ -219,7 +219,6 @@ class RegionDetection:
         grouped_data = data.group_by("processed_path")
         result_table = data[:0].copy()
 
-        logger.info("region detection ")
         for group in tqdm(grouped_data.groups, total=len(grouped_data.groups), desc="Plotting"):
             if np.all(group["filtered"] == True):  # noqa
                 for row in group:
@@ -238,8 +237,6 @@ class RegionDetection:
             for row in group:
                 row["quicklook_path"] = output_filename
                 result_table.add_row(row)
-
-            logger.info(group)
 
             RegionDetection._summary_plot(group, fulldisk_map, output_filename)
 
