@@ -444,6 +444,11 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
         if catalog_mdi["processed_path_image"].mask[idx]:
             row["filtered"] = True
             filter_reason_column[row.index] += "no_magnetogram,"
+        if not catalog_mdi["QUALITY"].mask[idx]:
+            if np.int32(int(catalog_mdi["QUALITY"][idx], 16)) >= 262144:
+                row["filtered"] = True
+                filter_reason_column[row.index] += "QUALITY,"
+
     # Add the updated "filter_reason" list as a new column to the catalog_mdi table
     catalog_mdi["filter_reason"] = [str(fr) for fr in filter_reason_column]
 
@@ -471,6 +476,10 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
         if catalog_hmi["processed_path_image"].mask[idx]:
             row["filtered"] = True
             filter_reason_column[row.index] += "no_magnetogram,"
+        if not catalog_hmi["QUALITY"].mask[idx]:
+            if np.int32(int(catalog_hmi["QUALITY"][idx], 16)) >= 65536:
+                row["filtered"] = True
+                filter_reason_column[row.index] += "QUALITY,"
     # Add the updated "filter_reason" list as a new column to the catalog_hmi table
     catalog_hmi["filter_reason"] = [str(fr) for fr in filter_reason_column]
 

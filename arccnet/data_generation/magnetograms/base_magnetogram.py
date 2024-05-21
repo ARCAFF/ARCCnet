@@ -135,6 +135,7 @@ class BaseMagnetogram(ABC):
             query,
             key="**ALL**",  # the needed columns vary, **ALL** returns all available keys
             seg=self.segment_column_name,
+            skip_conversion="QUALITY",
         )
         return keys, segs
 
