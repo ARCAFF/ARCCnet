@@ -901,7 +901,7 @@ def merge_noaa_harp(arclass, ardeten):
 def main():
     logger.debug("Starting main")
     process_flares(config)
-    _, _, _, _, clean_catalog = process_srs(config)
+    _, _, _, processed_catalog, _ = process_srs(config)
     hmi_download_obj, sharps_download_obj = process_hmi(config)
     mdi_download_obj, smarps_download_obj = process_mdi(config)
 
@@ -912,7 +912,7 @@ def main():
     #   MDI-SMARPS: merge HMI and SHARPs (null datetime dropped before merge)
     srs_hmi, srs_mdi, hmi_sharps, mdi_smarps = merge_mag_tables(
         config,
-        srs=clean_catalog,
+        srs=processed_catalog,
         hmi=hmi_download_obj,
         mdi=mdi_download_obj,
         sharps=sharps_download_obj,
@@ -926,9 +926,7 @@ def main():
     ardeten = region_detection(config, hmi_sharps, mdi_smarps)
     merged_table = merge_noaa_harp(arclass, ardeten)
 
-    merged_table_quicklook = RegionDetection(
-        table=merged_table, col_group_path="processed_path", col_cutout_path="path_arc"
-    ).summary_plots(
+    merged_table_quicklook = RegionDetection.summary_plots(
         RegionDetectionTable(merged_table),
         Path(config["paths"]["data_root"]) / "04_final" / "data" / "region_detection" / "quicklook",
     )
@@ -943,7 +941,6 @@ def main():
         format="parquet",
         overwrite=True,
     )
-    print(merged_table_quicklook["quicklook_path"])
 
 
 if __name__ == "__main__":
