@@ -8,7 +8,7 @@ from collections import ChainMap, defaultdict
 from collections.abc import Mapping
 
 from arccnet import load_config
-from arccnet.pipeline.main import process_flares
+from arccnet.pipeline.main import process_ars, process_flares
 from arccnet.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -99,6 +99,8 @@ def catalog_commands(options):
     if options["catalog"] == "generate":
         if options["dataset"] == "flares":
             process_flares(options)
+        if options["dataset"] == "ars":
+            process_ars(options)
 
 
 def combine_args(args=None):

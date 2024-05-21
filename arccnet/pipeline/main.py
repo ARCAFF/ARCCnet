@@ -52,7 +52,9 @@ def process_srs(config):
     srs_processed_catalog_file.parent.mkdir(exist_ok=True, parents=True)
     srs_clean_catalog_file.parent.mkdir(exist_ok=True, parents=True)
 
-    srs_query = Query.create_empty(config["general"]["start_date"], config["general"]["end_date"])
+    srs_query = Query.create_empty(
+        config["general"]["start_date"].isoformat(), config["general"]["end_date"].isoformat()
+    )
     if srs_query_file.exists():  # this is fine only if the query agrees
         srs_query = Query.read(srs_query_file)
 
@@ -898,9 +900,8 @@ def merge_noaa_harp(arclass, ardeten):
     return merged_grouped
 
 
-def main():
-    logger.debug("Starting main")
-    process_flares(config)
+def process_ars(config):
+    logger.info("Processing ARs with config")
     _, _, _, processed_catalog, _ = process_srs(config)
     hmi_download_obj, sharps_download_obj = process_hmi(config)
     mdi_download_obj, smarps_download_obj = process_mdi(config)
@@ -941,6 +942,12 @@ def main():
         format="parquet",
         overwrite=True,
     )
+
+
+def main():
+    logger.debug("Starting main")
+    process_flares(config)
+    process_ars(config)
 
 
 if __name__ == "__main__":
