@@ -454,6 +454,7 @@ class SWPCCatalog:
 def filter_srs(
     catalog,
     lat_limit: u.Quantity[u.degree] = 60 * u.degree,
+    lon_limit: u.Quantity[u.degree] = 85 * u.degree,
     lat_rate_limit: u.Quantity[u.degree / u.day] = 7.5 * u.deg / u.day,
     lon_rate_limit: u.Quantity[u.deg / u.day] = 7.5 * u.deg / u.day,
 ) -> ClassificationCatalog:
@@ -466,6 +467,8 @@ def filter_srs(
         SRS catalog
     lat_limit: `astropy.units.Quantity`
         Latitude limit filters `abs(Lat > lat_limit)`
+    lon_limit: `astropy.units.Quantity`
+        Latitude limit filters `abs(Lon > lon_limit)`
     lat_rate_limit : `astropy.units.Quantity`
         Latitude rate limit filter based on rate of change of lat
     lon_rate_limit : `astropy.units.Quantity`
@@ -499,6 +502,10 @@ def filter_srs(
     bad_latitudes = active_regions_df.latitude.abs() > lat_limit
     active_regions_df.loc[bad_latitudes, "filtered"] = True
     active_regions_df.loc[bad_latitudes, "filter_reason"] += "bad_lat,"
+
+    bad_longitudes = active_regions_df.longitude.abs() > lon_limit
+    active_regions_df.loc[bad_longitudes, "filtered"] = True
+    active_regions_df.loc[bad_longitudes, "filter_reason"] += "bad_lon,"
 
     synodic_rate = (360 * u.degree) / mean_synodic_period
 
