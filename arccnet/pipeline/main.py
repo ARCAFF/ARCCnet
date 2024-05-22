@@ -445,6 +445,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
             row["filtered"] = True
             filter_reason_column[row.index] += "no_magnetogram,"
         if not catalog_mdi["QUALITY"].mask[idx]:
+            # QUALITY limit from https://github.com/mbobra/SMARPs/blob/main/example_gallery/Compare_SMARP_and_SHARP_bitmaps.ipynb
             if np.int32(int(catalog_mdi["QUALITY"][idx], 16)) >= 262144:
                 row["filtered"] = True
                 filter_reason_column[row.index] += "QUALITY,"
@@ -477,6 +478,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
             row["filtered"] = True
             filter_reason_column[row.index] += "no_magnetogram,"
         if not catalog_hmi["QUALITY"].mask[idx]:
+            # QUALITY limit from https://github.com/mbobra/SMARPs/blob/main/example_gallery/Compare_SMARP_and_SHARP_bitmaps.ipynb
             if np.int32(int(catalog_hmi["QUALITY"][idx], 16)) >= 65536:
                 row["filtered"] = True
                 filter_reason_column[row.index] += "QUALITY,"
