@@ -468,7 +468,7 @@ def filter_srs(
     lat_limit: `astropy.units.Quantity`
         Latitude limit filters `abs(Lat > lat_limit)`
     lon_limit: `astropy.units.Quantity`
-        Latitude limit filters `abs(Lon > lon_limit)`
+        Longitude limit filters `abs(Lon > lon_limit)`
     lat_rate_limit : `astropy.units.Quantity`
         Latitude rate limit filter based on rate of change of lat
     lon_rate_limit : `astropy.units.Quantity`
