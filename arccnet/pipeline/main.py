@@ -7,7 +7,6 @@ import numpy as np
 
 import astropy.units as u
 from astropy.table import MaskedColumn, QTable, Table, join, vstack
-from astropy.utils.diff import report_diff_values
 
 from arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
@@ -63,8 +62,10 @@ def process_srs(config):
         file_query = Query.read(srs_query_file)
 
         # Raise an error if the queries do not match
-        identical = report_diff_values(
-            QTable(srs_query)[["start_time", "end_time"]], QTable(file_query)[["start_time", "end_time"]]
+        identical = (
+            QTable(srs_query)[["start_time", "end_time"]]
+            .to_pandas()
+            .equals(QTable(file_query)[["start_time", "end_time"]].to_pandas())
         )
 
         if not identical:
