@@ -55,8 +55,17 @@ def process_srs(config):
     srs_query = Query.create_empty(
         config["general"]["start_date"].isoformat(), config["general"]["end_date"].isoformat()
     )
-    if srs_query_file.exists():  # this is fine only if the query agrees
-        srs_query = Query.read(srs_query_file)
+
+    # Check if the query file exists
+    if srs_query_file.exists():
+        # Read the query from the file
+        file_query = Query.read(srs_query_file)
+
+        # Raise an error if the queries do not match
+        if srs_query != file_query:
+            raise NotImplementedError("The requested SRS query does not match the saved query")
+        else:
+            srs_query = file_query
 
     srs_query = swpc.search(srs_query)
     srs_query.write(srs_query_file, format="parquet", overwrite=True)
@@ -900,9 +909,9 @@ def merge_noaa_harp(arclass, ardeten):
     return merged_grouped
 
 
-def process_ars(config):
-    logger.info("Processing ARs with config")
-    _, _, _, processed_catalog, _ = process_srs(config)
+def process_ars(config, catalog):
+    logger.info("Processing AR images with config")
+
     hmi_download_obj, sharps_download_obj = process_hmi(config)
     mdi_download_obj, smarps_download_obj = process_mdi(config)
 
@@ -913,7 +922,7 @@ def process_ars(config):
     #   MDI-SMARPS: merge HMI and SHARPs (null datetime dropped before merge)
     srs_hmi, srs_mdi, hmi_sharps, mdi_smarps = merge_mag_tables(
         config,
-        srs=processed_catalog,
+        srs=catalog,
         hmi=hmi_download_obj,
         mdi=mdi_download_obj,
         sharps=sharps_download_obj,
@@ -944,10 +953,17 @@ def process_ars(config):
     )
 
 
+def process_ar_catalogs(config):
+    logger.info("Processing AR catalogs with config")
+    _, _, _, processed_catalog, _ = process_srs(config)
+    return processed_catalog
+
+
 def main():
     logger.debug("Starting main")
     process_flares(config)
-    process_ars(config)
+    catalog = process_ar_catalogs(config)
+    process_ars(config, catalog)
 
 
 if __name__ == "__main__":
