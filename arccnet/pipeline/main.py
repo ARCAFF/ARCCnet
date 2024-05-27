@@ -77,7 +77,11 @@ def process_srs(config):
     if srs_processed_catalog_file.exists():
         srs_processed_catalog = ClassificationCatalog.read(srs_processed_catalog_file)
 
-    srs_processed_catalog = filter_srs(srs_processed_catalog)
+    srs_processed_catalog = filter_srs(
+        catalog=srs_processed_catalog,
+        lat_limit=config["srs"]["lat_lim_degrees"] * u.degree,
+        lon_limit=config["srs"]["lon_lim_degrees"] * u.degree,
+    )
     srs_processed_catalog.write(srs_processed_catalog_file, format="parquet", overwrite=True)
 
     srs_clean_catalog = QTable(srs_processed_catalog)[srs_processed_catalog["filtered"] == False]  # noqa

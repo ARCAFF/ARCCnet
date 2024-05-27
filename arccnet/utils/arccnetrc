@@ -18,6 +18,12 @@ jsoc_date_format = %Y.%m.%d_%H:%M:%S
 jsoc_base_url = http://jsoc.stanford.edu
 
 ;;;;;;;;;;;;;;;;
+; SRS          ;
+;;;;;;;;;;;;;;;;
+lat_lim_degrees = 60
+lon_lim_degrees = 85
+
+;;;;;;;;;;;;;;;;
 ; Magnetograms ;
 ;;;;;;;;;;;;;;;;
 [magnetograms]
