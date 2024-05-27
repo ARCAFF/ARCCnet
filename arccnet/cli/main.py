@@ -8,7 +8,7 @@ from collections import ChainMap, defaultdict
 from collections.abc import Mapping
 
 from arccnet import load_config
-from arccnet.pipeline.main import process_ars, process_flares
+from arccnet.pipeline.main import process_ar_catalogs, process_ars, process_flares
 from arccnet.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -63,7 +63,9 @@ def parser(args=None):
     dataset_generation = catlog_commands.add_parser(
         "generate", help="Create generate datasets by downloading and processing raw data and metadata"
     )
-    dataset_generation.add_argument("dataset", choices=["ars", "flares"], help="Type of dataset to create.")
+    dataset_generation.add_argument(
+        "dataset", choices=["ar_catalog", "ars", "flares"], help="Type of dataset to create."
+    )
     dataset_generation.add_argument(
         "--start-date", type=datetime.fromisoformat, help="Start date for data (ISO format)", dest="general.start_date"
     )
@@ -99,8 +101,11 @@ def catalog_commands(options):
     if options["catalog"] == "generate":
         if options["dataset"] == "flares":
             process_flares(options)
+        if options["dataset"] == "ar_catalog":
+            process_ar_catalogs(options)
         if options["dataset"] == "ars":
-            process_ars(options)
+            catalog = process_ar_catalogs(options)
+            process_ars(options, catalog)
 
 
 def combine_args(args=None):
