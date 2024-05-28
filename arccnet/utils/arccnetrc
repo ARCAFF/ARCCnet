@@ -20,6 +20,7 @@ jsoc_base_url = http://jsoc.stanford.edu
 ;;;;;;;;;;;;;;;;
 ; SRS          ;
 ;;;;;;;;;;;;;;;;
+[srs]
 lat_lim_degrees = 60
 lon_lim_degrees = 85
 

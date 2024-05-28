@@ -102,8 +102,8 @@ def process_srs(config):
 
     srs_processed_catalog = filter_srs(
         catalog=srs_processed_catalog,
-        lat_limit=config["srs"]["lat_lim_degrees"] * u.degree,
-        lon_limit=config["srs"]["lon_lim_degrees"] * u.degree,
+        lat_limit=float(config["srs"]["lat_lim_degrees"]) * u.degree,
+        lon_limit=float(config["srs"]["lon_lim_degrees"]) * u.degree,
     )
     srs_processed_catalog.write(srs_processed_catalog_file, format="parquet", overwrite=True)
 
