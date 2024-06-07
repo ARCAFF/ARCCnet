@@ -1,5 +1,6 @@
 import time
 import urllib
+import logging
 import datetime
 import http.client
 from abc import ABC, abstractmethod
@@ -8,7 +9,9 @@ import drms
 import pandas as pd
 
 from arccnet import config
-from arccnet.utils.logging import logger
+from arccnet.utils.logging import get_logger
+
+logger = get_logger(__name__, logging.DEBUG)
 
 __all__ = ["BaseMagnetogram"]
 
