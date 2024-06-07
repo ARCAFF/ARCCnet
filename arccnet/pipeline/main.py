@@ -98,8 +98,8 @@ def process_srs(config):
 
     srs_processed_catalog = filter_srs(
         catalog=srs_processed_catalog,
-        lat_limit=config["srs"]["lat_lim_degrees"] * u.degree,
-        lon_limit=config["srs"]["lon_lim_degrees"] * u.degree,
+        lat_limit=float(config["srs"]["lat_lim_degrees"]) * u.degree,
+        lon_limit=float(config["srs"]["lon_lim_degrees"]) * u.degree,
     )
     srs_processed_catalog.write(srs_processed_catalog_file, format="parquet", overwrite=True)
 
@@ -457,6 +457,12 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     )
     # attempting to remove the object
     catalog_mdi.replace_column("path_catalog", [str(pc) for pc in catalog_mdi["path_catalog"]])
+    # catalog_mdi["path_catalog"] = MaskedColumn(
+    #     data=[str(p) for p in catalog_mdi["path_catalog"]],
+    #     mask=catalog_mdi['path_catalog'].mask,
+    #     fill_value='',
+    #     )
+
     catalog_mdi.rename_column("processed_path", "processed_path_image")
     # catalog_mdi["filtered"][catalog_mdi["processed_path_image"].mask] = True
 
@@ -488,6 +494,12 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     )
     # attempting to remove the object
     catalog_hmi.replace_column("path_catalog", [str(pc) for pc in catalog_hmi["path_catalog"]])
+    # catalog_hmi["path_catalog"] = MaskedColumn(
+    #     data=[str(p) for p in catalog_hmi["path_catalog"]],
+    #     mask=catalog_hmi['path_catalog'].mask,
+    #     fill_value='',
+    #     )
+
     catalog_hmi.rename_column("processed_path", "processed_path_image")
     # catalog_hmi["filtered"][catalog_hmi["processed_path_image"].mask] = True
     # we need to add the filter reason... but having issues with string concatenation
@@ -688,6 +700,7 @@ def region_cutouts(config, srs_hmi, srs_mdi):
             "quicklook_path",
             "filtered",
             "filter_reason",
+            "QUALITY",
         ]
 
         ar_classification_hmi_mdi = join(
@@ -703,6 +716,7 @@ def region_cutouts(config, srs_hmi, srs_mdi):
         ar_classification_hmi_mdi["region_type"] = _combine_columns(
             ar_classification_hmi_mdi["region_type_hmi"], ar_classification_hmi_mdi["region_type_mdi"]
         )
+
         ar_classification_hmi_mdi["magnetic_class"] = _combine_columns(
             ar_classification_hmi_mdi["magnetic_class_hmi"], ar_classification_hmi_mdi["magnetic_class_mdi"]
         )
@@ -721,6 +735,101 @@ def region_cutouts(config, srs_hmi, srs_mdi):
         ar_classification_hmi_mdi["number_of_sunspots"] = _combine_columns(
             ar_classification_hmi_mdi["number_of_sunspots_hmi"], ar_classification_hmi_mdi["number_of_sunspots_mdi"]
         )
+
+        # unsure if this is okay...
+        # this removes the mask... oh well
+        # ar_classification_hmi_mdi['region_type'].fill_value = 'XX'
+        # ar_classification_hmi_mdi['region_type'] = ar_classification_hmi_mdi['region_type'].filled()
+
+        # write a method that give sin the column and outputs a new column
+        ar_classification_hmi_mdi["region_type"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["region_type"].filled("XX"),
+            mask=ar_classification_hmi_mdi["region_type"].mask,
+            fill_value="XX",
+        )
+        ar_classification_hmi_mdi["processed_path_image_mdi"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["processed_path_image_mdi"].filled(""),
+            mask=ar_classification_hmi_mdi["processed_path_image_mdi"].mask,
+            fill_value="",
+        )
+        ar_classification_hmi_mdi["processed_path_image_hmi"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["processed_path_image_hmi"].filled(""),
+            mask=ar_classification_hmi_mdi["processed_path_image_hmi"].mask,
+            fill_value="",
+        )
+        ar_classification_hmi_mdi["quicklook_path_hmi"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["quicklook_path_hmi"].filled(""),
+            mask=ar_classification_hmi_mdi["quicklook_path_hmi"].mask,
+            fill_value="",
+        )
+        ar_classification_hmi_mdi["quicklook_path_mdi"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["quicklook_path_mdi"].filled(""),
+            mask=ar_classification_hmi_mdi["quicklook_path_mdi"].mask,
+            fill_value="",
+        )
+        ar_classification_hmi_mdi["path_image_cutout_hmi"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["path_image_cutout_hmi"].filled(""),
+            mask=ar_classification_hmi_mdi["path_image_cutout_hmi"].mask,
+            fill_value="",
+        )
+        ar_classification_hmi_mdi["path_image_cutout_mdi"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["path_image_cutout_mdi"].filled(""),
+            mask=ar_classification_hmi_mdi["path_image_cutout_mdi"].mask,
+            fill_value="",
+        )
+        ar_classification_hmi_mdi["filter_reason_hmi"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["filter_reason_hmi"].filled(""),
+            mask=ar_classification_hmi_mdi["filter_reason_hmi"].mask,
+            fill_value="",
+        )
+        ar_classification_hmi_mdi["filter_reason_mdi"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["filter_reason_mdi"].filled(""),
+            mask=ar_classification_hmi_mdi["filter_reason_mdi"].mask,
+            fill_value="",
+        )
+        ar_classification_hmi_mdi["magnetic_class"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["magnetic_class"].filled(""),
+            mask=ar_classification_hmi_mdi["magnetic_class"].mask,
+            fill_value="",
+        )
+        ar_classification_hmi_mdi["mcintosh_class"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["mcintosh_class"].filled(""),
+            mask=ar_classification_hmi_mdi["mcintosh_class"].mask,
+            fill_value="",
+        )
+
+        # remove this?
+        ar_classification_hmi_mdi["carrington_longitude"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["carrington_longitude"].filled(np.nan),
+            mask=ar_classification_hmi_mdi["carrington_longitude"].mask,
+            fill_value=np.nan,
+        )
+        ar_classification_hmi_mdi["area"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["area"].filled(np.nan),
+            mask=ar_classification_hmi_mdi["area"].mask,
+            fill_value=np.nan,
+        )
+        ar_classification_hmi_mdi["longitudinal_extent"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["longitudinal_extent"].filled(np.nan),
+            mask=ar_classification_hmi_mdi["longitudinal_extent"].mask,
+            fill_value=np.nan,
+        )
+        ar_classification_hmi_mdi["number_of_sunspots"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["number_of_sunspots"].filled(-1),
+            mask=ar_classification_hmi_mdi["number_of_sunspots"].mask,
+            fill_value=-1,
+        )
+        ar_classification_hmi_mdi["QUALITY_hmi"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["QUALITY_hmi"].filled(""),
+            mask=ar_classification_hmi_mdi["QUALITY_hmi"].mask,
+            fill_value="",
+        )
+        ar_classification_hmi_mdi["QUALITY_mdi"] = MaskedColumn(
+            data=ar_classification_hmi_mdi["QUALITY_mdi"].filled(""),
+            mask=ar_classification_hmi_mdi["QUALITY_mdi"].mask,
+            fill_value="",
+        )
+
         # List of columns to remove
         columns_to_remove = [
             "region_type_hmi",
@@ -745,6 +854,9 @@ def region_cutouts(config, srs_hmi, srs_mdi):
                 ar_classification_hmi_mdi.remove_column(col_name)
 
         logger.debug(f"writing {classification_file}")
+        ar_classification_hmi_mdi.write(classification_file, format="parquet", overwrite=True)
+
+        # problem is this now has filtered values (before we drop all filtered and merge on SRS)
         ar_classification_hmi_mdi.write(classification_file, format="parquet", overwrite=True)
 
     # filter: hmi/mdi cutout size...
@@ -773,7 +885,7 @@ def _combine_columns(column1, column2):
             combined_column[i] = column1[i]
         else:
             # Values are different and not both masked, raise an error
-            raise ValueError(f"Elements at index {i} are different or have different masks.")
+            raise ValueError(f"Elements at index {i} are different or have different masks: {column1[i]}, {column2[i]}")
 
     return combined_column
 
@@ -964,7 +1076,13 @@ def process_ars(config, catalog):
         Path(config["paths"]["data_root"]) / "04_final" / "data" / "region_detection" / "quicklook",
     )
 
-    merged_table_quicklook.replace_column("quicklook_path", [str(p) for p in merged_table_quicklook["quicklook_path"]])
+    # merged_table_quicklook.replace_column("quicklook_path", [str(p) for p in merged_table_quicklook["quicklook_path"]])
+    merged_table_quicklook["quicklook_path"] = MaskedColumn(
+        data=[str(p) for p in merged_table_quicklook["quicklook_path"]],
+        mask=merged_table_quicklook["quicklook_path"].mask,
+        fill_value="",
+    )
+
     merged_table_quicklook.write(
         Path(config["paths"]["data_root"])
         / "04_final"
