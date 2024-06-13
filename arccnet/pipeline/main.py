@@ -478,6 +478,11 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
             if np.int32(int(catalog_mdi["QUALITY"][idx], 16)) >= 262144:
                 row["filtered"] = True
                 filter_reason_column[row.index] += "QUALITY,"
+            if (int(catalog_mdi["QUALITY"][idx], 16) & 0b01111100) != 0:
+                # checking MDI bits 2,3,4,5,6 (http://soi.stanford.edu/production/QUALITY/DATASWtable.html)
+                # https://docs.astropy.org/en/stable/nddata/bitmask.html
+                row["filtered"] = True
+                filter_reason_column[row.index] += "QUALITY(Missing%),"
 
     # Add the updated "filter_reason" list as a new column to the catalog_mdi table
     catalog_mdi["filter_reason"] = [str(fr) for fr in filter_reason_column]
@@ -677,6 +682,7 @@ def region_cutouts(config, srs_hmi, srs_mdi):
         mdi_table.write(mdi_file, format="parquet", overwrite=True)
 
     if classification_file.exists():
+        logger.debug(f"reading {classification_file}")
         ar_classification_hmi_mdi = QTable.read(classification_file)
     else:
         column_subset = [
