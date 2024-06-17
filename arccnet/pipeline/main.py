@@ -636,6 +636,7 @@ def region_cutouts(config, srs_hmi, srs_mdi):
     data_plot_path = data_plot_path_root / "fits"
     summary_plot_path = data_plot_path_root / "quicklook"
     classification_file = data_plot_path_root / "region_classification.parq"
+    classification_filtered_file = data_plot_path_root / "region_classification_filtered.parq"
 
     data_plot_path.mkdir(exist_ok=True, parents=True)
     summary_plot_path.mkdir(exist_ok=True, parents=True)
@@ -860,10 +861,13 @@ def region_cutouts(config, srs_hmi, srs_mdi):
                 ar_classification_hmi_mdi.remove_column(col_name)
 
         logger.debug(f"writing {classification_file}")
-        ar_classification_hmi_mdi.write(classification_file, format="parquet", overwrite=True)
-
         # problem is this now has filtered values (before we drop all filtered and merge on SRS)
         ar_classification_hmi_mdi.write(classification_file, format="parquet", overwrite=True)
+
+        filtered_ar_classification_hmi_mdi = ar_classification_hmi_mdi[
+            (ar_classification_hmi_mdi["filtered_mdi"] is False) & (ar_classification_hmi_mdi["filtered_hmi"] is False)
+        ]
+        filtered_ar_classification_hmi_mdi.write(classification_filtered_file, format="parquet", overwrite=True)
 
     # filter: hmi/mdi cutout size...
     # one merged catalogue file with both MDI/HMI each task classification and detection

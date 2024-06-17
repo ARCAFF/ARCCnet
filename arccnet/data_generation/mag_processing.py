@@ -695,7 +695,7 @@ class RegionExtractor:
                             bottom_left=bottom_left,
                             shape=filtered_smap.data.shape * u.pix,
                             ar_pos_pixels=ar_pos_pixels,
-                            identifier=str(row["id"]) + " " + str(row["number"]),
+                            identifier=str(row["id"]) + "-" + str(row["number"]),
                         )
                     )
 
@@ -800,6 +800,7 @@ class RegionExtractor:
         sunpy_map.plot_settings["norm"].vmin = -1499
         sunpy_map.plot_settings["norm"].vmax = 1499
         sunpy_map.plot(axes=ax, cmap="hmimag")
+        sunpy_map.draw_grid(axes=ax)
 
         text_objects = []
 
