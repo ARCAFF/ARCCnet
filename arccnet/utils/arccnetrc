@@ -16,10 +16,10 @@ merge_tolerance = 30m
 [jsoc]
 jsoc_date_format = %Y.%m.%d_%H:%M:%S
 jsoc_base_url = http://jsoc.stanford.edu
-
 ;;;;;;;;;;;;;;;;
 ; SRS          ;
 ;;;;;;;;;;;;;;;;
+[srs]
 lat_lim_degrees = 60
 lon_lim_degrees = 85
 
