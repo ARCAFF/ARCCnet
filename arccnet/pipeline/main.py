@@ -565,6 +565,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     )
 
     # remove later
+    # !TODO filter by QUALITY
     sh_table = hmi_sharps_table.to_pandas().copy()
     sh_table["filtered"] = False
     sh_table["filter_reason"] = ""
@@ -595,6 +596,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     )
 
     # remove later
+    # !TODO filter by QUALITY
     sh_table = mdi_smarps_table.to_pandas().copy()
     sh_table["filtered"] = False
     sh_table["filter_reason"] = ""
