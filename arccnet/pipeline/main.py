@@ -918,10 +918,6 @@ def merge_noaa_harp(arclass: QTable, ardeten: QTable) -> QTable:
     ]
     merged_grouped.remove_columns(cols_to_remove)
 
-    data_root = config["paths"]["data_root"]
-    merged_grouped_path = Path(data_root) / "04_final" / "data" / "region_detection" / "region_detection_noaa-harp.parq"
-    merged_grouped.write(merged_grouped_path, format="parquet", overwrite=True)
-
     return merged_grouped
 
 
@@ -963,7 +959,7 @@ def process_ars(config, catalog):
         / "04_final"
         / "data"
         / "region_detection"
-        / "region_detection_noaa-harp.parq",
+        / "region_detection_noaa-xarp.parq",
         format="parquet",
         overwrite=True,
     )
