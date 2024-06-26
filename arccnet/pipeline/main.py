@@ -13,11 +13,7 @@ from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, R
 from arccnet.catalogs.flares.common import FlareCatalog
 from arccnet.catalogs.flares.hek import HEKFlareCatalog
 from arccnet.catalogs.flares.helio import HECFlareCatalog
-from arccnet.catalogs.utils import (
-    remove_columns_with_suffix,
-    retrieve_harp_noaa_mapping,
-    retrieve_tarp_noaa_mapping,
-)
+from arccnet.catalogs.utils import remove_columns_with_suffix, retrieve_noaa_mapping
 from arccnet.data_generation.data_manager import DataManager
 from arccnet.data_generation.data_manager import Query as MagQuery
 from arccnet.data_generation.mag_processing import MagnetogramProcessor, RegionExtractor
@@ -871,7 +867,10 @@ def merge_noaa_harp(arclass, ardeten):
 
     ardeten_hmi = ardeten[ardeten["instrument"] == "HMI"]
 
-    harp_noaa_map = retrieve_harp_noaa_mapping()
+    harp_noaa_map = retrieve_noaa_mapping(
+        url="http://jsoc.stanford.edu/doc/data/hmi/harpnum_to_noaa/all_harps_with_noaa_ars.txt",
+        identifier_col_name="record_HARPNUM_arc",
+    )
 
     joined_table_hmi = join(ardeten_hmi[~ardeten_hmi["filtered"]], harp_noaa_map, keys="record_HARPNUM_arc")
     # Identify dates to drop
@@ -942,7 +941,10 @@ def merge_noaa_harp(arclass, ardeten):
 
     ardeten_mdi = ardeten[ardeten["instrument"] == "MDI"]
 
-    tarp_noaa_map = retrieve_tarp_noaa_mapping()
+    tarp_noaa_map = retrieve_noaa_mapping(
+        url="http://jsoc.stanford.edu/doc/data/hmi/harpnum_to_noaa/all_tarps_with_noaa_ars.txt",
+        identifier_col_name="record_TARPNUM_arc",
+    )
 
     joined_table_mdi = join(ardeten_mdi[~ardeten_mdi["filtered"]], tarp_noaa_map, keys="record_TARPNUM_arc")
     # Identify dates to drop
