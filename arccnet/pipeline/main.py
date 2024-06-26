@@ -969,15 +969,18 @@ def process_ars(config, catalog):
 
 def process_merged_table(merged_table: QTable, ar_table: QTable, instrument: str) -> QTable:
     """
-    Process the merged table by renaming columns, removing columns with suffixes, and sorting by target time.
+    Process the merged table by renaming specific columns, removing columns with a given suffix,
+    and joining it with an AR table on 'target_time' and 'NOAA' keys.
 
     Parameters:
-    merged_table (QTable): The merged table to process.
-    ar_table (QTable): The AR table to merge with.
-    instrument (str): The instrument type ("hmi" or "mdi").
+    ----------
+    merged_table (QTable): The merged table to process, typically containing instrument-specific data.
+    ar_table (QTable): The AR table to merge with the processed merged table.
+    instrument (str): The instrument type, either "hmi" or "mdi". This determines which columns are renamed and removed.
 
     Returns:
-    QTable: The processed merged table.
+    -------
+    QTable: The processed merged table with renamed columns, specified columns removed, and joined with the AR table.
     """
     cols_to_rename = {
         f"latitude_{instrument}": "latitude",
@@ -998,9 +1001,11 @@ def filter_grouped_table(grouped_table: QTable) -> QTable:
     Filter the grouped table by setting 'filtered' to True if any NOAANUM > 1.
 
     Parameters:
+    ----------
     grouped_table (QTable): The grouped table to filter.
 
     Returns:
+    -------
     QTable: The filtered grouped table.
     """
     filter_reason_column = np.array(list(grouped_table["filter_reason"]), dtype=object)
