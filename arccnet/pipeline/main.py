@@ -881,11 +881,12 @@ def merge_noaa_harp(arclass: QTable, ardeten: QTable) -> QTable:
         identifier_col_name="record_HARPNUM_arc",
     )
     joined_table_hmi = join(ardeten_hmi[~ardeten_hmi["filtered"]], harp_noaa_map, keys="record_HARPNUM_arc")
+    # this is only keeping the rows that are not filtered. What about the keys?
     grouped_table_hmi = joined_table_hmi.group_by("processed_path")
     grouped_table_hmi = filter_grouped_table(grouped_table_hmi)
-    merged_grouped_hmi = join(grouped_table_hmi, ar, keys=["target_time", "NOAA"])
-    merged_grouped_hmi = process_merged_table(merged_grouped_hmi, "hmi")
-    merged_grouped_hmi = vstack([merged_grouped_hmi, ardeten_hmi[ardeten_hmi["filtered"]]])
+    joined_grouped_hmi = join(grouped_table_hmi, ar, keys=["target_time", "NOAA"])
+    merged_grouped_hmi = process_merged_table(joined_grouped_hmi, "hmi")
+    # merged_grouped_hmi = vstack([merged_grouped_hmi, ardeten_hmi[ardeten_hmi["filtered"]]])
     merged_grouped_hmi.sort("target_time")
 
     ardeten_mdi = ardeten[ardeten["instrument"] == "MDI"]
@@ -896,9 +897,9 @@ def merge_noaa_harp(arclass: QTable, ardeten: QTable) -> QTable:
     joined_table_mdi = join(ardeten_mdi[~ardeten_mdi["filtered"]], tarp_noaa_map, keys="record_TARPNUM_arc")
     grouped_table_mdi = joined_table_mdi.group_by("processed_path")
     grouped_table_mdi = filter_grouped_table(grouped_table_mdi)
-    merged_grouped_mdi = join(grouped_table_mdi, ar, keys=["target_time", "NOAA"])
-    merged_grouped_mdi = process_merged_table(merged_grouped_mdi, "mdi")
-    merged_grouped_mdi = vstack([merged_grouped_mdi, ardeten_mdi[ardeten_mdi["filtered"]]])
+    joined_grouped_mdi = join(grouped_table_mdi, ar, keys=["target_time", "NOAA"])
+    merged_grouped_mdi = process_merged_table(joined_grouped_mdi, "mdi")
+    # merged_grouped_mdi = vstack([merged_grouped_mdi, ardeten_mdi[ardeten_mdi["filtered"]]])
     merged_grouped_mdi.sort("target_time")
 
     merged_grouped = vstack([merged_grouped_hmi, merged_grouped_mdi])
@@ -1015,6 +1016,12 @@ def filter_grouped_table(grouped_table: QTable) -> QTable:
             indices = np.where(grouped_table["processed_path"] == date["processed_path"][0])[0]
             for idx in indices:
                 filter_reason_column[idx] += "any(date[NOAANUM] > 1),"
+
+        # if any(date['filtered'] == True): # noqa
+        #     date["filtered"] = True
+        #     indices = np.where(grouped_table["processed_path"] == date["processed_path"][0])[0]
+        #     for idx in indices:
+        #         filter_reason_column[idx] += "any(date[filtered] == True),"
 
     grouped_table["filter_reason"] = [str(fr) for fr in filter_reason_column]
 
