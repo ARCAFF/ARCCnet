@@ -742,99 +742,30 @@ def region_cutouts(config, srs_hmi, srs_mdi):
             ar_classification_hmi_mdi["number_of_sunspots_hmi"], ar_classification_hmi_mdi["number_of_sunspots_mdi"]
         )
 
-        # unsure if this is okay...
-        # this removes the mask... oh well
-        # ar_classification_hmi_mdi['region_type'].fill_value = 'XX'
-        # ar_classification_hmi_mdi['region_type'] = ar_classification_hmi_mdi['region_type'].filled()
+        # Define the fill values for each column
+        # !TODO fix this later; shouldn't have to replace the fill values
+        columns_with_fill_values = {
+            "region_type": "XX",
+            "processed_path_image_mdi": "",
+            "processed_path_image_hmi": "",
+            "quicklook_path_hmi": "",
+            "quicklook_path_mdi": "",
+            "path_image_cutout_hmi": "",
+            "path_image_cutout_mdi": "",
+            "filter_reason_hmi": "",
+            "filter_reason_mdi": "",
+            "magnetic_class": "",
+            "mcintosh_class": "",
+            "carrington_longitude": np.nan,
+            "area": np.nan,
+            "longitudinal_extent": np.nan,
+            "number_of_sunspots": -1,
+            "QUALITY_hmi": "",
+            "QUALITY_mdi": "",
+        }
 
-        # write a method that give sin the column and outputs a new column
-        ar_classification_hmi_mdi["region_type"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["region_type"].filled("XX"),
-            mask=ar_classification_hmi_mdi["region_type"].mask,
-            fill_value="XX",
-        )
-        ar_classification_hmi_mdi["processed_path_image_mdi"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["processed_path_image_mdi"].filled(""),
-            mask=ar_classification_hmi_mdi["processed_path_image_mdi"].mask,
-            fill_value="",
-        )
-        ar_classification_hmi_mdi["processed_path_image_hmi"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["processed_path_image_hmi"].filled(""),
-            mask=ar_classification_hmi_mdi["processed_path_image_hmi"].mask,
-            fill_value="",
-        )
-        ar_classification_hmi_mdi["quicklook_path_hmi"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["quicklook_path_hmi"].filled(""),
-            mask=ar_classification_hmi_mdi["quicklook_path_hmi"].mask,
-            fill_value="",
-        )
-        ar_classification_hmi_mdi["quicklook_path_mdi"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["quicklook_path_mdi"].filled(""),
-            mask=ar_classification_hmi_mdi["quicklook_path_mdi"].mask,
-            fill_value="",
-        )
-        ar_classification_hmi_mdi["path_image_cutout_hmi"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["path_image_cutout_hmi"].filled(""),
-            mask=ar_classification_hmi_mdi["path_image_cutout_hmi"].mask,
-            fill_value="",
-        )
-        ar_classification_hmi_mdi["path_image_cutout_mdi"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["path_image_cutout_mdi"].filled(""),
-            mask=ar_classification_hmi_mdi["path_image_cutout_mdi"].mask,
-            fill_value="",
-        )
-        ar_classification_hmi_mdi["filter_reason_hmi"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["filter_reason_hmi"].filled(""),
-            mask=ar_classification_hmi_mdi["filter_reason_hmi"].mask,
-            fill_value="",
-        )
-        ar_classification_hmi_mdi["filter_reason_mdi"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["filter_reason_mdi"].filled(""),
-            mask=ar_classification_hmi_mdi["filter_reason_mdi"].mask,
-            fill_value="",
-        )
-        ar_classification_hmi_mdi["magnetic_class"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["magnetic_class"].filled(""),
-            mask=ar_classification_hmi_mdi["magnetic_class"].mask,
-            fill_value="",
-        )
-        ar_classification_hmi_mdi["mcintosh_class"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["mcintosh_class"].filled(""),
-            mask=ar_classification_hmi_mdi["mcintosh_class"].mask,
-            fill_value="",
-        )
-
-        # remove this?
-        ar_classification_hmi_mdi["carrington_longitude"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["carrington_longitude"].filled(np.nan),
-            mask=ar_classification_hmi_mdi["carrington_longitude"].mask,
-            fill_value=np.nan,
-        )
-        ar_classification_hmi_mdi["area"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["area"].filled(np.nan),
-            mask=ar_classification_hmi_mdi["area"].mask,
-            fill_value=np.nan,
-        )
-        ar_classification_hmi_mdi["longitudinal_extent"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["longitudinal_extent"].filled(np.nan),
-            mask=ar_classification_hmi_mdi["longitudinal_extent"].mask,
-            fill_value=np.nan,
-        )
-        ar_classification_hmi_mdi["number_of_sunspots"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["number_of_sunspots"].filled(-1),
-            mask=ar_classification_hmi_mdi["number_of_sunspots"].mask,
-            fill_value=-1,
-        )
-        ar_classification_hmi_mdi["QUALITY_hmi"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["QUALITY_hmi"].filled(""),
-            mask=ar_classification_hmi_mdi["QUALITY_hmi"].mask,
-            fill_value="",
-        )
-        ar_classification_hmi_mdi["QUALITY_mdi"] = MaskedColumn(
-            data=ar_classification_hmi_mdi["QUALITY_mdi"].filled(""),
-            mask=ar_classification_hmi_mdi["QUALITY_mdi"].mask,
-            fill_value="",
-        )
+        # Update the columns
+        ar_classification_hmi_mdi = _update_column_fillvals(ar_classification_hmi_mdi, columns_with_fill_values)
 
         # List of columns to remove
         columns_to_remove = [
@@ -865,6 +796,17 @@ def region_cutouts(config, srs_hmi, srs_mdi):
 
     # filter: hmi/mdi cutout size...
     # one merged catalogue file with both MDI/HMI each task classification and detection
+    return ar_classification_hmi_mdi
+
+
+def _update_column_fillvals(ar_classification_hmi_mdi, columns_with_fill_values):
+    for column, fill_value in columns_with_fill_values.items():
+        ar_classification_hmi_mdi[column] = MaskedColumn(
+            data=ar_classification_hmi_mdi[column].filled(fill_value),
+            mask=ar_classification_hmi_mdi[column].mask,
+            fill_value=fill_value,
+        )
+
     return ar_classification_hmi_mdi
 
 
