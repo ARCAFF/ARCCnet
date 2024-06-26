@@ -882,7 +882,7 @@ def merge_noaa_harp(arclass: QTable, ardeten: QTable) -> QTable:
     grouped_table_hmi = joined_table_hmi.group_by("processed_path")
     grouped_table_hmi = filter_grouped_table(grouped_table_hmi)
     merged_grouped_hmi = join(grouped_table_hmi, ar, keys=["target_time", "NOAA"])
-    merged_grouped_hmi = process_merged_table(merged_grouped_hmi, ar, "hmi")
+    merged_grouped_hmi = process_merged_table(merged_grouped_hmi, "hmi")
     merged_grouped_hmi = vstack([merged_grouped_hmi, ardeten_hmi[ardeten_hmi["filtered"]]])
     merged_grouped_hmi.sort("target_time")
 
@@ -895,7 +895,7 @@ def merge_noaa_harp(arclass: QTable, ardeten: QTable) -> QTable:
     grouped_table_mdi = joined_table_mdi.group_by("processed_path")
     grouped_table_mdi = filter_grouped_table(grouped_table_mdi)
     merged_grouped_mdi = join(grouped_table_mdi, ar, keys=["target_time", "NOAA"])
-    merged_grouped_mdi = process_merged_table(merged_grouped_mdi, ar, "mdi")
+    merged_grouped_mdi = process_merged_table(merged_grouped_mdi, "mdi")
     merged_grouped_mdi = vstack([merged_grouped_mdi, ardeten_mdi[ardeten_mdi["filtered"]]])
     merged_grouped_mdi.sort("target_time")
 
