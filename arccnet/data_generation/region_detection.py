@@ -259,6 +259,7 @@ class RegionDetection:
         sunpy_map.plot_settings["norm"].vmin = -1499
         sunpy_map.plot_settings["norm"].vmax = 1499
         sunpy_map.plot(axes=ax, cmap="hmimag")
+        sunpy_map.draw_grid(axes=ax)
 
         for row in table:
             # deal with boxes off the edge
