@@ -881,7 +881,8 @@ def merge_noaa_harp(arclass: QTable, ardeten: QTable) -> QTable:
     joined_table_hmi = join(ardeten_hmi[~ardeten_hmi["filtered"]], harp_noaa_map, keys="record_HARPNUM_arc")
     grouped_table_hmi = joined_table_hmi.group_by("processed_path")
     grouped_table_hmi = filter_grouped_table(grouped_table_hmi)
-    merged_grouped_hmi = process_merged_table(grouped_table_hmi, ar, "hmi")
+    merged_grouped_hmi = join(grouped_table_hmi, ar, keys=["target_time", "NOAA"])
+    merged_grouped_hmi = process_merged_table(merged_grouped_hmi, ar, "hmi")
     merged_grouped_hmi = vstack([merged_grouped_hmi, ardeten_hmi[ardeten_hmi["filtered"]]])
     merged_grouped_hmi.sort("target_time")
 
@@ -893,7 +894,8 @@ def merge_noaa_harp(arclass: QTable, ardeten: QTable) -> QTable:
     joined_table_mdi = join(ardeten_mdi[~ardeten_mdi["filtered"]], tarp_noaa_map, keys="record_TARPNUM_arc")
     grouped_table_mdi = joined_table_mdi.group_by("processed_path")
     grouped_table_mdi = filter_grouped_table(grouped_table_mdi)
-    merged_grouped_mdi = process_merged_table(grouped_table_mdi, ar, "mdi")
+    merged_grouped_mdi = join(grouped_table_mdi, ar, keys=["target_time", "NOAA"])
+    merged_grouped_mdi = process_merged_table(merged_grouped_mdi, ar, "mdi")
     merged_grouped_mdi = vstack([merged_grouped_mdi, ardeten_mdi[ardeten_mdi["filtered"]]])
     merged_grouped_mdi.sort("target_time")
 
@@ -967,7 +969,7 @@ def process_ars(config, catalog):
     )
 
 
-def process_merged_table(merged_table: QTable, ar_table: QTable, instrument: str) -> QTable:
+def process_merged_table(merged_table: QTable, instrument: str) -> QTable:
     """
     Process the merged table by renaming specific columns, removing columns with a given suffix,
     and joining it with an AR table on 'target_time' and 'NOAA' keys.
@@ -975,7 +977,6 @@ def process_merged_table(merged_table: QTable, ar_table: QTable, instrument: str
     Parameters:
     ----------
     merged_table (QTable): The merged table to process, typically containing instrument-specific data.
-    ar_table (QTable): The AR table to merge with the processed merged table.
     instrument (str): The instrument type, either "hmi" or "mdi". This determines which columns are renamed and removed.
 
     Returns:
@@ -992,7 +993,6 @@ def process_merged_table(merged_table: QTable, ar_table: QTable, instrument: str
         merged_table.rename_column(k, v)
 
     merged_table = remove_columns_with_suffix(merged_table, f"_{instrument}")
-    merged_table = join(merged_table, ar_table, keys=["target_time", "NOAA"])
     return merged_table
 
 
