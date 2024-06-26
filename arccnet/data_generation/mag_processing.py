@@ -453,10 +453,6 @@ class RegionExtractor:
                     ar_table_all = copy.deepcopy(ar_table)
                 else:
                     ar_table_all = ARClassification(vstack([QTable(ar_table_all), QTable(ar_table)]))
-                # for tbttrw in tbtt:
-                #     # tbttrw["region_type"] = "FB" # this will remove blank masked region_type, but need to change default
-                #     ar_table.add_row(tbttrw)
-                #     # can we just do this so we also get plots?
                 continue
 
             # probably need to split the tbtt into filtered etc. to keep them in
@@ -469,10 +465,6 @@ class RegionExtractor:
                     ar_table_all = copy.deepcopy(ar_table)
                 else:
                     ar_table_all = ARClassification(vstack([QTable(ar_table_all), QTable(ar_table)]))
-                # for rw in rows_filtered:
-                #     # rw["region_type"] = "FB" # this will remove blank masked region_type, but need to change default
-                #     ar_table.add_row(rw)
-                #     # can we just do this so we also get plots?
                 continue
 
             if tbtt["processed_path_image"][0] == "None":

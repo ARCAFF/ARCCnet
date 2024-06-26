@@ -457,11 +457,6 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     )
     # attempting to remove the object
     catalog_mdi.replace_column("path_catalog", [str(pc) for pc in catalog_mdi["path_catalog"]])
-    # catalog_mdi["path_catalog"] = MaskedColumn(
-    #     data=[str(p) for p in catalog_mdi["path_catalog"]],
-    #     mask=catalog_mdi['path_catalog'].mask,
-    #     fill_value='',
-    #     )
 
     catalog_mdi.rename_column("processed_path", "processed_path_image")
     # catalog_mdi["filtered"][catalog_mdi["processed_path_image"].mask] = True
@@ -499,11 +494,6 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     )
     # attempting to remove the object
     catalog_hmi.replace_column("path_catalog", [str(pc) for pc in catalog_hmi["path_catalog"]])
-    # catalog_hmi["path_catalog"] = MaskedColumn(
-    #     data=[str(p) for p in catalog_hmi["path_catalog"]],
-    #     mask=catalog_hmi['path_catalog'].mask,
-    #     fill_value='',
-    #     )
 
     catalog_hmi.rename_column("processed_path", "processed_path_image")
     # catalog_hmi["filtered"][catalog_hmi["processed_path_image"].mask] = True
