@@ -1008,7 +1008,8 @@ def filter_grouped_table(grouped_table: QTable) -> QTable:
     QTable: The filtered grouped table.
     """
     filter_reason_column = np.array(list(grouped_table["filter_reason"]), dtype=object)
-    assert np.unique(filter_reason_column) == ""  # Ensure that these are only empty strings.
+    if np.unique(filter_reason_column) != "":
+        raise ValueError("`filter_reason_column` is already populated")
 
     for date in grouped_table.groups:
         if any(date["NOAANUM"] > 1):
@@ -1016,12 +1017,6 @@ def filter_grouped_table(grouped_table: QTable) -> QTable:
             indices = np.where(grouped_table["processed_path"] == date["processed_path"][0])[0]
             for idx in indices:
                 filter_reason_column[idx] += "any(date[NOAANUM] > 1),"
-
-        # if any(date['filtered'] == True): # noqa
-        #     date["filtered"] = True
-        #     indices = np.where(grouped_table["processed_path"] == date["processed_path"][0])[0]
-        #     for idx in indices:
-        #         filter_reason_column[idx] += "any(date[filtered] == True),"
 
     grouped_table["filter_reason"] = [str(fr) for fr in filter_reason_column]
 
