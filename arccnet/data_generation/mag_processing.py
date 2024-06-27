@@ -281,22 +281,9 @@ class ARBox(RegionBox):
         self.region_type = "AR"
 
 
-class IABox:
-    def __init__(
-        self,
-        top_right: tuple[float, float],
-        bottom_left: tuple[float, float],
-        shape: tuple[int, int],
-        ar_pos_pixels: tuple[int, int],
-        identifier: int = None,
-        filepath: Path = None,
-    ):
-        self.top_right = top_right
-        self.bottom_left = bottom_left
-        self.identifier = identifier
-        self.shape = shape
-        self.ar_pos_pixels = ar_pos_pixels
-        self.filepath = filepath
+class IABox(RegionBox):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.region_type = "IA"
 
 
@@ -508,8 +495,10 @@ class RegionExtractor:
 
             ar_table = copy.deepcopy(rows)
 
-            assert (len(rows_filtered_labels) + len(rows_filtered_unlabeled)) == len(rows_filtered)
-            assert len(rows_filtered_labels) == len(filtered_regions)
+            if (len(rows_filtered_labels) + len(rows_filtered_unlabeled)) != len(rows_filtered):
+                raise ValueError("len(filtered labeled rows) + len(filtered unlabeled rows) != len(all filtered rows)")
+            if len(rows_filtered_labels) != len(filtered_regions):
+                raise ValueError("length mismatch of `rows_filtered_labels`, `filtered_regions`")
             for rf, rw in zip(rows_filtered_labels, filtered_regions):
                 rf["top_right_cutout"] = rw.top_right
                 rf["bottom_left_cutout"] = rw.bottom_left
@@ -525,6 +514,7 @@ class RegionExtractor:
                 if ul_row["id"] == "II":
                     ul_row["region_type"] = "II"
                 else:
+                    # set a placeholder
                     ul_row["region_type"] = "FX"
                 ar_table.add_row(ul_row)
 
@@ -570,15 +560,13 @@ class RegionExtractor:
 
         # not sure about this, but want to convert to strings, not leave as objects
         # Add a region_type, vstack, and sort by time.
-        ttt = ARClassification(ar_table_all)
+        art = ARClassification(ar_table_all)
         # !TODO Could be an issue with the "--" making the way into the paths
-        # ttt.replace_column("path_image_cutout", [str(p) for p in ttt["path_image_cutout"]])
-        ttt["path_image_cutout"] = MaskedColumn(
-            data=[str(p) for p in ttt["path_image_cutout"]], mask=ttt["path_image_cutout"].mask, fill_value=""
+        art["path_image_cutout"] = MaskedColumn(
+            data=[str(p) for p in art["path_image_cutout"]], mask=art["path_image_cutout"].mask, fill_value=""
         )
-        # ttt.replace_column("quicklook_path", [str(p) for p in ttt["quicklook_path"]])
-        ttt["quicklook_path"] = MaskedColumn(
-            data=[str(p) for p in ttt["quicklook_path"]], mask=ttt["quicklook_path"].mask, fill_value=""
+        art["quicklook_path"] = MaskedColumn(
+            data=[str(p) for p in art["quicklook_path"]], mask=art["quicklook_path"].mask, fill_value=""
         )
 
         qst = ARClassification(qs_table)
@@ -591,10 +579,10 @@ class RegionExtractor:
             data=[str(p) for p in qst["quicklook_path"]], mask=qst["quicklook_path"].mask, fill_value=""
         )
 
-        all_regions = ARClassification(vstack([QTable(ttt), QTable(qst)]))
+        all_regions = ARClassification(vstack([QTable(art), QTable(qst)]))
         all_regions.sort("target_time")
 
-        return ttt, qst, all_regions
+        return art, qst, all_regions
 
     def _activeregion_extraction(self, group, sunpy_map, cutout_size, path) -> list[ARBox]:
         """
