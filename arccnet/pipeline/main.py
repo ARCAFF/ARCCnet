@@ -939,7 +939,7 @@ def merge_noaa_harp(arclass: QTable, ardeten: QTable) -> QTable:
 
     ardeten_mdi = ardeten[ardeten["instrument"] == "MDI"]
     tarp_noaa_map = retrieve_noaa_mapping(
-        url="http://jsoc.stanford.edu/doc/data/hmi/harpnum_to_noaa/all_tarps_with_noaa_ars.txt",
+        url="http://jsoc.stanford.edu/doc/data/mdi/all_tarps_with_noaa_ars.txt",
         identifier_col_name="record_TARPNUM_arc",
     )
     joined_table_mdi = join(ardeten_mdi[~ardeten_mdi["filtered"]], tarp_noaa_map, keys="record_TARPNUM_arc")
