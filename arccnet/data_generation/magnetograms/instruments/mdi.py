@@ -233,3 +233,36 @@ class MDISMARPs(MDILOSMagnetogram):
             The name of the HMI data segment.
         """
         return "bitmap"
+
+
+class MDIContinuum(MDILOSMagnetogram):
+    def __init__(self):
+        super().__init__()
+
+    @property
+    def series_name(self) -> str:
+        """
+        Get the JSOC series name.
+
+        Returns
+        -------
+        str
+            The JSOC series name.
+
+        Notes
+        -----
+        `mdi.fd_ic_interp` - https://iopscience.iop.org/article/10.3847/1538-4365/ac1f1d
+        """
+        return "mdi.fd_ic_interp"
+
+    @property
+    def segment_column_name(self) -> str:
+        """
+        Get the name of the MDI data segment.
+
+        Returns
+        -------
+        str
+            The name of the MDI data segment.
+        """
+        return "continuum"
