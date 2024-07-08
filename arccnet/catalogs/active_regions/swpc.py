@@ -13,7 +13,7 @@ from sunpy.net import attrs as a
 from sunpy.net.attr import AttrOr
 from sunpy.net.dataretriever import QueryResponse, SRSClient
 from sunpy.net.fido_factory import UnifiedResponse
-from sunpy.sun.constants import mean_synodic_period
+from sunpy.physics.differential_rotation import diff_rot
 
 import astropy.units as u
 from astropy.table import MaskedColumn, QTable, join, vstack
@@ -455,8 +455,8 @@ def filter_srs(
     catalog,
     lat_limit: u.Quantity[u.degree] = 60 * u.degree,
     lon_limit: u.Quantity[u.degree] = 85 * u.degree,
-    lat_rate_limit: u.Quantity[u.degree / u.day] = 7.5 * u.deg / u.day,
-    lon_rate_limit: u.Quantity[u.deg / u.day] = 7.5 * u.deg / u.day,
+    lat_rate_limit: u.Quantity[u.degree / u.day] = 5 * u.deg,
+    lon_rate_limit: u.Quantity[u.deg / u.day] = 5 * u.deg,
 ) -> ClassificationCatalog:
     r"""
     Filter SRS for unphysical position or positions rate of change.
@@ -496,9 +496,10 @@ def filter_srs(
     ar_mask = catalog_df.id == "I"
     valid_classes = {"magnetic_class": HALE_CLASSES, "mcintosh_class": MCINTOSH_CLASSES}
     for col, vals in valid_classes.items():
-        result = active_regions_df[ar_mask][col].isin(vals)
-        active_regions_df[ar_mask].loc[~result, "filtered"] = True
-        active_regions_df[ar_mask].loc[~result, "filter_reason"] += f"invalid_{col},"
+        result = active_regions_df[col].isin(vals)
+        mask = (active_regions_df.id == "I") & ~result
+        active_regions_df.loc[mask, "filtered"] = True
+        active_regions_df.loc[mask, "filter_reason"] += f"invalid_{col},"
 
     bad_latitudes = active_regions_df.latitude.abs() > lat_limit
     active_regions_df.loc[bad_latitudes, "filtered"] = True
@@ -508,26 +509,32 @@ def filter_srs(
     active_regions_df.loc[bad_longitudes, "filtered"] = True
     active_regions_df.loc[bad_longitudes, "filter_reason"] += "bad_lon,"
 
-    synodic_rate = (360 * u.degree) / mean_synodic_period
-
     for number, group in active_regions_df[ar_mask].groupby("number"):
-        dt = group.target_time.diff().dt.days.values << u.day
-        dlat = group.latitude.diff().values << u.degree
-        dlon = group.longitude.diff().values << u.degree
-
-        lat_rate = dlat / dt
-        lon_rate = dlon / dt
+        lat = group.latitude.values * u.deg
+        mean_lat = np.mean(lat)
 
         # Without further checks hard to know which data point is incorrect so drop
-        bad_lat_rates = np.abs(lat_rate) > lat_rate_limit
+        bad_lat_rates = np.abs(lat - mean_lat) > lat_rate_limit
         if np.any(bad_lat_rates):
-            active_regions_df.loc[group.index.values[bad_lat_rates], "filtered"] = True
-            active_regions_df.loc[group.index.values[bad_lat_rates], "filter_reason"] += "bad_lat_rate,"
+            filtered = group.index.values[bad_lat_rates]
+            if len(group) < 3:  # too small to drop all
+                filtered = group.index.values
+            active_regions_df.loc[filtered, "filtered"] = True
+            active_regions_df.loc[filtered, "filter_reason"] += "bad_lat_rate,"
 
-        bad_lon_rates = (lon_rate - synodic_rate) > lon_rate_limit
+        # account for differential rotation
+        dt = (group.target_time - group.target_time.min()).dt.days << u.day
+        expected_diff_rot = diff_rot(dt, mean_lat, frame_time="synodic")
+        corrected_lon = group.longitude.values * u.deg - expected_diff_rot
+        mean_lon = np.mean(corrected_lon)
+
+        bad_lon_rates = np.abs(corrected_lon - mean_lon) > lon_rate_limit
         if np.any(bad_lon_rates):
-            active_regions_df.loc[group.index.values[bad_lon_rates], "filtered"] = True
-            active_regions_df.loc[group.index.values[bad_lon_rates], "filter_reason"] += "bad_lon_rate,"
+            filtered = group.index.values[bad_lat_rates]
+            if len(group) < 3:  # too small to drop all
+                filtered = group.index.values
+            active_regions_df.loc[filtered, "filtered"] = True
+            active_regions_df.loc[filtered, "filter_reason"] += "bad_lon_rate,"
 
     out_catalog = QTable.from_pandas(active_regions_df)
     out_catalog["longitude"].unit = u.deg
