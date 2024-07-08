@@ -476,11 +476,11 @@ class RegionExtractor:
             regions = []
 
             # add active regions to regions list
-            I_IA_regions = self._validregion_extraction(rows, image_map, cutout_size, path=data_path)
+            valid_regions = self._validregion_extraction(rows, image_map, cutout_size, path=data_path)
             rows_filtered_labels, rows_filtered_unlabeled, filtered_regions = self._filteredregion_extraction(
                 rows_filtered, image_map, cutout_size, path=data_path
             )
-            regions.extend(I_IA_regions)
+            regions.extend(valid_regions)
 
             # ... update the table
             assert len(rows) == len(regions)
