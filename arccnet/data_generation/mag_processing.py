@@ -476,11 +476,11 @@ class RegionExtractor:
             regions = []
 
             # add active regions to regions list
-            active_regions = self._activeregion_extraction(rows, image_map, cutout_size, path=data_path)
+            I_IA_regions = self._validregion_extraction(rows, image_map, cutout_size, path=data_path)
             rows_filtered_labels, rows_filtered_unlabeled, filtered_regions = self._filteredregion_extraction(
                 rows_filtered, image_map, cutout_size, path=data_path
             )
-            regions.extend(active_regions)
+            regions.extend(I_IA_regions)
 
             # ... update the table
             assert len(rows) == len(regions)
@@ -584,7 +584,7 @@ class RegionExtractor:
 
         return art, qst, all_regions
 
-    def _activeregion_extraction(self, group, sunpy_map, cutout_size, path) -> list[ARBox]:
+    def _validregion_extraction(self, group, sunpy_map, cutout_size, path) -> list[ARBox, IABox]:
         """
         given a table `group` that share the same `sunpy_map`, return ARBox objects with a determined cutout_size
         """
@@ -606,22 +606,36 @@ class RegionExtractor:
 
             output_filename = (
                 path
-                / f"{sunpy_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_AR-{row['number']}_{sunpy_map.instrument.replace(' ', '_')}.fits"
+                / f"{sunpy_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{row['id']}-{row['number']}_{sunpy_map.instrument.replace(' ', '_')}.fits"
             )
-
-            save_compressed_map(hmi_smap, path=output_filename, overwrite=True)
 
             # store info in ARBox
-            ar_objs.append(
-                ARBox(
-                    top_right=top_right,
-                    bottom_left=bottom_left,
-                    shape=hmi_smap.data.shape * u.pix,
-                    ar_pos_pixels=ar_pos_pixels,
-                    identifier=row["number"],
-                    filepath=output_filename,
+            if row["id"] == "I":
+                ar_objs.append(
+                    ARBox(
+                        top_right=top_right,
+                        bottom_left=bottom_left,
+                        shape=hmi_smap.data.shape * u.pix,
+                        ar_pos_pixels=ar_pos_pixels,
+                        identifier=row["number"],
+                        filepath=output_filename,
+                    )
                 )
-            )
+            elif row["id"] == "IA":
+                ar_objs.append(
+                    IABox(
+                        top_right=top_right,
+                        bottom_left=bottom_left,
+                        shape=hmi_smap.data.shape * u.pix,
+                        ar_pos_pixels=ar_pos_pixels,
+                        identifier=str(row["number"]),
+                        filepath=output_filename,
+                    )
+                )
+            else:
+                raise NotImplementedError(f'id == {row["id"]} is not implemented.')
+
+            save_compressed_map(hmi_smap, path=output_filename, overwrite=True)
 
             del hmi_smap
         return ar_objs
@@ -648,36 +662,16 @@ class RegionExtractor:
             )
 
             try:
-                if row["id"] == "IA":
-                    filtered_smap = sunpy_map.submap(bottom_left, top_right=top_right)
-                    output_filename = (
-                        path
-                        / f"{sunpy_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_IA-{row['number']}_{sunpy_map.instrument.replace(' ', '_')}.fits"
+                filtered_smap = sunpy_map.submap(bottom_left, top_right=top_right)
+                region_objs.append(
+                    FilteredBox(
+                        top_right=top_right,
+                        bottom_left=bottom_left,
+                        shape=filtered_smap.data.shape * u.pix,
+                        ar_pos_pixels=ar_pos_pixels,
+                        identifier=str(row["id"]) + "-" + str(row["number"]),
                     )
-
-                    save_compressed_map(filtered_smap, path=output_filename, overwrite=True)
-
-                    region_objs.append(
-                        IABox(
-                            top_right=top_right,
-                            bottom_left=bottom_left,
-                            shape=filtered_smap.data.shape * u.pix,
-                            ar_pos_pixels=ar_pos_pixels,
-                            identifier=str(row["number"]),
-                            filepath=output_filename,
-                        )
-                    )
-                else:
-                    filtered_smap = sunpy_map.submap(bottom_left, top_right=top_right)
-                    region_objs.append(
-                        FilteredBox(
-                            top_right=top_right,
-                            bottom_left=bottom_left,
-                            shape=filtered_smap.data.shape * u.pix,
-                            ar_pos_pixels=ar_pos_pixels,
-                            identifier=str(row["id"]) + "-" + str(row["number"]),
-                        )
-                    )
+                )
 
                 valid_rows.append(row)  # Append to valid_rows
                 del filtered_smap
