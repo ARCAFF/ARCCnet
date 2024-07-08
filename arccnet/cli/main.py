@@ -75,6 +75,7 @@ def parser(args=None):
     dataset_generation.add_argument(
         "--jsoc_email", type=str, help="JSOC registered email address to use in exports", dest="jsoc.jsoc_email"
     )
+    dataset_generation.add_argument("--data-root", type=Path, help="Root directory for dataset", dest="paths.data_root")
 
     # Download
     dataset_downlaod = catlog_commands.add_parser("download", help="Download preprocessed datasets")
@@ -146,6 +147,17 @@ def combine_args(args=None):
         cli_config = config_reader.read(config_file)
 
     config = load_config()
+
+    # because use interpolation of the config have to set data_root so derived path update and not just use chainmap
+    try:
+        data_root = nested_cli_options["paths"]["data_root"]
+        if cli_config:
+            cli_config.set("paths", "data_root", str(data_root))
+        if config:
+            config.set("paths", "data_root", str(data_root))
+    except KeyError:
+        pass
+
     combined = NestedChainMap(nested_cli_options, cli_config, config)
 
     config_str = StringIO()

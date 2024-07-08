@@ -489,15 +489,16 @@ def filter_srs(
     active_regions_df.loc[~load_success, "filtered"] = True
     active_regions_df.loc[~load_success, "filter_reason"] += "load_unsuccessful,"
 
-    ar_mask = catalog_df.id == "I"
-    active_regions_df.loc[~ar_mask, "filtered"] = True
-    active_regions_df.loc[~ar_mask, "filter_reason"] += "not_ar,"
+    ar_plage_mask = np.isin(catalog_df.id, ["I", "IA"])
+    active_regions_df.loc[~ar_plage_mask, "filtered"] = True
+    active_regions_df.loc[~ar_plage_mask, "filter_reason"] += "not_ar,"
 
+    ar_mask = catalog_df.id == "I"
     valid_classes = {"magnetic_class": HALE_CLASSES, "mcintosh_class": MCINTOSH_CLASSES}
     for col, vals in valid_classes.items():
-        result = active_regions_df[col].isin(vals)
-        active_regions_df.loc[~result, "filtered"] = True
-        active_regions_df.loc[~result, "filter_reason"] += f"invalid_{col},"
+        result = active_regions_df[ar_mask][col].isin(vals)
+        active_regions_df[ar_mask].loc[~result, "filtered"] = True
+        active_regions_df[ar_mask].loc[~result, "filter_reason"] += f"invalid_{col},"
 
     bad_latitudes = active_regions_df.latitude.abs() > lat_limit
     active_regions_df.loc[bad_latitudes, "filtered"] = True
@@ -509,7 +510,7 @@ def filter_srs(
 
     synodic_rate = (360 * u.degree) / mean_synodic_period
 
-    for number, group in active_regions_df.groupby("number"):
+    for number, group in active_regions_df[ar_mask].groupby("number"):
         dt = group.target_time.diff().dt.days.values << u.day
         dlat = group.latitude.diff().values << u.degree
         dlon = group.longitude.diff().values << u.degree
@@ -517,16 +518,16 @@ def filter_srs(
         lat_rate = dlat / dt
         lon_rate = dlon / dt
 
-        # Without further checks hard to know which data point is incorrect so drop entire groups
+        # Without further checks hard to know which data point is incorrect so drop
         bad_lat_rates = np.abs(lat_rate) > lat_rate_limit
         if np.any(bad_lat_rates):
-            active_regions_df.loc[group.index.values, "filtered"] = True
-            active_regions_df.loc[group.index.values, "filter_reason"] += "bad_lat_rate,"
+            active_regions_df.loc[group.index.values[bad_lat_rates], "filtered"] = True
+            active_regions_df.loc[group.index.values[bad_lat_rates], "filter_reason"] += "bad_lat_rate,"
 
-        bad_lon_rates = (lon_rate < (synodic_rate - lon_rate_limit)) | (lon_rate > (synodic_rate + lon_rate_limit))
+        bad_lon_rates = (lon_rate - synodic_rate) > lon_rate_limit
         if np.any(bad_lon_rates):
-            active_regions_df.loc[group.index.values, "filtered"] = True
-            active_regions_df.loc[group.index.values, "filter_reason"] += "bad_lon_rate,"
+            active_regions_df.loc[group.index.values[bad_lon_rates], "filtered"] = True
+            active_regions_df.loc[group.index.values[bad_lon_rates], "filter_reason"] += "bad_lon_rate,"
 
     out_catalog = QTable.from_pandas(active_regions_df)
     out_catalog["longitude"].unit = u.deg
