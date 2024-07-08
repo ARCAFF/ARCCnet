@@ -517,7 +517,7 @@ def filter_srs(
         bad_lat_rates = np.abs(lat - mean_lat) > lat_rate_limit
         if np.any(bad_lat_rates):
             filtered = group.index.values[bad_lat_rates]
-            if len(group) < 3:  # too small to drop all
+            if len(group) < 3:  # too small so drop all
                 filtered = group.index.values
             active_regions_df.loc[filtered, "filtered"] = True
             active_regions_df.loc[filtered, "filter_reason"] += "bad_lat_rate,"
@@ -531,7 +531,7 @@ def filter_srs(
         bad_lon_rates = np.abs(corrected_lon - mean_lon) > lon_rate_limit
         if np.any(bad_lon_rates):
             filtered = group.index.values[bad_lat_rates]
-            if len(group) < 3:  # too small to drop all
+            if len(group) < 3:  # too small so drop all
                 filtered = group.index.values
             active_regions_df.loc[filtered, "filtered"] = True
             active_regions_df.loc[filtered, "filter_reason"] += "bad_lon_rate,"

@@ -51,7 +51,7 @@ def parser(args=None):
     root_parser = argparse.ArgumentParser(prog="arccnet", description="")
     root_parser.add_argument("--config-file", type=Path)
     root_parser.add_argument("--data-root", type=Path, dest="paths.data_root")
-    commands = root_parser.add_subparsers(title="Commands", help="Commands", required=True)
+    commands = root_parser.add_subparsers(title="Commands", help="Commands", required=True, dest="command")
 
     catalog_parser = commands.add_parser("catalog", help="Catalog generation and download")
     catlog_commands = catalog_parser.add_subparsers(
