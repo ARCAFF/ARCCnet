@@ -19,7 +19,7 @@ __all__ = ["BaseMagnetogram"]
 class BaseMagnetogram(ABC):
     def __init__(self) -> None:
         super().__init__()
-        self._drms_client = drms.Client(debug=False, verbose=False, email=config["jsoc"]["jsoc_default_email"])
+        self._drms_client = drms.Client(email=config["jsoc"]["jsoc_default_email"])
 
     @abstractmethod
     def generate_drms_query(self, start_time: datetime, end_time: datetime, frequency: str) -> str:
