@@ -130,16 +130,18 @@ class RegionDetection:
 
         bboxes = []
         for group in tqdm(grouped_data.groups, total=len(grouped_data.groups), desc="Processing"):
+            print(group[["target_time", "filtered", "filter_reason", "NOAA", "NOAANUM"]])
+
             if np.all(group["filtered"] == True):  # noqa
                 continue
+
+            if np.any(group["filtered"] == True):  # noqa
+                raise NotImplementedError()
 
             fulldisk_path = group["processed_path"][0]
             fulldisk_map = sunpy.map.Map(Path(fulldisk_path))
 
             for row in group:
-                if np.any(row["filtered"] == True):  # noqa
-                    raise NotImplementedError()
-
                 cutout_map = sunpy.map.Map(row[self._col_cutout])
 
                 # rotate with missing, the value to use for pixels in the output map that are beyond the extent of the input map,

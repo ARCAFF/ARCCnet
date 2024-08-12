@@ -180,14 +180,14 @@ class MagnetogramProcessor:
 
         return output_file
 
-    def _process_datum(self, file) -> sunpy.map.Map:
+    def _process_datum(self, file: Path) -> sunpy.map.Map:
         r"""
         Process a single data file.
 
         Processing Steps:
             1. Load and rotate
             2. Set off-disk data to 0
-            # !TODO
+            3. !TODO additional steps?
             4. Normalise radius to a fixed value
             5. Project to a certain location in space
 
