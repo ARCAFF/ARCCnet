@@ -23,7 +23,7 @@ from arccnet.data_generation.magnetograms.instruments import (
     MDILOSMagnetogram,
     MDISMARPs,
 )
-from arccnet.data_generation.region_detection import RegionDetection
+from arccnet.data_generation.region_detection import RegionDetection, RegionDetectionTable
 from arccnet.utils.logging import get_logger
 from arccnet.version import __version__
 
@@ -558,11 +558,12 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
         identifier_col_name="record_HARPNUM_arc",
     )
 
+    # !TODO do we first merge harp_noaa_map with sharps and then with catalog_hmi or vice-versa?
+
     # 2. merge HMI-SHARPs
     #    drop the columns with no datetime to do the join
     hmi_filtered = QTable(hmi.copy())
     # hmi_filtered = hmi_filtered[~hmi_filtered["datetime"].mask].copy()
-
     sharps_filtered = QTable(sharps.copy())
     # sharps_filtered = sharps_filtered[~sharps_filtered["datetime"].mask].copy()
     for colname in sharps_filtered.colnames:
@@ -587,9 +588,6 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     hmi_sharps_table2 = QTable.from_pandas(sh_table)
     # ...
 
-    logger.debug(f"Writing {hmi_sharps_merged_file}")
-    hmi_sharps_table2.write(hmi_sharps_merged_file, format="parquet", overwrite=True)
-
     # !TODO Merge SHARPS-NOAA
     # !TODO Merge SRS-HMI - SHARPS-NOAA
 
@@ -612,14 +610,42 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     srshmi_table.loc[~one_to_one, "filter_reason"] += "no_1-1_noaa_harp,"
     srshmi_harpnoaa2 = QTable.from_pandas(srshmi_table)
 
-    srshmi_harpnoaa2 = filter_grouped_table(srshmi_harpnoaa2.group_by("processed_path"))
+    # temporary to get SRS into the mapping
+    # doesn't include info about the filtered ones
+    # I think it's fine as long as Stanford say the mapping exists?
+    catalog_hmi_min = catalog_hmi[
+        [
+            "target_time",
+            "id",
+            "number",
+            "mcintosh_class",
+            "magnetic_class",
+            "latitude",
+            "longitude",
+            "longitudinal_extent",
+        ]
+    ]
+    catalog_hmi_min.rename_column("number", "NOAA")
+
+    rows_with_noaanum = srshmi_harpnoaa2[~srshmi_harpnoaa2["NOAA"].mask]
+    rows_without_noaanum = srshmi_harpnoaa2[srshmi_harpnoaa2["NOAA"].mask]
+
+    srshmi_harpnoaa3 = join(
+        rows_with_noaanum,
+        catalog_hmi_min,
+        keys=["target_time", "NOAA"],
+        table_names=["A", "B"],
+    )
+
+    joined_table = vstack([srshmi_harpnoaa3, rows_without_noaanum])
+    joined_table.sort("target_time")
+
+    srshmi_harpnoaa4 = filter_grouped_table(joined_table.group_by("processed_path"))
 
     # !TODO merge srs-mhi-harp-noaa with sharps
-    srshmi_harpnoaa2.write(
-        Path(data_root) / "03_processed" / "data" / "mag" / "srshmi_harpnoaa_merged.parq",
-        format="parquet",
-        overwrite=True,
-    )
+
+    logger.debug(f"Writing {hmi_sharps_merged_file}")
+    srshmi_harpnoaa4.write(hmi_sharps_merged_file, format="parquet", overwrite=True)
     # !TODO Merge SMARPS-NOAA
     # !TODO Merge SRS-MDI - SMARPS-NOA
 
@@ -678,25 +704,56 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
 
     srsmdi_tarpnoaa2 = filter_grouped_table(srsmdi_tarpnoaa2.group_by("processed_path"))
 
+    # temporary to get SRS into the mapping
+    # doesn't include info about the filtered ones
+    # I think it's fine as long as Stanford say the mapping exists?
+    catalog_mdi_min = catalog_mdi[
+        [
+            "target_time",
+            "id",
+            "number",
+            "mcintosh_class",
+            "magnetic_class",
+            "latitude",
+            "longitude",
+            "longitudinal_extent",
+        ]
+    ]
+    catalog_mdi_min.rename_column("number", "NOAA")
+
+    rows_with_noaanum_mdi = srsmdi_tarpnoaa2[~srsmdi_tarpnoaa2["NOAA"].mask]
+    rows_without_noaanum_mdi = srsmdi_tarpnoaa2[srsmdi_tarpnoaa2["NOAA"].mask]
+
+    srsmdi_tarpnoaa3 = join(
+        rows_with_noaanum_mdi,
+        catalog_mdi_min,
+        keys=["target_time", "NOAA"],
+        table_names=["A", "B"],
+    )
+
+    joined_table_mdi = vstack([srsmdi_tarpnoaa3, rows_without_noaanum_mdi])
+    joined_table_mdi.sort("target_time")
+
+    srsmdi_tarpnoaa4 = filter_grouped_table(joined_table_mdi.group_by("processed_path"))
+
     # !TODO merge srs-mhi-harp-noaa with sharps
-    srsmdi_tarpnoaa2.write(
-        Path(data_root) / "03_processed" / "data" / "mag" / "srsmdi_tarpnoaa_merged.parq",
+    srsmdi_tarpnoaa4.write(
+        Path(data_root) / "03_processed" / "data" / "mag" / "srshmi_harpnoaa_merged.parq",
         format="parquet",
         overwrite=True,
     )
+
     # !TODO Merge SMARPS-NOAA
     # !TODO Merge SRS-MDI - SMARPS-NOA
 
-    # -------
-
     logger.debug(f"Writing {mdi_smarps_merged_file}")
-    mdi_smarps_table2.write(mdi_smarps_merged_file, format="parquet", overwrite=True)
+    srsmdi_tarpnoaa4.write(mdi_smarps_merged_file, format="parquet", overwrite=True)
 
     return (
         catalog_hmi,
         catalog_mdi,
-        srshmi_harpnoaa2,
-        srsmdi_tarpnoaa2,
+        srshmi_harpnoaa4,
+        srsmdi_tarpnoaa4,
     )  # hmi_sharps_table2, mdi_smarps_table2
 
 
@@ -966,6 +1023,11 @@ def region_detection(config, hmi_sharps, mdi_smarps):
             "bottom_left_cutout",
             "filtered",
             "filter_reason",
+            "NOAA",
+            "longitudinal_extent",
+            "longitude",
+            "latitude",
+            "id",
         ]
 
         # subset of columns
@@ -1064,6 +1126,12 @@ def process_ars(config, catalog):
     hmi_download_obj, sharps_download_obj = process_hmi(config)
     mdi_download_obj, smarps_download_obj = process_mdi(config)
 
+    sharps_download_obj.write(
+        Path(config["paths"]["data_root"]) / "sharps_download_obj.parq",
+        format="parquet",
+        overwrite=True,
+    )
+
     # generate:
     #   SRS-HMI: merge SRS with HMI
     #   SRS-MDI: merge SRS with MDI
@@ -1079,36 +1147,34 @@ def process_ars(config, catalog):
     )
 
     # extract AR/QS regions from HMI and MDI
-    region_cutouts(config, srs_hmi, srs_mdi)
-
-    assert 1 == 2
+    _ = region_cutouts(config, srs_hmi, srs_mdi)
 
     # bounding box locations of cutouts (in pixel space) on the full-disk images
     # !TODO perform region_detection after the merging of noaa_harp
-    region_detection(config, hmi_sharps, mdi_smarps)
+    ardeten = region_detection(config, hmi_sharps, mdi_smarps)
     # merged_table = merge_noaa_harp(arclass, ardeten)
 
-    # merged_table_quicklook = RegionDetection.summary_plots(
-    #     RegionDetectionTable(merged_table),
-    #     Path(config["paths"]["data_root"]) / "04_final" / "data" / "region_detection" / "quicklook",
-    # )
+    merged_table_quicklook = RegionDetection.summary_plots(
+        RegionDetectionTable(ardeten),
+        Path(config["paths"]["data_root"]) / "04_final" / "data" / "region_detection" / "quicklook",
+    )
 
-    # # merged_table_quicklook.replace_column("quicklook_path", [str(p) for p in merged_table_quicklook["quicklook_path"]])
-    # merged_table_quicklook["quicklook_path"] = MaskedColumn(
-    #     data=[str(p) for p in merged_table_quicklook["quicklook_path"]],
-    #     mask=merged_table_quicklook["quicklook_path"].mask,
-    #     fill_value="",
-    # )
+    # merged_table_quicklook.replace_column("quicklook_path", [str(p) for p in merged_table_quicklook["quicklook_path"]])
+    merged_table_quicklook["quicklook_path"] = MaskedColumn(
+        data=[str(p) for p in merged_table_quicklook["quicklook_path"]],
+        mask=merged_table_quicklook["quicklook_path"].mask,
+        fill_value="",
+    )
 
-    # merged_table_quicklook.write(
-    #     Path(config["paths"]["data_root"])
-    #     / "04_final"
-    #     / "data"
-    #     / "region_detection"
-    #     / "region_detection_noaa-xarp.parq",
-    #     format="parquet",
-    #     overwrite=True,
-    # )
+    merged_table_quicklook.write(
+        Path(config["paths"]["data_root"])
+        / "04_final"
+        / "data"
+        / "region_detection"
+        / "region_detection_noaa-xarp.parq",
+        format="parquet",
+        overwrite=True,
+    )
 
 
 def process_merged_table(merged_table: QTable, instrument: str) -> QTable:
@@ -1155,7 +1221,6 @@ def filter_grouped_table(grouped_table: QTable) -> QTable:
     #     raise ValueError("`filter_reason_column` is already populated")
 
     for date in grouped_table.groups:
-        print(date)
         if any(date["NOAANUM"] > 1):
             date["filtered"] = True
             indices = np.where(grouped_table["processed_path"] == date["processed_path"][0])[0]
