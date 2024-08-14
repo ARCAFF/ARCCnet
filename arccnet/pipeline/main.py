@@ -481,7 +481,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
                 row["filtered"] = True
                 filter_reason_column_mdi[row.index] += "QUALITY(Missing%),"
 
-    filtered_mdi["filter_reason"] = filter_reason_column_mdi
+    filtered_mdi["filter_reason"] = Column([str(reason) for reason in filter_reason_column_mdi], dtype=str)
 
     # -- Join SRS and HMI
     # and combine their filtered/filter_reason columns
@@ -499,8 +499,6 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     catalog_mdi.replace_column("path_catalog", [str(pc) for pc in catalog_mdi["path_catalog"]])
     logger.debug(f"Writing {srs_mdi_merged_file}")
     catalog_mdi.write(srs_mdi_merged_file, format="parquet", overwrite=True)
-
-    QTable(catalog_mdi)
 
     # ---------
     # HMI - SRS
@@ -529,7 +527,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
                 row["filtered"] = True
                 filter_reason_column_hmi[row.index] += "QUALITY,"
 
-    filtered_hmi["filter_reason"] = filter_reason_column_hmi
+    filtered_hmi["filter_reason"] = Column([str(reason) for reason in filter_reason_column_hmi], dtype=str)
 
     # -- Join SRS and HMI
     # and combine their filtered/filter_reason columns
@@ -593,6 +591,9 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     srshmi_table.loc[~one_to_one, "filtered"] = True  # mark any where one_to_one is False
     srshmi_table.loc[~one_to_one, "filter_reason"] += "no_1-1_noaa_harp,"
     srshmi_harpnoaa2 = QTable.from_pandas(srshmi_table)
+
+    # remove this? what the hell?
+    srshmi_harpnoaa2["NOAANUM"] = Column([int(val) for val in srshmi_harpnoaa2["NOAANUM"]], dtype=int)
 
     # 5. Merge HARP and NOAA (from SRS)
     # doesn't include info about the filtered SRS, but I think it's fine as long as Stanford say the mapping exists?
@@ -668,6 +669,9 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     srsmdi_table.loc[~one_to_on2e, "filtered"] = True  # mark any where one_to_one is False
     srsmdi_table.loc[~one_to_on2e, "filter_reason"] += "no_1-1_noaa_harp,"
     srsmdi_tarpnoaa2 = QTable.from_pandas(srsmdi_table)
+
+    # remove this? what the hell?
+    srsmdi_tarpnoaa2["NOAANUM"] = Column([int(val) for val in srsmdi_tarpnoaa2["NOAANUM"]], dtype=int)
 
     # 5.
     catalog_mdi_min = catalog_mdi[
@@ -1046,7 +1050,6 @@ def process_ars(config, catalog):
         RegionDetectionTable(ardeten),
         Path(config["paths"]["data_root"]) / "04_final" / "data" / "region_detection" / "quicklook",
     )
-
     # merged_table_quicklook.replace_column("quicklook_path", [str(p) for p in merged_table_quicklook["quicklook_path"]])
     merged_table_quicklook["quicklook_path"] = MaskedColumn(
         data=[str(p) for p in merged_table_quicklook["quicklook_path"]],
@@ -1054,12 +1057,17 @@ def process_ars(config, catalog):
         fill_value="",
     )
 
-    merged_table_quicklook.write(
+    filename = (
         Path(config["paths"]["data_root"])
         / "04_final"
         / "data"
         / "region_detection"
-        / "region_detection_noaa-xarp.parq",
+        / "region_detection_noaa-xarp.parq"
+    )
+
+    logger.debug(f"Writing {filename}")
+    merged_table_quicklook.write(
+        filename,
         format="parquet",
         overwrite=True,
     )
