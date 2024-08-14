@@ -1006,8 +1006,8 @@ def region_detection(config, hmi_sharps, mdi_smarps):
         )
         ar_detection.sort("target_time")
 
-        ar_detection.write(reg_det_file, format="parquet", overwrite=True)
-        logger.debug(f"writing {reg_det_file}")
+        # ar_detection.write(reg_det_file, format="parquet", overwrite=True)
+        # logger.debug(f"writing {reg_det_file}")
 
     return ar_detection
 
@@ -1043,6 +1043,7 @@ def process_ars(config, catalog):
 
     # bounding box locations of cutouts (in pixel space) on the full-disk images
     # !TODO perform region_detection after the merging of noaa_harp
+
     ardeten = region_detection(config, hmi_sharps, mdi_smarps)
     # merged_table = merge_noaa_harp(arclass, ardeten)
 
