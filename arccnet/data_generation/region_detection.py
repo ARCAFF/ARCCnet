@@ -34,7 +34,7 @@ class RegionDetectionResult(QTable):
     """
     required_column_types = {
         "target_time": Time,
-        "processed_path": str,
+        "processed_path_image": str,
         "path_arc": str,
         "filtered": bool,
         "filter_reason": str,
@@ -57,7 +57,7 @@ class RegionDetectionTable(QTable):
     """
     required_column_types = {
         "target_time": Time,
-        "processed_path": str,
+        "processed_path_image": str,
         "path_arc": str,
         "filtered": bool,
         "filter_reason": str,
@@ -93,7 +93,7 @@ class RegionDetectionTable(QTable):
 
 
 class RegionDetection:
-    def __init__(self, table: QTable, col_group_path="processed_path", col_cutout_path="path_arc"):
+    def __init__(self, table: QTable, col_group_path="processed_path_image", col_cutout_path="path_arc"):
         r"""
         Initialize a RegionDetection instance
 
@@ -130,6 +130,7 @@ class RegionDetection:
 
         bboxes = []
         for group in tqdm(grouped_data.groups, total=len(grouped_data.groups), desc="Processing"):
+            print(group[["target_time", "filtered", "filter_reason", "NOAA", "NOAANUM"]])
             if np.all(group["filtered"] == True):  # noqa
                 continue
 
@@ -137,7 +138,7 @@ class RegionDetection:
                 logger.info(group[["target_time", "filtered", "filter_reason", "NOAA", "NOAANUM"]])
                 raise NotImplementedError()
 
-            fulldisk_path = group["processed_path"][0]
+            fulldisk_path = group["processed_path_image"][0]
             fulldisk_map = sunpy.map.Map(Path(fulldisk_path))
 
             for row in group:
@@ -216,7 +217,7 @@ class RegionDetection:
         col = MaskedColumn(data=[Path()] * len(data), mask=[True] * len(data))
         data.add_column(col, name="quicklook_path")
 
-        grouped_data = data.group_by("processed_path")
+        grouped_data = data.group_by("processed_path_image")
         result_table = data[:0].copy()
 
         for group in tqdm(grouped_data.groups, total=len(grouped_data.groups), desc="Plotting"):
@@ -225,7 +226,7 @@ class RegionDetection:
                     result_table.add_row(row)
                 continue
 
-            fulldisk_path = group["processed_path"][0]
+            fulldisk_path = group["processed_path_image"][0]
             instrument = group["instrument"][0]
 
             fulldisk_map = sunpy.map.Map(Path(fulldisk_path))
