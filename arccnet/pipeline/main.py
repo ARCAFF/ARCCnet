@@ -453,35 +453,38 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     # MDI - SRS
     # ---------
 
+    # filter MDI on QUALITY
     filtered_mdi = mdi.copy()
     filtered_mdi.rename_column("processed_path", "processed_path_image")
 
-    # Ensure `filtered` and `filter_reason`columns exists
+    # -- Ensure `filtered` and `filter_reason`columns exists
     if "filtered" not in filtered_mdi.colnames:
         filtered_mdi.add_column(Column(np.full(len(filtered_mdi), False, dtype=bool), name="filtered"))
     if "filter_reason" not in filtered_mdi.colnames:
         filtered_mdi.add_column(Column(np.full(len(filtered_mdi), "", dtype=str), name="filter_reason"))
 
-    # Convert the "filter_reason" column to a numpy array
-    filter_reason_column = np.array(filtered_mdi["filter_reason"], dtype=object)
+    # -- Convert the "filter_reason" column to a numpy array
+    filter_reason_column_mdi = np.array(filtered_mdi["filter_reason"], dtype=object)
     # Now, update the "filter_reason" column only for masked rows
     for idx, row in enumerate(filtered_mdi):
         if filtered_mdi["processed_path_image"].mask[idx]:
             row["filtered"] = True
-            filter_reason_column[row.index] += "no_magnetogram,"
+            filter_reason_column_mdi[row.index] += "no_magnetogram,"
         if not filtered_mdi["QUALITY"].mask[idx]:
             # QUALITY limit from https://github.com/mbobra/SMARPs/blob/main/example_gallery/Compare_SMARP_and_SHARP_bitmaps.ipynb
             if np.int32(int(filtered_mdi["QUALITY"][idx], 16)) >= 262144:
                 row["filtered"] = True
-                filter_reason_column[row.index] += "QUALITY,"
+                filter_reason_column_mdi[row.index] += "QUALITY,"
             if (int(filtered_mdi["QUALITY"][idx], 16) & 0b01111100) != 0:
                 # checking MDI bits 2,3,4,5,6 (http://soi.stanford.edu/production/QUALITY/DATASWtable.html)
                 # https://docs.astropy.org/en/stable/nddata/bitmask.html
                 row["filtered"] = True
-                filter_reason_column[row.index] += "QUALITY(Missing%),"
+                filter_reason_column_mdi[row.index] += "QUALITY(Missing%),"
 
-    filtered_mdi["filter_reason"] = filter_reason_column
+    filtered_mdi["filter_reason"] = filter_reason_column_mdi
 
+    # -- Join SRS and HMI
+    # and combine their filtered/filter_reason columns
     catalog_mdi = join(
         QTable(srs),
         QTable(filtered_mdi),
@@ -494,6 +497,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     )
     catalog_mdi.remove_columns(["filtered_catalog", "filtered_image", "filter_reason_catalog", "filter_reason_image"])
     catalog_mdi.replace_column("path_catalog", [str(pc) for pc in catalog_mdi["path_catalog"]])
+    logger.debug(f"Writing {srs_mdi_merged_file}")
     catalog_mdi.write(srs_mdi_merged_file, format="parquet", overwrite=True)
 
     QTable(catalog_mdi)
@@ -502,29 +506,33 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     # HMI - SRS
     # ---------
 
-    # ----- Filter HMI on Quality
+    # filter HMI on QUALITY
     filtered_hmi = hmi.copy()
     filtered_hmi.rename_column("processed_path", "processed_path_image")
 
-    # Ensure `filtered` and `filter_reason`columns exists
+    # -- Ensure `filtered` and `filter_reason`columns exists
     if "filtered" not in filtered_hmi.colnames:
         filtered_hmi.add_column(Column(np.full(len(filtered_hmi), False, dtype=bool), name="filtered"))
     if "filter_reason" not in filtered_hmi.colnames:
         filtered_hmi.add_column(Column(np.full(len(filtered_hmi), "", dtype=str), name="filter_reason"))
 
-    # Convert the "filter_reason" column to a numpy array of dtype=object
-    filter_reason_column = np.array(filtered_hmi["filter_reason"], dtype=object)
+    # -- Convert the "filter_reason" column to a numpy array of dtype=object
+    filter_reason_column_hmi = np.array(filtered_hmi["filter_reason"], dtype=object)
     # Now, update the "filter_reason" column only for masked rows
     for idx, row in enumerate(filtered_hmi):
         if filtered_hmi["processed_path_image"].mask[idx]:
             row["filtered"] = True
-            filter_reason_column[row.index] += "no_magnetogram,"
+            filter_reason_column_hmi[row.index] += "no_magnetogram,"
         if not filtered_hmi["QUALITY"].mask[idx]:
             # QUALITY limit from https://github.com/mbobra/SMARPs/blob/main/example_gallery/Compare_SMARP_and_SHARP_bitmaps.ipynb
             if np.int32(int(filtered_hmi["QUALITY"][idx], 16)) >= 65536:
                 row["filtered"] = True
-                filter_reason_column[row.index] += "QUALITY,"
+                filter_reason_column_hmi[row.index] += "QUALITY,"
 
+    filtered_hmi["filter_reason"] = filter_reason_column_hmi
+
+    # -- Join SRS and HMI
+    # and combine their filtered/filter_reason columns
     catalog_hmi = join(
         QTable(srs),
         QTable(filtered_hmi),
@@ -537,6 +545,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     )
     catalog_hmi.remove_columns(["filtered_catalog", "filtered_image", "filter_reason_catalog", "filter_reason_image"])
     catalog_hmi.replace_column("path_catalog", [str(pc) for pc in catalog_hmi["path_catalog"]])
+    logger.debug(f"Writing {srs_hmi_merged_file}")
     catalog_hmi.write(srs_hmi_merged_file, format="parquet", overwrite=True)
 
     # ------------
