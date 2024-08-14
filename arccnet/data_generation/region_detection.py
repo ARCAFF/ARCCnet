@@ -130,12 +130,11 @@ class RegionDetection:
 
         bboxes = []
         for group in tqdm(grouped_data.groups, total=len(grouped_data.groups), desc="Processing"):
-            print(group[["target_time", "filtered", "filter_reason", "NOAA", "NOAANUM"]])
             if np.all(group["filtered"] == True):  # noqa
                 continue
 
             if np.any(group["filtered"] == True):  # noqa
-                logger.info(group[["target_time", "filtered", "filter_reason", "NOAA", "NOAANUM"]])
+                logger.error(group[["target_time", "filtered", "filter_reason", "NOAA", "NOAANUM"]])
                 raise NotImplementedError()
 
             fulldisk_path = group["processed_path_image"][0]
@@ -243,7 +242,7 @@ class RegionDetection:
 
         assert len(result_table) == len(data)
 
-        return result_table
+        return RegionDetectionResult(result_table)
 
     @staticmethod
     def _summary_plot(table: RegionDetectionResult, sunpy_map: sunpy.map.Map, output_filename: Path, **kwargs):
