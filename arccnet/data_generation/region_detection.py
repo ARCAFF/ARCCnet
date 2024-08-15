@@ -245,7 +245,7 @@ class RegionDetection:
         return RegionDetectionResult(result_table)
 
     @staticmethod
-    def _summary_plot(table: RegionDetectionResult, sunpy_map: sunpy.map.Map, output_filename: Path, **kwargs):
+    def _summary_plot(table: RegionDetectionResult, sunpy_map: sunpy.map.Map, output_filename: Path):
         """
         assumes a RegionDetectionTable that has been grouped by `processed_path`
         """
