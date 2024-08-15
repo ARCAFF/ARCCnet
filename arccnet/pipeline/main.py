@@ -1020,12 +1020,6 @@ def process_ars(config, catalog):
     hmi_download_obj, sharps_download_obj = process_hmi(config)
     mdi_download_obj, smarps_download_obj = process_mdi(config)
 
-    sharps_download_obj.write(
-        Path(config["paths"]["data_root"]) / "sharps_download_obj.parq",
-        format="parquet",
-        overwrite=True,
-    )
-
     # generate:
     #   SRS-HMI: merge SRS with HMI
     #   SRS-MDI: merge SRS with MDI
