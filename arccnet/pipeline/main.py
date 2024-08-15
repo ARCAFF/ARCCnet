@@ -986,6 +986,8 @@ def region_detection(config, hmi_sharps, mdi_smarps):
             "longitude",
             "latitude",
             "id",
+            "mcintosh_class",
+            "magnetic_class",
         ]
 
         # subset of columns
