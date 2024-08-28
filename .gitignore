@@ -231,3 +231,7 @@ docs/whatsnew/latest_changelog.txt
 *.log
 
 data/**
+
+### Training Temporary Folders
+arccnet/models/temp
+arccnet/models/weights
