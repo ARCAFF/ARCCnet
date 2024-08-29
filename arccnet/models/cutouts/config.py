@@ -11,7 +11,7 @@ patience = 10
 pretrained = True
 learning_rate = 1e-5
 
-model_name = "resnet10t"
+model_name = "beit_base_patch16_224"
 gpu_index = 0
 device = "cuda:" + str(gpu_index)
 

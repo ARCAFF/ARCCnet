@@ -3,7 +3,7 @@ import time
 import random
 import socket
 
-import matplotlib
+import matplotlib  # noqa: F401
 import numpy as np
 import pandas as pd
 import timm
@@ -17,6 +17,7 @@ from sklearn.metrics import classification_report, confusion_matrix, f1_score, p
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.utils import resample
 from sklearn.utils.class_weight import compute_class_weight
+from sunpy.visualization import colormaps as cm  # noqa: F401
 from torch.cuda.amp import GradScaler
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms.functional import to_tensor
@@ -26,7 +27,8 @@ from astropy.io import fits
 from astropy.time import Time
 
 deg = np.pi / 180
-magnetic_map = matplotlib.colormaps["hmimag"]  # 'gray' #
+
+magnetic_map = matplotlib.colormaps["hmimag"]
 
 greek_mapping = {
     "Alpha": "α",
@@ -787,7 +789,11 @@ def train_model(config, df, weights_dir, experiment=None, fold=1):
     ) = test_model(model, test_loader, device, criterion)
 
     if experiment:
-        {value for value in config.label_mapping.values() if value is not None}
+        lbls = [value for value in config.label_mapping.values() if value is not None]
+        unique_lbls = []
+        for item in lbls:
+            if item not in unique_lbls:
+                unique_lbls.append(item)
         experiment.log_metrics(
             {
                 "avg_test_loss": avg_test_loss,
@@ -801,6 +807,7 @@ def train_model(config, df, weights_dir, experiment=None, fold=1):
             matrix=cm_test,
             title="Confusion Matrix at best val epoch",
             file_name="test_confusion_matrix_best_epoch.json",
+            labels=unique_lbls,
         )
         experiment.log_text(report_df.to_string(), metadata={"type": "Classification Report"})
         csv_file_path = os.path.join(weights_dir, "classification_report.csv")
