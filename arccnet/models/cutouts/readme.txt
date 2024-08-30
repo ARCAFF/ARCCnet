@@ -5,3 +5,6 @@ The train.py script requires:
     are needed to store temporary files.
 - An environment variable named ARCAFF_DATA_FOLDER must be set, pointing to the location where the dataset is stored.
   Default is ../../data
+- Before logging training to Comet ML, run
+    import comet_ml
+    comet_ml.login()

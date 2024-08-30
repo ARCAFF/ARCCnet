@@ -251,10 +251,16 @@ class FITSDataset(Dataset):
     cache : dict
         A dictionary used to cache loaded images in memory. The keys are the indices of the images,
         and the values are tuples containing the image tensors and their corresponding labels.
+    target_height : int
+        The target height to resize the images.
+    target_width : int
+        The target width to resize the images.
+    divisor : float
+        The divisor used for normalizing image pixel values.
 
     Methods:
     --------
-    __init__(self, data_folder, df, transform=None)
+    __init__(self, data_folder, dataset_folder, df, transform=None, target_height=224, target_width=224, divisor=1600.0)
         Initializes the dataset with the provided directories, DataFrame, and optional transformations.
         Initializes an empty cache for storing images in memory.
 
@@ -277,12 +283,17 @@ class FITSDataset(Dataset):
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
     """
 
-    def __init__(self, data_folder, dataset_folder, df, transform=None):
+    def __init__(
+        self, data_folder, dataset_folder, df, transform=None, target_height=224, target_width=224, divisor=800.0
+    ):
         self.data_folder = data_folder
         self.dataset_folder = dataset_folder
         self.df = df
         self.transform = transform
         self.cache = {}
+        self.target_height = target_height
+        self.target_width = target_width
+        self.divisor = divisor
 
     def _load_image(self, row):
         path = "path_image_cutout_hmi" if row["path_image_cutout_hmi"] != "" else "path_image_cutout_mdi"
@@ -290,8 +301,8 @@ class FITSDataset(Dataset):
         with fits.open(fits_file_path, memmap=True) as img_fits:
             image_data = np.array(img_fits[1].data, dtype=np.float32)
         image_data = np.nan_to_num(image_data, nan=0.0)
-        image_data = hardtanh_transform_npy(image_data, divisor=800.0, min_val=-1.0, max_val=1.0)
-        image_data = pad_resize_normalize(image_data, target_height=224, target_width=224)
+        image_data = hardtanh_transform_npy(image_data, divisor=self.divisor, min_val=-1.0, max_val=1.0)
+        image_data = pad_resize_normalize(image_data, target_height=self.target_height, target_width=self.target_width)
         image = torch.from_numpy(image_data).unsqueeze(0)
         return image, row["encoded_labels"]
 

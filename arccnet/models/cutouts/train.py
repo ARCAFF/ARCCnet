@@ -1,10 +1,49 @@
 import os
+import argparse
 
 import torch
 from comet_ml import Experiment
 
 import arccnet.models.cutouts.config as config
 import arccnet.models.utilities as ut
+
+# Initialize argument parser
+parser = argparse.ArgumentParser(description="Training script with configurable options.")
+parser.add_argument("--model_name", type=str, help="Timm model name")
+parser.add_argument("--batch_size", type=int, help="Batch size for training.")
+parser.add_argument("--num_workers", type=int, help="Number of workers for data loading and preprocessing.")
+parser.add_argument("--num_epochs", type=int, help="Number of epochs for training.")
+parser.add_argument("--patience", type=int, help="Patience for early stopping.")
+parser.add_argument("--learning_rate", type=float, help="Learning rate for optimizer.")
+parser.add_argument("--gpu_index", type=int, help="Index of the GPU to use.")
+parser.add_argument("--data_folder", type=str, help="Path to the data folder.")
+parser.add_argument("--dataset_folder", type=str, help="Path to the dataset folder.")
+parser.add_argument("--df_file_name", type=str, help="Name of the dataframe file.")
+
+args = parser.parse_args()
+
+# Override config settings with arguments if provided
+if args.model_name is not None:
+    config.model_name = args.model_name
+if args.batch_size is not None:
+    config.batch_size = args.batch_size
+if args.num_epochs is not None:
+    config.num_epochs = args.num_epochs
+if args.patience is not None:
+    config.patience = args.patience
+if args.learning_rate is not None:
+    config.learning_rate = args.learning_rate
+if args.gpu_index is not None:
+    config.gpu_index = args.gpu_index
+    config.device = f"cuda:{args.gpu_index}"
+if args.data_folder is not None:
+    config.data_folder = args.data_folder
+if args.dataset_folder is not None:
+    config.dataset_folder = args.dataset_folder
+if args.df_file_name is not None:
+    config.df_file_name = args.df_file_name
+if args.num_workers is not None:
+    config.num_workers = args.num_workers
 
 run_id, weights_dir = ut.generate_run_id(config)
 

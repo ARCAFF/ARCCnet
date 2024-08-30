@@ -235,3 +235,4 @@ data/**
 ### Training Temporary Folders
 arccnet/models/temp
 arccnet/models/weights
+arccnet/models/trained_models
