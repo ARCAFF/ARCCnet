@@ -7,7 +7,6 @@ from sunpy.net import attrs as a
 from sunpy.net.helio import HECResponse
 from sunpy.time import TimeRange
 
-import astropy.units as u
 from astropy.table import QTable, vstack
 from astropy.time import Time
 
@@ -87,12 +86,12 @@ class HECFlareCatalog:
 
         # There is a hard server side limit of 20,000 records, making many small queries will be blocked so use
         # different size windows for different time periods so for 2022 on use 15 day intervals
-        years = [tr.end.to_datetime().year for tr in windows]
-        if 2022 in years:
-            first_2022 = years.index(2022)
-            tr_2022_plus = TimeRange(windows[first_2022].start, windows[first_2022 + 1].end)
-            new_windows = tr_2022_plus.window(5 * u.day, 5 * u.day)
-            windows = windows[: first_2022 - 1] + new_windows + windows[first_2022 + 1 :]
+        # years = [tr.end.to_datetime().year for tr in windows]
+        # if 2022 in years:
+        #     first_2022 = years.index(2022)
+        #     tr_2022_plus = TimeRange(windows[first_2022].start, windows[first_2022 + 1].end)
+        #     new_windows = tr_2022_plus.window(5 * u.day, 5 * u.day)
+        #     windows = windows[: first_2022 - 1] + new_windows + windows[first_2022 + 1 :]
 
         flares = []
         for i, window in enumerate(windows):
