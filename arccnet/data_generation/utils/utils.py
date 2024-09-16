@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 import sunpy.map
+from pandas.core.interchange.dataframe_protocol import DataFrame
 from sklearn.model_selection import StratifiedGroupKFold
 
 import astropy.io
@@ -207,3 +208,52 @@ def grouped_stratified_split(
     train, test = splits[0]
 
     return train, test
+
+
+def time_split(df: DataFrame, train: int, test: int, validate: int):
+    r"""
+    Split data set based on time
+
+    First t 'train' months go to train, next v 'validate' months go to validate, and finally next t 'test' months go
+    to test, this process is repeated until all data is assigned. The concept here is the validation data acts as a
+    buffer to between the test and train set
+
+    Parameters
+    ----------
+    df :
+        Input dataset
+    train :
+        Number of consecutive days to assign to train set
+    test
+        Number of consecutive days to assign to test set
+    validate
+        Number of consecutive days to assign to validation set
+
+    Returns
+    -------
+
+    """
+    full_cycle = train + test + validate
+
+    duration = df.index.max() - df.index.min()
+    full_cycles, remain = divmod(duration.days, full_cycle)
+
+    train_start = df.index.min()
+
+    train_indices = pd.DatetimeIndex([], freq="D")
+    test_indices = pd.DatetimeIndex([], freq="D")
+    val_indices = pd.DatetimeIndex([], freq="D")
+    for cycle in range(max(full_cycles, 1)):
+        train_end = train_start + pd.DateOffset(days=train - 1)
+        val_start = train_end + pd.DateOffset(days=1)
+        val_end = val_start + pd.DateOffset(days=validate - 1)
+        test_start = val_end + pd.DateOffset(days=1)
+        test_end = test_start + pd.DateOffset(days=test - 1)
+
+        train_indices = train_indices.append(df[train_start:train_end].index)
+        val_indices = val_indices.append(df[val_start:val_end].index)
+        test_indices = test_indices.append(df[test_start:test_end].index)
+
+        train_start = test_end + pd.DateOffset(days=1)
+
+    return train_indices, test_indices, val_indices
