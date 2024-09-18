@@ -135,8 +135,8 @@ def test_time_split():
     df = pd.DataFrame()
     df["y"] = y
     df["m"] = m
-    df.index = tr
-    train, test, valid = time_split(df, train=6, test=2, validate=2)
+    df["t"] = tr
+    train, test, valid = time_split(df, time_column="t", train=6, test=2, validate=2)
 
     assert len(train) == 6
     assert len(test) == 2
