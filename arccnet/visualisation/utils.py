@@ -9,25 +9,9 @@ from skimage import transform
 from sunpy.visualization import colormaps as cm  # noqa: F401
 from torchvision.transforms.functional import to_tensor
 
+from arccnet.models import labels
+
 magnetic_map = matplotlib.colormaps["hmimag"]
-
-greek_mapping = {
-    "Alpha": "α",
-    "Beta": "β",
-    "Gamma": "γ",
-    "Delta": "δ",
-}
-
-deg = np.pi / 180
-
-
-def convert_to_greek_label(names_array):
-    def map_to_greek(name):
-        parts = name.split("-")
-        greek_parts = [greek_mapping.get(part, part) for part in parts]
-        return "-".join(greek_parts)
-
-    return np.array([map_to_greek(name) for name in names_array])
 
 
 def pad_resize_normalize(image, target_height=224, target_width=224):
@@ -144,7 +128,7 @@ def make_classes_histogram(
     # Remove None values before sorting
     classes_names = sorted(filter(lambda x: x is not None, series.unique()))
 
-    greek_labels = convert_to_greek_label(classes_names)
+    greek_labels = labels.convert_to_greek_label(classes_names)
     classes_counts = series.value_counts().reindex(classes_names)
     values = classes_counts.values
     total = np.sum(values)
@@ -343,7 +327,7 @@ def plot_location_on_sun(df, long_limit_deg=60, experiment=None):
     yV = np.cos(latV) * np.sin(lonV)
     zV = np.sin(latV)
 
-    condition = (lonV < -long_limit_deg * deg) | (lonV > long_limit_deg * deg)
+    condition = (lonV < -np.rad2deg(long_limit_deg)) | (lonV > np.rad2deg(long_limit_deg))
 
     rear_latV = latV[condition]
     lonV[condition]
