@@ -3,6 +3,7 @@ import os
 from torchvision.transforms import v2
 
 from arccnet.models import labels
+from arccnet import load_config
 
 classes = "qs-ia-a-b-bg"
 project_name = "arcaff-v2-" + classes
@@ -19,7 +20,7 @@ pretrained = True
 gpu_index = 0
 device = "cuda:" + str(gpu_index)
 
-data_folder = os.getenv("ARCAFF_DATA_FOLDER", "../../../../data")
+data_folder = load_config().get("paths","data_folder") #os.getenv("ARCAFF_DATA_FOLDER", "../../../../data")
 dataset_folder = "arccnet-cutout-dataset-v20240715"
 df_file_name = "cutout-mcintosh-catalog-v20240715.parq"
 
