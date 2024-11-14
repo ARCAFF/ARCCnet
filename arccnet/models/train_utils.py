@@ -75,8 +75,8 @@ class FITSDataset(Dataset):
 
     Examples
     --------
-    >>> dataset = FITSDataset(data_folder='path/to/data/', dataset_folder='dataset_folder', df=df, transform=your_transforms)
-    >>> dataloader = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
+    dataset = FITSDataset(data_folder='path/to/data/', dataset_folder='dataset_folder', df=df, transform=your_transforms)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
     """
 
     def __init__(
@@ -141,8 +141,8 @@ def replace_activations(module, old_act, new_act, **kwargs):
 
     Examples
     --------
-    >>> model = MyModel()
-    >>> replace_activations(model, torch.nn.ReLU, torch.nn.LeakyReLU, negative_slope=0.01)
+    model = MyModel()
+    replace_activations(model, torch.nn.ReLU, torch.nn.LeakyReLU, negative_slope=0.01)
     """
     for name, child in module.named_children():
         if isinstance(child, old_act):
@@ -215,15 +215,15 @@ def train_one_epoch(epoch, model, train_loader, criterion, optimizer, device, sc
 
     Examples
     --------
-    >>> avg_loss, accuracy = train_one_epoch(
-    ...     epoch=10,
-    ...     model=my_model,
-    ...     train_loader=my_train_loader,
-    ...     criterion=torch.nn.CrossEntropyLoss(),
-    ...     optimizer=torch.optim.Adam(my_model.parameters()),
-    ...     device=torch.device('cuda'),
-    ...     scaler=torch.amp.GradScaler()
-    ... )
+    avg_loss, accuracy = train_one_epoch(
+            epoch=10,
+            model=my_model,
+            train_loader=my_train_loader,
+            criterion=torch.nn.CrossEntropyLoss(),
+            optimizer=torch.optim.Adam(my_model.parameters()),
+            device=torch.device('cuda'),
+            scaler=torch.amp.GradScaler()
+            )
     """
     model.train()
     total_loss = 0
@@ -299,12 +299,12 @@ def evaluate(model, val_loader, criterion, device):
 
     Examples
     --------
-    >>> avg_loss, accuracy, precision, recall, f1 = evaluate(
-    ...     model=my_model,
-    ...     val_loader=my_val_loader,
-    ...     criterion=torch.nn.CrossEntropyLoss(),
-    ...     device=torch.device('cuda')
-    ... )
+    avg_loss, accuracy, precision, recall, f1 = evaluate(
+         model=my_model,
+         val_loader=my_val_loader,
+         criterion=torch.nn.CrossEntropyLoss(),
+         device=torch.device('cuda')
+        s)
     """
     model.eval()
     total_loss = 0
@@ -376,15 +376,15 @@ def check_early_stopping(val_metric, best_val_metric, patience_counter, model, w
 
     Examples
     --------
-    >>> best_val_metric, patience_counter, stop_training = check_early_stopping(
-    ...     val_metric=0.85,
-    ...     best_val_metric=0.80,
-    ...     patience_counter=2,
-    ...     model=my_model,
-    ...     weights_dir="./model_weights/",
-    ...     config=my_config,
-    ...     fold_n=1
-    ... )
+    best_val_metric, patience_counter, stop_training = check_early_stopping(
+         val_metric=0.85,
+         best_val_metric=0.80,
+         patience_counter=2,
+         model=my_model,
+         weights_dir="./model_weights/",
+         config=my_config,
+         fold_n=1
+     )
     """
     stop_training = False
     if val_metric > best_val_metric:
@@ -465,15 +465,6 @@ def load_model_test(weights_dir, model, device, fold_n=None):
     This function loads the best model weights saved during training from a specified file and
     prepares the model for testing by moving it to the specified device (CPU or GPU) and setting it
     to evaluation mode (`model.eval()`).
-
-    Examples
-    --------
-    >>> model = load_model_test(
-    ...     weights_dir="./model_weights/",
-    ...     model=my_model,
-    ...     device=torch.device('cuda'),
-    ...     fold_n=1
-    ... )
     """
     if fold_n is not None:
         model_path = os.path.join(weights_dir, f"best_model_fold{fold_n}.pth")
@@ -712,7 +703,7 @@ def train_model(config, df, weights_dir, experiment=None, fold=1):
         )
 
     # Evaluate the best model on the test set
-    print("Testing...")
+    print("Testing")
     model = load_model_test(weights_dir, model, device)
     (
         avg_test_loss,
