@@ -3,11 +3,11 @@
 
 """
 
+import os
 import configparser
 from pathlib import Path
 from datetime import datetime
-import os
-import re
+
 from platformdirs import PlatformDirs
 
 import arccnet
@@ -22,11 +22,13 @@ DATA_DIR = Path(dirs.user_data_dir)
 
 __all__ = ["load_config", "print_config", "CONFIG_DIR"]
 
+
 class EnvAndExtendedInterpolation(configparser.ExtendedInterpolation):
     """
     Custom interpolation class that first replaces environment variables,
     then handles config option substitutions.
     """
+
     def before_get(self, parser, section, option, value, defaults):
         # Replace environment variables in the value
         value = os.path.expandvars(value)
@@ -78,10 +80,7 @@ def load_config():
     If one does not exist in the user's home directory, then read in the defaults from "arccnet/utils/arccnetrc".
     """
     converters = {"_date": datetime.fromisoformat}
-    config = configparser.ConfigParser(
-        interpolation=EnvAndExtendedInterpolation(),
-        converters=converters
-    )
+    config = configparser.ConfigParser(interpolation=EnvAndExtendedInterpolation(), converters=converters)
 
     # Get locations of ARCCnet configuration files to be loaded
     config_files = _find_config_files()
@@ -92,6 +91,9 @@ def load_config():
     # Set data_root if not defined
     if config.get("paths", "data_root", fallback=None) is None:
         config.set("paths", "data_root", str(DATA_DIR / "arccnet"))
+    # Set data_root if not defined
+    if config.get("paths", "ARCAFF_DATA_FOLDER", fallback=None) is None:
+        config.set("paths", "ARCAFF_DATA_FOLDER", str(DATA_DIR / "arccnet"))
 
     return config
 
@@ -112,4 +114,3 @@ def print_config():
         for option in config.options(section):
             print(f"  {option} = {config.get(section, option)}")
         print("")
-
