@@ -8,6 +8,9 @@ import arccnet.models.cutouts.config as config
 import arccnet.models.dataset_utils as ut_d
 import arccnet.models.train_utils as ut_t
 import arccnet.visualisation.utils as ut_v
+from arccnet.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def run_training(config, args):
@@ -47,6 +50,8 @@ def run_training(config, args):
 
     # Generate run ID and weights directory
     run_id, weights_dir = ut_t.generate_run_id(config)
+    logger.info(f"Run ID: {run_id}")
+    logger.info(f"Weights directory: {weights_dir}")
 
     # Initialize Comet experiment
     run_comet = Experiment(project_name=config.project_name, workspace="arcaff")
@@ -62,29 +67,35 @@ def run_training(config, args):
     )
     run_comet.log_code(config.__file__)
     run_comet.log_code(ut_t.__file__)
+    logger.info("Comet.ml experiment initialized and parameters logged.")
 
     # Data preparation
-    print("Making dataframe...")
+    logger.info("Making dataframe...")
     df, AR_df = ut_d.make_dataframe(config.data_folder, config.dataset_folder, config.df_file_name)
+    logger.debug(f"Dataframe shape: {df.shape}, AR_df shape: {AR_df.shape}")
 
     # Undersample and filter the dataframe
     df, df_du = ut_d.undersample_group_filter(
         df, config.label_mapping, long_limit_deg=60, undersample=True, buffer_percentage=0.1
     )
+    logger.debug(f"After undersampling, dataframe shape: {df.shape}, df_du shape: {df_du.shape}")
 
     # Split data into folds for cross-validation
     fold_df = ut_d.split_data(df_du, label_col="grouped_labels", group_col="number", random_state=42)
     df = ut_d.assign_fold_sets(df, fold_df)
-    print("Dataframe preparation done.")
+    logger.info("Dataframe preparation done.")
 
     # Start training
-    print("Starting Training...")
+    logger.info("Starting Training...")
     (avg_test_loss, test_accuracy, test_precision, test_recall, test_f1, cm_test, report_df) = ut_t.train_model(
         config, df, weights_dir, experiment=run_comet
     )
+    logger.debug(
+        f"Test Metrics - Loss: {avg_test_loss}, Accuracy: {test_accuracy}, Precision: {test_precision}, Recall: {test_recall}, F1: {test_f1}"
+    )
 
     # Logging and saving assets
-    print("Logging assets...")
+    logger.info("Logging assets...")
     script_dir = os.path.dirname(ut_t.__file__)
     save_path = os.path.join(script_dir, "temp", "working_dataset.png")
 
@@ -97,7 +108,7 @@ def run_training(config, args):
     # Log the dataset as a CSV
     run_comet.log_asset_data(df.to_csv(index=False), name="dataset.csv")
 
-    print("Training complete.")
+    logger.info("Training completed.")
     return avg_test_loss, test_accuracy, test_precision, test_recall, test_f1, cm_test, report_df
 
 
