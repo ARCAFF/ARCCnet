@@ -51,6 +51,7 @@ def process_ar_dataset(
     df_name: str = "cutout-magnetic-catalog-v20240715.parq",
     plot_histograms: bool = True,
     histogram_params: Optional[dict[str, Any]] = None,
+    verbose: bool = False,
 ) -> tuple[pd.DataFrame, dict[str, LabelEncoder], dict[str, dict[str, str]]]:
     """
     Processes the AR dataset by loading, filtering, grouping, encoding, and optionally visualizing class distributions.
@@ -75,7 +76,6 @@ def process_ar_dataset(
     if data_folder is None:
         data_folder = os.getenv("ARCAFF_DATA_FOLDER", "../../../../../data/")
 
-    # Load the DataFrame using utility function
     df, _ = ut_d.make_dataframe(data_folder, dataset_folder, df_name)
 
     # Filter out rows where 'magnetic_class' is empty
@@ -86,14 +86,13 @@ def process_ar_dataset(
     AR_df["p_component"] = AR_df["mcintosh_class"].str[1]
     AR_df["c_component"] = AR_df["mcintosh_class"].str[2]
 
-    # Default histogram parameters
+    # Histogram parameters
     default_hist_params = {
         "Z_component": {"y_off": 50, "ylim": 6600, "figsz": (10, 6), "title": "Z McIntosh Component"},
         "p_component": {"y_off": 50, "ylim": None, "figsz": (9, 6), "title": "p McIntosh Component"},
         "c_component": {"y_off": 50, "ylim": None, "figsz": (6, 6), "title": "c McIntosh Component"},
     }
 
-    # Update histogram parameters if provided
     if histogram_params is not None:
         default_hist_params.update(histogram_params)
 
@@ -177,9 +176,10 @@ def process_ar_dataset(
     AR_df["c_grouped_encoded"] = c_encoder.fit_transform(AR_df["c_component_grouped"])
 
     # Optionally, inspect the mappings
-    print("Z Component Label Encoding:", dict(zip(z_encoder.classes_, z_encoder.transform(z_encoder.classes_))))
-    print("p Component Label Encoding:", dict(zip(p_encoder.classes_, p_encoder.transform(p_encoder.classes_))))
-    print("c Component Label Encoding:", dict(zip(c_encoder.classes_, c_encoder.transform(c_encoder.classes_))))
+    if verbose:
+        print("Z Component Label Encoding:", dict(zip(z_encoder.classes_, z_encoder.transform(z_encoder.classes_))))
+        print("p Component Label Encoding:", dict(zip(p_encoder.classes_, p_encoder.transform(p_encoder.classes_))))
+        print("c Component Label Encoding:", dict(zip(c_encoder.classes_, c_encoder.transform(c_encoder.classes_))))
 
     # Compile encoders into a dictionary for easy access
     encoders = {"Z_encoder": z_encoder, "p_encoder": p_encoder, "c_encoder": c_encoder}
@@ -393,7 +393,6 @@ class SunspotDataset(Dataset):
         with fits.open(fits_file_path, memmap=True) as img_fits:
             image_data = np.array(img_fits[1].data, dtype=np.float32)
 
-        # Handle NaN values
         image_data = np.nan_to_num(image_data, nan=0.0)
 
         # Apply transformations
@@ -405,7 +404,6 @@ class SunspotDataset(Dataset):
         # Convert to tensor and add channel dimension
         image = torch.from_numpy(image_data).unsqueeze(0)  # Shape: (1, H, W)
 
-        # Extract labels
         label = (int(row["Z_grouped_encoded"]), int(row["p_grouped_encoded"]), int(row["c_grouped_encoded"]))
 
         return image, label
@@ -435,8 +433,8 @@ def compute_weights(labels, num_classes):
         torch.Tensor: Tensor of class weights.
     """
     class_weights = compute_class_weight(
-        class_weight="balanced",  # Option for balanced weights
-        classes=np.arange(num_classes),  # All class indices
-        y=labels,  # Labels for the dataset
+        class_weight="balanced",
+        classes=np.arange(num_classes),
+        y=labels,
     )
     return torch.tensor(class_weights, dtype=torch.float)
