@@ -231,3 +231,8 @@ docs/whatsnew/latest_changelog.txt
 *.log
 
 data/**
+
+arccnet/models/temp/
+arccnet/models/trained_models/
+arccnet/models/weights/
+arccnet/visualisation/cache/
