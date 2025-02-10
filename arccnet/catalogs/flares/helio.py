@@ -20,8 +20,8 @@ logger = get_logger(__name__, level="DEBUG")
 
 # Supported catalogs
 CATALOGS = {
-    "gevloc": (a.helio.TableName("gevloc_sxr_flare"), a.helio.MaxRecords(99999)),
-    "goes": (a.helio.TableName("goes_sxr_flare"), a.helio.MaxRecords(99999)),
+    "gevloc": (a.helio.TableName("gevloc_sxr_flare"), a.helio.MaxRecords(20000)),
+    "goes": (a.helio.TableName("goes_sxr_flare"), a.helio.MaxRecords(20000)),
 }
 
 
