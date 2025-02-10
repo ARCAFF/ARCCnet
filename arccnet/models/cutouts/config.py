@@ -5,7 +5,7 @@ from arccnet.models import labels
 
 classes = "qs-ia-a-b-bg"
 project_name = "arcaff-v2-" + classes
-label_mapping = labels.label_mapping_dict.get(classes)
+label_mapping = labels.LABEL_MAPPING_DICT.get(classes)
 
 batch_size = 16
 num_workers = 32
