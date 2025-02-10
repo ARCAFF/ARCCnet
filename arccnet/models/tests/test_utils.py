@@ -33,7 +33,7 @@ def test_undersample_group_filter(monkeypatch, sample_dataframe):
     Steps:
         1. Setup:
             - Define a label mapping where 'A' and 'B' map to 'group1', and 'C' maps to 'group2'.
-            - Mock the `labels.label_to_index` dictionary to ensure consistent encoding (`{'group1': 0, 'group2': 1}`).
+            - Mock the `labels.LABEL_TO_INDEX` dictionary to ensure consistent encoding (`{'group1': 0, 'group2': 1}`).
 
         2. Undersampling Enabled (`undersample=True`):
             - Invoke `undersample_group_filter` with the sample DataFrame.
@@ -59,9 +59,9 @@ def test_undersample_group_filter(monkeypatch, sample_dataframe):
     """
     label_mapping = {"A": "group1", "B": "group1", "C": "group2"}
 
-    # Mock labels.label_to_index to align with expected encoded labels
+    # Mock labels.LABEL_TO_INDEX to align with expected encoded labels
     mock_label_to_index = {"group1": 0, "group2": 1}
-    monkeypatch.setattr(labels, "label_to_index", mock_label_to_index)
+    monkeypatch.setattr(labels, "LABEL_TO_INDEX", mock_label_to_index)
 
     # Call the function with undersampling enabled
     df_modified, df_undersampled = ut_d.undersample_group_filter(
@@ -111,7 +111,3 @@ def test_undersample_group_filter(monkeypatch, sample_dataframe):
 
     # Test that all front locations are present
     assert df_no_undersample.shape[0] == 5, "Incorrect number of rows after filtering without undersampling."
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])

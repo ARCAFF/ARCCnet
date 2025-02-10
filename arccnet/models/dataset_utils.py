@@ -133,7 +133,7 @@ def undersample_group_filter(df, label_mapping, long_limit_deg=60, undersample=T
 
     # Apply label mapping to the dataframe
     df["grouped_labels"] = df["label"].map(label_mapping)
-    df["encoded_labels"] = df["grouped_labels"].map(labels.label_to_index)
+    df["encoded_labels"] = df["grouped_labels"].map(labels.LABEL_TO_INDEX)
 
     if undersample:
         class_counts = df["grouped_labels"].value_counts()
