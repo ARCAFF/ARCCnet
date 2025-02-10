@@ -218,6 +218,7 @@ $RECYCLE.BIN/
 docs/_build
 docs/generated
 docs/whatsnew/latest_changelog.txt
+docs/api
 
 ### Pycharm(?)
 .idea
