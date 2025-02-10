@@ -441,11 +441,6 @@ def months_years_heatmap(df, datetime_column, title, colorbar_title, height=900,
     -----
     This function creates a heatmap where the rows represent the years and the columns represent the months,
     showing the number of occurrences of a particular event (e.g., images) in each month-year combination.
-
-    Examples
-    --------
-    >>> fig = months_years_heatmap(selected_df, 'datetime', 'Number of Events per Month and Year', 'Number of Events')
-    >>> fig.show()
     """
 
     grouped_df = (
