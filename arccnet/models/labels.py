@@ -1,6 +1,6 @@
 import numpy as np
 
-label_to_index = {
+LABEL_TO_INDEX = {
     "QS": 0,
     "IA": 1,
     "Alpha": 2,
@@ -12,9 +12,9 @@ label_to_index = {
     "Gamma-Delta": 8,
 }
 
-index_to_label = {v: k for k, v in label_to_index.items()}
+INDEX_TO_LABEL = {v: k for k, v in LABEL_TO_INDEX.items()}
 
-greek_mapping = {
+GREEK_MAPPING = {
     "Alpha": "α",
     "Beta": "β",
     "Gamma": "γ",
@@ -25,14 +25,14 @@ greek_mapping = {
 def convert_to_greek_label(names_array):
     def map_to_greek(name):
         parts = name.split("-")
-        greek_parts = [greek_mapping.get(part, part) for part in parts]
+        greek_parts = [GREEK_MAPPING.get(part, part) for part in parts]
         return "-".join(greek_parts)
 
     return np.array([map_to_greek(name) for name in names_array])
 
 
-# label mappings for training
-qs_ia_ar_mapping = {
+# Label mappings for training
+QS_IA_AR_MAPPING = {
     "QS": "QS",
     "IA": "IA",
     "Alpha": "AR",
@@ -44,7 +44,7 @@ qs_ia_ar_mapping = {
     "Gamma-Delta": "AR",
 }
 
-ia_ar_mapping = {
+IA_AR_MAPPING = {
     "QS": None,
     "IA": "IA",
     "Alpha": "AR",
@@ -56,7 +56,7 @@ ia_ar_mapping = {
     "Gamma-Delta": "AR",
 }
 
-qs_ia_mapping = {
+QS_IA_MAPPING = {
     "QS": "QS",
     "IA": "IA",
     "Alpha": None,
@@ -68,7 +68,7 @@ qs_ia_mapping = {
     "Gamma-Delta": None,
 }
 
-qs_ia_a_b_bg_mapping = {
+QS_IA_A_B_BG_MAPPING = {
     "QS": "QS",
     "IA": "IA",
     "Alpha": "Alpha",
@@ -80,7 +80,7 @@ qs_ia_a_b_bg_mapping = {
     "Gamma-Delta": None,
 }
 
-a_b_bg_mapping = {
+A_B_BG_MAPPING = {
     "QS": None,
     "IA": None,
     "Alpha": "Alpha",
@@ -92,11 +92,10 @@ a_b_bg_mapping = {
     "Gamma-Delta": None,
 }
 
-
-label_mapping_dict = {
-    "qs-ia-ar": qs_ia_ar_mapping,
-    "ia-ar": ia_ar_mapping,
-    "qs-ia": qs_ia_mapping,
-    "qs-ia-a-b-bg": qs_ia_a_b_bg_mapping,
-    "a-b-bg": a_b_bg_mapping,
+LABEL_MAPPING_DICT = {
+    "qs-ia-ar": QS_IA_AR_MAPPING,
+    "ia-ar": IA_AR_MAPPING,
+    "qs-ia": QS_IA_MAPPING,
+    "qs-ia-a-b-bg": QS_IA_A_B_BG_MAPPING,
+    "a-b-bg": A_B_BG_MAPPING,
 }
