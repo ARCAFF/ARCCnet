@@ -34,7 +34,7 @@ class RegionDetectionResult(QTable):
     """
     required_column_types = {
         "target_time": Time,
-        "processed_path": str,
+        "processed_path_image": str,
         "path_arc": str,
         "filtered": bool,
         "filter_reason": str,
@@ -57,7 +57,7 @@ class RegionDetectionTable(QTable):
     """
     required_column_types = {
         "target_time": Time,
-        "processed_path": str,
+        "processed_path_image": str,
         "path_arc": str,
         "filtered": bool,
         "filter_reason": str,
@@ -93,7 +93,7 @@ class RegionDetectionTable(QTable):
 
 
 class RegionDetection:
-    def __init__(self, table: QTable, col_group_path="processed_path", col_cutout_path="path_arc"):
+    def __init__(self, table: QTable, col_group_path="processed_path_image", col_cutout_path="path_arc"):
         r"""
         Initialize a RegionDetection instance
 
@@ -133,13 +133,14 @@ class RegionDetection:
             if np.all(group["filtered"] == True):  # noqa
                 continue
 
-            fulldisk_path = group["processed_path"][0]
+            if np.any(group["filtered"] == True):  # noqa
+                logger.error(group[["target_time", "filtered", "filter_reason", "NOAA", "NOAANUM"]])
+                raise NotImplementedError()
+
+            fulldisk_path = group["processed_path_image"][0]
             fulldisk_map = sunpy.map.Map(Path(fulldisk_path))
 
             for row in group:
-                if np.any(row["filtered"] == True):  # noqa
-                    raise NotImplementedError()
-
                 cutout_map = sunpy.map.Map(row[self._col_cutout])
 
                 # rotate with missing, the value to use for pixels in the output map that are beyond the extent of the input map,
@@ -200,7 +201,7 @@ class RegionDetection:
                 updated_table[matching_rows[0][0]]["top_right_cutout"] = bbox.top_right_coord_px
                 updated_table[matching_rows[0][0]]["bottom_left_cutout"] = bbox.bottom_left_coord_px
             else:
-                logger.warn(f"{len(matching_rows)} rows matched with {bbox.fulldisk_path} and {bbox.cutout_path}")
+                logger.warn(f"{len(matching_rows[0])} rows matched with {bbox.fulldisk_path} and {bbox.cutout_path}")
 
         return RegionDetectionResult(updated_table)
 
@@ -215,7 +216,7 @@ class RegionDetection:
         col = MaskedColumn(data=[Path()] * len(data), mask=[True] * len(data))
         data.add_column(col, name="quicklook_path")
 
-        grouped_data = data.group_by("processed_path")
+        grouped_data = data.group_by("processed_path_image")
         result_table = data[:0].copy()
 
         for group in tqdm(grouped_data.groups, total=len(grouped_data.groups), desc="Plotting"):
@@ -224,7 +225,7 @@ class RegionDetection:
                     result_table.add_row(row)
                 continue
 
-            fulldisk_path = group["processed_path"][0]
+            fulldisk_path = group["processed_path_image"][0]
             instrument = group["instrument"][0]
 
             fulldisk_map = sunpy.map.Map(Path(fulldisk_path))
@@ -241,14 +242,10 @@ class RegionDetection:
 
         assert len(result_table) == len(data)
 
-        return result_table
+        return RegionDetectionResult(result_table)
 
     @staticmethod
-    def _summary_plot(
-        table: RegionDetectionResult,
-        sunpy_map: sunpy.map.Map,
-        output_filename: Path,
-    ):
+    def _summary_plot(table: RegionDetectionResult, sunpy_map: sunpy.map.Map, output_filename: Path):
         """
         assumes a RegionDetectionTable that has been grouped by `processed_path`
         """
@@ -262,38 +259,50 @@ class RegionDetection:
         sunpy_map.draw_grid(axes=ax)
 
         for row in table:
+            if row["id"] == "I":
+                ls = "-"
+                edgecolor = "black"
+            elif row["id"] == "IA":
+                ls = "--"
+                edgecolor = "black"
+            else:
+                edgecolor = "white"
+                ls = "-."
+
             # deal with boxes off the edge
             sunpy_map.draw_quadrangle(
                 row["bottom_left_cutout"],
                 axes=ax,
                 top_right=row["top_right_cutout"],
-                edgecolor="black",
                 linewidth=1,
+                ls=ls,
+                edgecolor=edgecolor,
             )
 
-            ax.plot_coord(
-                SkyCoord(row["longitude"], row["latitude"], frame=sunpy.coordinates.frames.HeliographicStonyhurst),
-                marker="o",
-                linestyle="None",
-                markeredgecolor="k",
-                markersize=4,
-                label=f'NOAA {row["NOAA"]}',
-            )
+            if not row["latitude"].mask and not row["longitude"].mask:
+                ax.plot_coord(
+                    SkyCoord(row["longitude"], row["latitude"], frame=sunpy.coordinates.frames.HeliographicStonyhurst),
+                    marker="o",
+                    linestyle="None",
+                    markeredgecolor="k",
+                    markersize=4,
+                    label=f'NOAA {row["NOAA"]}',
+                )
 
-            delta_lon = row["longitudinal_extent"] / 2.0 * u.deg
-            start = row["longitude"] - delta_lon
-            end = row["longitude"] + delta_lon
+                delta_lon = row["longitudinal_extent"] / 2.0 * u.deg
+                start = row["longitude"] - delta_lon
+                end = row["longitude"] + delta_lon
 
-            constant_lon = SkyCoord(
-                np.linspace(start, end, 2),
-                row["latitude"],
-                frame=sunpy.coordinates.frames.HeliographicStonyhurst,
-                obstime=sunpy_map.date,
-            )
+                constant_lon = SkyCoord(
+                    np.linspace(start, end, 2),
+                    row["latitude"],
+                    frame=sunpy.coordinates.frames.HeliographicStonyhurst,
+                    obstime=sunpy_map.date,
+                )
 
-            ax.plot_coord(constant_lon, color="k")
+                ax.plot_coord(constant_lon, color="k")
 
-            ax.legend()
+                ax.legend()
 
         plt.savefig(
             output_filename,

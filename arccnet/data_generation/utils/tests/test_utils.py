@@ -7,7 +7,12 @@ import pandas as pd
 import pytest
 from numpy.testing import assert_allclose, assert_array_equal
 
-from arccnet.data_generation.utils.utils import check_column_values, grouped_stratified_split, save_df_to_html
+from arccnet.data_generation.utils.utils import (
+    check_column_values,
+    grouped_stratified_split,
+    save_df_to_html,
+    time_split,
+)
 
 
 @pytest.fixture
@@ -122,3 +127,17 @@ def test_grouped_stratified(classes):
 
     # make sure all data is used
     assert_array_equal(np.arange(1000), np.sort(np.hstack([train_indices, test_indices])))
+
+
+def test_time_split():
+    tr = pd.date_range("2021-01", "2021-01-10")
+    y, m = np.divmod(tr.month, 13)
+    df = pd.DataFrame()
+    df["y"] = y
+    df["m"] = m
+    df["t"] = tr
+    train, test, valid = time_split(df, time_column="t", train=6, test=2, validate=2)
+
+    assert len(train) == 6
+    assert len(test) == 2
+    assert len(valid) == 2
