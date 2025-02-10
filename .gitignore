@@ -218,6 +218,7 @@ $RECYCLE.BIN/
 docs/_build
 docs/generated
 docs/whatsnew/latest_changelog.txt
+docs/api
 
 ### Pycharm(?)
 .idea
@@ -232,7 +233,6 @@ docs/whatsnew/latest_changelog.txt
 
 data/**
 
-arccnet/models/temp/
-arccnet/models/trained_models/
-arccnet/models/weights/
-arccnet/visualisation/cache/
+arccnet/models/temp
+arccnet/models/weights
+arccnet/models/trained_models
