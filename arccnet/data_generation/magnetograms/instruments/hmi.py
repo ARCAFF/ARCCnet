@@ -167,8 +167,13 @@ class HMIContinuum(HMILOSMagnetogram):
         -------
         str
             The JSOC series name.
+
+        Notes
+        -----
+
+        No limb darkening
         """
-        return "hmi.Ic_720s"
+        return "hmi.Ic_noLimbDark_720s"
 
     @property
     def segment_column_name(self) -> str:
