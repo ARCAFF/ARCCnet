@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 import numpy as np
+import pandas as pd
 
 import astropy.units as u
 from astropy.table import Column, MaskedColumn, QTable, Table, join, vstack
@@ -1124,6 +1125,45 @@ def process_ar_catalogs(config):
     logger.info("Processing AR catalogs with config")
     _, _, _, processed_catalog, _ = process_srs(config)
     return processed_catalog
+
+
+def create_pit_flare_dataset():
+    # Load flares
+    # Extract flare stats
+    # Match to cutouts
+    pass
+
+
+def extract_flare_counts(flares):
+    r"""
+    Extract daily (24h) flare statistics for each NOAA AR
+
+    Uses flare peak time and extract the number of A, B, C, M and X class flare per AR per 24 hours.
+
+    Parameters
+    ----------
+    flares : `astropy.table.Table`
+        Flare events
+
+    """
+    noaa_num_mask = flares["noaa_number"] != 0
+    flares = flares[noaa_num_mask]
+
+    flares_df = flares.to_pandas()
+
+    # Group by day (date) and NOAA number and calculate number of flares per class
+    flare_counts = pd.DataFrame()
+    for (date, noaa_num), group in flares_df.groupby([flares_df["peak_time"].dt.date, "noaa_number"]):
+        flare_count_by_class = group["goes_class"].str[0].value_counts()
+        new_row = flare_count_by_class.to_dict()
+        new_row["date"] = date
+        new_row["noaa_number"] = noaa_num
+        flare_counts = pd.concat([flare_counts, pd.DataFrame([new_row])])
+
+    # will have nans for date, ar combo with no flares so fill with 0s
+    flare_counts.fillna(0, inplace=True)
+
+    return flare_counts
 
 
 def main():
