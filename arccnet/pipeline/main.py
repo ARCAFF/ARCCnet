@@ -1127,14 +1127,52 @@ def process_ar_catalogs(config):
     return processed_catalog
 
 
-def create_pit_flare_dataset():
-    # Load flares
-    # Extract flare stats
-    # Match to cutouts
-    pass
+def create_pit_flare_dataset(config):
+    logger.info("Generating `Point in Time Flare Forecasting` dataset")
+    data_root = Path(config["paths"]["data_root"])
+
+    flare_file = (
+        data_root
+        / "02_intermediate"
+        / "metadata"
+        / "flares"
+        / "hek_swpc_1996-01-01T00:00:00-2023-01-01T00:00:00_dev.parq"
+    )
+    classification_file = data_root / "04_final" / "data" / "region_cutouts" / "region_classification.parq"
+
+    # Load flares and extract flare stats
+    flares = Table.read(flare_file)
+    flare_stats = extract_flare_statistics(flares)
+
+    # rename to match ARs and parse time
+    flare_stats.rename(columns={"date": "target_time", "noaa_number": "number"}, inplace=True)
+    flare_stats.target_time = pd.to_datetime(flare_stats.target_time)
+
+    # Merge cutouts and flare stats
+    cutouts = Table.read(classification_file)
+    ars = cutouts[cutouts["region_type"] == "AR"]
+    good_cols = [name for name in cutouts.colnames if len(cutouts[name].shape) <= 1]
+    ars_df = ars[good_cols].to_pandas()
+
+    # outer join to keep flaring and no-flaring ARs for training
+    flares_and_ars = ars_df.merge(flare_stats, on=["target_time", "number"], how="outer")
+
+    version = __version__ if "dev" not in __version__ else "dev"  # unless it's a release use dev
+    start = config["general"]["start_date"]
+    end = config["general"]["end_date"]
+    start = start if isinstance(start, datetime) else datetime.fromisoformat(start)
+    end = end if isinstance(end, datetime) else datetime.fromisoformat(end)
+    file_name = f"mag-pit-flare-dataset_{start.isoformat()}" f"-{end.isoformat()}_{version}.parq"
+
+    data_dir_processed = Path(config["paths"]["data_dir_processed"])
+    flare_processed_catalog_file = data_dir_processed / file_name
+    flare_processed_catalog_file.parent.mkdir(exist_ok=True, parents=True)
+    flares_and_ars.to_parquet(flare_processed_catalog_file)
+
+    return flare_processed_catalog_file
 
 
-def extract_flare_counts(flares):
+def extract_flare_statistics(flares):
     r"""
     Extract daily (24h) flare statistics for each NOAA AR
 
@@ -1168,9 +1206,9 @@ def extract_flare_counts(flares):
 
 def main():
     logger.debug("Starting main")
-    process_flares(config)
-    catalog = process_ar_catalogs(config)
-    process_ars(config, catalog)
+    create_pit_flare_dataset(config)
+    # catalog = process_ar_catalogs(config)
+    # process_ars(config, catalog)
 
 
 if __name__ == "__main__":
