@@ -35,7 +35,7 @@ dependencies = [
     "packaging>=23.0",
     "scikit-learn~=1.3",
     "platformdirs~=3.9",
-    "pyarrow~=15.0",
+    "pyarrow",
     "drms~=0.9",
     "astropy~=7.0",
     "pandas~=2.0"
@@ -75,6 +75,7 @@ Homepage = "https://arcaff.eu"
 
 [tool.setuptools]
 zip-safe = false
+include-package-data = true
 platforms = ["any"]
 provides = ["arccnet"]
 
