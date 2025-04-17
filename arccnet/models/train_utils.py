@@ -230,7 +230,7 @@ def train_one_epoch(epoch, model, train_loader, criterion, optimizer, device, sc
     total_correct = 0
     total_images = 0
 
-    for inputs, labels in tqdm(train_loader, desc=f"Epoch {epoch+1}", unit="batch"):
+    for inputs, labels in tqdm(train_loader, desc=f"Epoch {epoch + 1}", unit="batch"):
         labels = labels.long()
         inputs, labels = inputs.to(device), labels.to(device)
 
@@ -431,7 +431,7 @@ def print_epoch_summary(
         The validation F1 score for the current epoch.
     """
     print(
-        f"Epoch Summary {epoch+1}: "
+        f"Epoch Summary {epoch + 1}: "
         f"Train Loss: {avg_train_loss:.4f}, Train Acc.: {train_accuracy:.4f}, "
         f"Val. Loss: {avg_val_loss:.4f}, Val. Acc.: {val_accuracy:.4f}, "
         f"Val. Precision: {val_precision:.4f}, Val. Recall: {val_recall:.4f}, "

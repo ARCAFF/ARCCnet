@@ -1,4 +1,3 @@
-from typing import Union, Optional
 from datetime import datetime
 
 import numpy as np
@@ -50,9 +49,9 @@ class HEKFlareCatalog:
 
     def search(
         self,
-        start_time: Union[Time, datetime, str],
-        end_time: Union[Time, datetime, str],
-        n_splits: Optional[int] = None,
+        start_time: Time | datetime | str,
+        end_time: Time | datetime | str,
+        n_splits: int | None = None,
     ):
         r"""
         Search the HEK SSW Latest Events catalog for flares between the start and end times.

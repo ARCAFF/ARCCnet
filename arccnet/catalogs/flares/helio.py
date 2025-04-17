@@ -1,5 +1,4 @@
 from time import sleep
-from typing import Union, Optional
 from datetime import datetime
 
 from sunpy.net import Fido
@@ -50,9 +49,9 @@ class HECFlareCatalog:
 
     def search(
         self,
-        start_time: Union[Time, datetime, str],
-        end_time: Union[Time, datetime, str],
-        n_splits: Optional[int] = None,
+        start_time: Time | datetime | str,
+        end_time: Time | datetime | str,
+        n_splits: int | None = None,
     ):
         r"""
         Search the HEC GEVLOC catalog for flares between the start and end times.

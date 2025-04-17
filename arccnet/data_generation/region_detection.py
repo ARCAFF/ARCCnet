@@ -32,6 +32,7 @@ class RegionDetectionResult(QTable):
     Region Detection QTable object.
 
     """
+
     required_column_types = {
         "target_time": Time,
         "processed_path_image": str,
@@ -46,7 +47,7 @@ class RegionDetectionResult(QTable):
         super().__init__(*args, **kwargs)
         if not set(self.colnames).issuperset(set(self.required_column_types.keys())):
             raise ValueError(
-                f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns"
+                f"{self.__class__.__name__} must contain {list(self.required_column_types.keys())} columns"
             )
 
 
@@ -55,6 +56,7 @@ class RegionDetectionTable(QTable):
     Region Detection QTable object.
 
     """
+
     required_column_types = {
         "target_time": Time,
         "processed_path_image": str,
@@ -67,7 +69,7 @@ class RegionDetectionTable(QTable):
         super().__init__(*args, **kwargs)
         if not set(self.colnames).issuperset(set(self.required_column_types.keys())):
             raise ValueError(
-                f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns"
+                f"{self.__class__.__name__} must contain {list(self.required_column_types.keys())} columns"
             )
 
     @classmethod
@@ -286,7 +288,7 @@ class RegionDetection:
                     linestyle="None",
                     markeredgecolor="k",
                     markersize=4,
-                    label=f'NOAA {row["NOAA"]}',
+                    label=f"NOAA {row['NOAA']}",
                 )
 
                 delta_lon = row["longitudinal_extent"] / 2.0 * u.deg

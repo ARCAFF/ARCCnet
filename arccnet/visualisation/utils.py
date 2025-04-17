@@ -144,7 +144,7 @@ def make_classes_histogram(
         for bar in bars:
             yval = bar.get_height()
             if show_percentages:
-                percentage = f"{yval/total*100:.2f}%" if total > 0 else "0.00%"
+                percentage = f"{yval / total * 100:.2f}%" if total > 0 else "0.00%"
                 if ax is None:
                     plt.text(
                         bar.get_x() + bar.get_width() / 2,
@@ -303,7 +303,7 @@ def visualize_transformations(images, transforms, n_samples=16):
         # Plot transformed image
         plt.subplot(4, 4, i + 1)
         plt.imshow(transformed_image, cmap=magnetic_map, vmin=-1, vmax=1)
-        plt.title(f"Transformed Image {i+1}")
+        plt.title(f"Transformed Image {i + 1}")
         plt.axis("off")
 
     plt.tight_layout()
@@ -380,9 +380,7 @@ def plot_location_on_sun(df, long_limit_deg=60, experiment=None):
     num_front_cutouts = len(front_latV)
     percentage_rear = 100 * num_rear_cutouts / (num_rear_cutouts + num_front_cutouts)
 
-    text_output = (
-        f"Rear: {num_rear_cutouts}\n" f"Front: {num_front_cutouts}\n" f"Percentage of Rear: {percentage_rear:.2f}%"
-    )
+    text_output = f"Rear: {num_rear_cutouts}\nFront: {num_front_cutouts}\nPercentage of Rear: {percentage_rear:.2f}%"
 
     if experiment:
         plot_path = os.path.join("temp", "solar_disc_plot.png")

@@ -40,13 +40,14 @@ class Query(QTable):
     Under the hood uses QTable and Masked columns to define if an expected result is present or missing
 
     """
+
     required_column_types = {"start_time": Time, "end_time": Time, "url": str}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if not set(self.colnames).issuperset(set(self.required_column_types.keys())):
             raise ValueError(
-                f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns."
+                f"{self.__class__.__name__} must contain {list(self.required_column_types.keys())} columns."
             )
         self["url"] = MaskedColumn(self["url"])
 
@@ -103,13 +104,14 @@ class Result(QTable):
     Under the hood uses QTable and Masked columns to define if a file was downloaded or not
 
     """
+
     required_column_types = {"start_time": Time, "end_time": Time, "url": str, "path": str}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if not set(self.colnames).issuperset(set(self.required_column_types.keys())):
             raise ValueError(
-                f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns"
+                f"{self.__class__.__name__} must contain {list(self.required_column_types.keys())} columns"
             )
 
 
@@ -117,6 +119,7 @@ class ClassificationCatalog(QTable):
     r"""
     Active region classification catalog.
     """
+
     required_column_types = {
         "target_time": Time,
         "longitude": u.deg,
@@ -131,7 +134,7 @@ class ClassificationCatalog(QTable):
         super().__init__(*args, **kwargs)
         if not set(self.colnames).issuperset(set(self.required_column_types.keys())):
             raise ValueError(
-                f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns"
+                f"{self.__class__.__name__} must contain {list(self.required_column_types.keys())} columns"
             )
         self["url"] = MaskedColumn(self["url"])
         self["path"] = MaskedColumn(self["path"])
