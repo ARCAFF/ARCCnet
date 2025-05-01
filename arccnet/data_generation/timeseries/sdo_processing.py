@@ -72,16 +72,15 @@ def read_data(path: str, size: int, duration: int):
     m_flares = flares[[flare.startswith("M") for flare in flares["goes_class"]]]
     m_flares = m_flares[m_flares["noaa_number"] == 11261]
     m_flares = m_flares[m_flares["goes_class"] == "M1.4"]
-    print(m_flares)
     # m_flares = m_flares[sample(range(len(m_flares)), k=int(0.3 * size))]
     c_flares = flares[[flare.startswith("C") for flare in flares["goes_class"]]]
     c_flares = c_flares[sample(range(len(c_flares)), k=int(0.6 * size))]
-    exp = ["noaa_number", "goes_class", "start_time", "frm_daterun", "event_coord1", "event_coord2"]
+    exp = ["noaa_number", "goes_class", "start_time", "frm_daterun", "hgs_latitude", "hgs_longitude"]
     # print(c_flares[exp])
     combined = vstack([x_flares[exp], m_flares[exp], c_flares[exp]])
     combined["start_time"] = [time - (duration + 1) * u.hour for time in combined["start_time"]]
     combined["start_time"].format = "fits"
-    combined
+    print(combined['hgs_longitude'])
     tuples = [
         [ar_num, fl_class, start_t, start_t + duration * u.hour, date, lat, lon] for ar_num, fl_class, start_t, date, lat, lon in combined
     ]
