@@ -13,9 +13,10 @@ from arccnet.data_generation.timeseries.sdo_processing import (
     aia_l2,
     drms_pipeline,
     hmi_l2,
-    l2_table_match,
+    table_match,
     match_files,
     read_data,
+    crop_map,
 )
 
 if __name__ == "__main__":
@@ -25,10 +26,12 @@ if __name__ == "__main__":
     )
     cores = int(config["drms"]["cores"])
     with ProcessPoolExecutor(cores) as executor:
-        for record in [starts[2]]:
-            noaa_ar, fl_class, start, end = record[0], record[1], record[2], record[3]
+        for record in [starts[1]]:
+            noaa_ar, fl_class, start, end, date, lat, lon = record
             date = start.value.split("T")[0]
             file_name = f"{fl_class}_{noaa_ar}_{date}"
+            patch_height = int(config["drms"]["patch_height"])
+            patch_width = int(config["drms"]["patch_width"])
             try:
                 print(record)
                 aia_maps, hmi_maps = drms_pipeline(
@@ -44,25 +47,38 @@ if __name__ == "__main__":
                 hmi_proc = tqdm(
                     executor.map(hmi_l2, hmi_maps),
                     total=len(hmi_maps),
-                    desc=f"{fl_class}_{start}_HMI Processing",
                 )
                 packed_files = match_files(aia_maps, hmi_maps)
+
                 aia_proc = tqdm(
                     executor.map(aia_l2, packed_files),
                     total=len(aia_maps),
-                    desc=f"{fl_class}_{start}_AIA Processing",
                 )
+                
+                ## Map cropping will go here
+
+                # Will take list of aia and hmi maps, will pack them into list of tuples containing
+                # map, lat, long, and dimensions of box
+                # use executor to submap and save all of the provided maps
+                # returns the path of the saved submap
+
+                l2_hmi_packed = [[hmi_map, lat, lon, patch_height, patch_width] for hmi_map in hmi_proc]
+                l2_aia_packed = [[aia_map, lat, lon, patch_height, patch_width] for aia_map in aia_proc]
+
+                hmi_patch_paths = tqdm(executor.map(crop_map, l2_hmi_packed), total=len(l2_hmi_packed))
+                aia_patch_paths = tqdm(executor.map(crop_map, l2_aia_packed), total=len(l2_aia_packed))
+
                 # For some reason, aia_proc becomes an empty list after this function call.
-                home_table, aia_maps, aia_quality, hmi_maps, hmi_quality = l2_table_match(
-                    list(aia_proc), list(hmi_proc)
+                home_table, aia_patch_paths, aia_quality, hmi_patch_paths, hmi_quality = table_match(
+                    list(aia_patch_paths), list(hmi_patch_paths)
                 )
 
                 # This can probably streamlined/functionalized to make the pipeline look better.
                 batched_name = f"{config['paths']['data_folder']}/04_final"
                 Path(f"{batched_name}/records").mkdir(parents=True, exist_ok=True)
                 Path(f"{batched_name}/tars").mkdir(parents=True, exist_ok=True)
-                aia_away = ["AIA/" + Path(file).name for file in aia_maps]
-                hmi_away = ["HMI/" + Path(file).name for file in hmi_maps]
+                hmi_away = ["HMI/" + Path(file).name for file in hmi_patch_paths]
+                aia_away = ["AIA/" + Path(file).name for file in aia_patch_paths]
                 away_table = Table(
                     {
                         "AIA files": aia_away,
@@ -86,15 +102,16 @@ if __name__ == "__main__":
             #     tar.add(f"{batched_name}/records/out_{file_name}.csv", arcname=f"{file_name}.csv")
 
             except Exception as error:
-                Path(f"{config['paths']['data_dir_logs']}").mkdir(parents=True, exist_ok=True)
-                logging.basicConfig(
-                    filename=f"{config['paths']['data_dir_logs']}/{file_name}.log", encoding="utf-8", level=logging.INFO
-                )
-                print(f"ERROR HAS OCCURRED - {type(error).__name__} : {error} - SEE LOG {file_name}")
-                run_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-                logging.warning(f"ERROR HAS OCCURRED AT {run_time} - {type(error).__name__} : {error}")
-                er_tcb = traceback.format_tb(error.__traceback__)
-                [logging.info(f"{line.name}, line {line.lineno}") for line in traceback.extract_tb(error.__traceback__)]
+                logging.error(error, exc_info=True)
+                # Path(f"{config['paths']['data_dir_logs']}").mkdir(parents=True, exist_ok=True)
+                # logging.basicConfig(
+                #     filename=f"{config['paths']['data_dir_logs']}/{file_name}.log", encoding="utf-8", level=logging.INFO
+                # )
+                # print(f"ERROR HAS OCCURRED - {type(error).__name__} : {error} - SEE LOG {file_name}")
+                # run_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                # logging.warning(f"ERROR HAS OCCURRED AT {run_time} - {type(error).__name__} : {error}")
+                # er_tcb = traceback.format_tb(error.__traceback__)
+                # [logging.info(f"{line.name}, line {line.lineno}") for line in traceback.extract_tb(error.__traceback__)]
 
 
 # 70 X class flares.

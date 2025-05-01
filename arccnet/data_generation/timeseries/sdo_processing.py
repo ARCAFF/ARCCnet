@@ -12,8 +12,10 @@ import sunpy.map
 from aiapy.calibrate import correct_degradation, register, update_pointing
 from aiapy.psf import deconvolve
 from sunpy.map.maputils import all_coordinates_from_map, coordinate_is_on_solar_disk
+from sunpy.coordinates import frames
 
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.io.fits import CompImageHDU
 from astropy.table import Table, vstack
@@ -33,6 +35,8 @@ __all__ = [
     "match_files",
     "drms_pipeline",
     "add_fnames",
+    "table_match",
+    "crop_map",
 ]
 
 
@@ -66,16 +70,20 @@ def read_data(path: str, size: int, duration: int):
     x_flares = flares[[flare.startswith("X") for flare in flares["goes_class"]]]
     x_flares = x_flares[sample(range(len(x_flares)), k=int(0.1 * size))]
     m_flares = flares[[flare.startswith("M") for flare in flares["goes_class"]]]
-    m_flares = m_flares[sample(range(len(m_flares)), k=int(0.3 * size))]
+    m_flares = m_flares[m_flares["noaa_number"] == 11261]
+    m_flares = m_flares[m_flares["goes_class"] == "M1.4"]
+    print(m_flares)
+    # m_flares = m_flares[sample(range(len(m_flares)), k=int(0.3 * size))]
     c_flares = flares[[flare.startswith("C") for flare in flares["goes_class"]]]
     c_flares = c_flares[sample(range(len(c_flares)), k=int(0.6 * size))]
-    exp = ["noaa_number", "goes_class", "start_time", "frm_daterun"]
-    print(c_flares[exp])
+    exp = ["noaa_number", "goes_class", "start_time", "frm_daterun", "event_coord1", "event_coord2"]
+    # print(c_flares[exp])
     combined = vstack([x_flares[exp], m_flares[exp], c_flares[exp]])
     combined["start_time"] = [time - (duration + 1) * u.hour for time in combined["start_time"]]
     combined["start_time"].format = "fits"
+    combined
     tuples = [
-        [ar_num, fl_class, start_t, start_t + duration * u.hour, date] for ar_num, fl_class, start_t, date in combined
+        [ar_num, fl_class, start_t, start_t + duration * u.hour, date, lat, lon] for ar_num, fl_class, start_t, date, lat, lon in combined
     ]
 
     return tuples
@@ -209,7 +217,6 @@ def drms_pipeline(
         sample : `int`
             Sample rate for the data cadence (default 1/hr).
 
-    Returns
     -------
         aia_maps, hmi_maps : `tuple`
             A tuple containing the AIA maps and HMI maps.
@@ -250,7 +257,7 @@ def hmi_query_export(time_1, time_2, keys: list, sample: int):
     client = drms.Client()
     duration = round((time_2 - time_1).to_value(u.hour))
     qstr_hmi = f"hmi.M_720s[{time_1.value}/{duration}h@{sample}m]" + "{magnetogram}"
-    hmi_query = client.query(qstr_hmi, keys)
+    hmi_query = client.query(ds = qstr_hmi, key = keys)
 
     good_result = hmi_query[hmi_query.QUALITY == 0]
     good_num = good_result["*recnum*"].values
@@ -263,7 +270,7 @@ def hmi_query_export(time_1, time_2, keys: list, sample: int):
     joined_num = [*good_num, *patched_num]
     hmi_num_str = str(joined_num).strip("[]")
     hmi_qstr = f"hmi.M_720s[! recnum in ({hmi_num_str}) !]" + "{magnetogram}"
-    hmi_query_full = client.query(hmi_qstr, keys)
+    hmi_query_full = client.query(ds = hmi_qstr, key = keys)
     hmi_result = client.export(hmi_qstr, method="url", protocol="fits", email=os.environ["JSOC_EMAIL"])
     hmi_result.wait()
     return hmi_query_full, hmi_result
@@ -509,7 +516,7 @@ def hmi_l2(hmi_map):
     path = config["paths"]["data_folder"]
     time = hmi_map.date.to_value("ymdhms")
     year, month, day = time[0], time[1], time[2]
-    map_path = f"{path}/03_processed/{year}/{month}/{day}/SDO/{hmi_map.nickname}"
+    map_path = f"{path}/02_intermediate/{year}/{month}/{day}/SDO/{hmi_map.nickname}"
     proc_path = f"{map_path}/03_{hmi_map.meta['fname']}"
 
     if not os.path.exists(proc_path):
@@ -542,7 +549,7 @@ def aia_l2(packed_maps):
     aia_map, hmi_match = packed_maps[0], packed_maps[1]
     time = aia_map.date.to_value("ymdhms")
     year, month, day = time[0], time[1], time[2]
-    map_path = f"{path}/03_processed/{year}/{month}/{day}/SDO/{aia_map.nickname}"
+    map_path = f"{path}/02_intermediate/{year}/{month}/{day}/SDO/{aia_map.nickname}"
     proc_path = f"{map_path}/03_{aia_map.meta['fname']}"
     if not os.path.exists(proc_path):
         aia_map = aia_process(aia_map)
@@ -575,7 +582,7 @@ def l2_file_save(fits_map, path: str, overwrite: bool = False):
     """
     time = fits_map.date.to_value("ymdhms")
     year, month, day = time[0], time[1], time[2]
-    map_path = f"{path}/03_processed/{year}/{month}/{day}/SDO/{fits_map.nickname}"
+    map_path = f"{path}/02_intermediate/{year}/{month}/{day}/SDO/{fits_map.nickname}"
     Path(map_path).mkdir(parents=True, exist_ok=True)
     fits_path = f"{map_path}/03_{fits_map.meta['fname']}"
     if (not Path(fits_path).exists()) or overwrite:
@@ -583,9 +590,9 @@ def l2_file_save(fits_map, path: str, overwrite: bool = False):
     return fits_path
 
 
-def l2_table_match(aia_maps, hmi_maps):
+def table_match(aia_maps, hmi_maps):
     r"""
-    Matches l2 AIA maps with corresponding HMI maps based on the closest time difference, and returns Astropy Tab;e
+    Matches l3 AIA submaps with corresponding HMI submaps based on the closest time difference, and returns Astropy Table
 
     Parameters
     ----------
@@ -624,3 +631,44 @@ def l2_table_match(aia_maps, hmi_maps):
         }
     )
     return paired_table, aia_paths, aia_quality, hmi_paths, hmi_quality
+
+def crop_map(sdo_packed : tuple):
+    r"""
+    Crops a provided tuple containing a SDO map and returns a submap centered on a flare according to provided paramaters of lat, lon, height and width.
+
+    Parameters
+    ----------
+        sdo_packed : `tuple`
+            Contains the following:
+            sdo_map : `sunpy.map.Map`
+                Provided SDO map path (AIA/HMI).
+            lat : `float`
+                Provided latitude value in degrees (Heliographic Stonyhurst Coordinates).    
+            lon : `float`
+                Provided longitude value in degrees (Heliographic Stonyhurst Coordinates).
+            height : `int`
+                The height of the submap in pixels.
+            width : `int`
+                The width of the submap in pixels. If not provided, assumed square dimension with width == to height.
+
+    Returns
+    -------
+        fits_path : `sunpy.map.Map.submap`
+            A submap centered around the provided coordinates.
+    """
+    sdo_map, lat, lon, box_h, box_w = sdo_packed
+    sdo_map = sunpy.map.Map(sdo_map)
+    pix_scale = sdo_map.meta['cdelt1']
+    time = sdo_map.date.to_value("ymdhms")
+    year, month, day = time[0], time[1], time[2]
+    center = SkyCoord(lon * u.deg, lat * u.deg, obstime = sdo_map.date, frame = frames.HeliographicStonyhurst)
+    pix_center = sdo_map.world_to_pixel(center)
+    bottom_left_world = sdo_map.pixel_to_world(pix_center[0] - (box_h/2)*u.pix, pix_center[1] - (box_w/2)*u.pix)
+    s_map = sdo_map.submap(bottom_left_world, width=box_w*pix_scale*u.arcsec, height=box_h*pix_scale*u.arcsec)
+    path = config["paths"]["data_folder"]
+    map_path = f"{path}/03_processed/{year}/{month}/{day}/SDO/{sdo_map.nickname}"
+    Path(map_path).mkdir(parents=True, exist_ok=True)
+    fits_path = f"{map_path}/03_smap_{sdo_map.meta['fname']}"
+    s_map.save(fits_path, hdu_type=CompImageHDU, overwrite=True)
+    
+    return fits_path
