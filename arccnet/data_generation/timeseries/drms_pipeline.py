@@ -1,26 +1,30 @@
-import time
 import logging
-import traceback
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 
+from aiapy import calibrate
 from tqdm import tqdm
 
+import astropy.units as u
+from astropy import log
 from astropy.table import Table
 
 from arccnet import config
 from arccnet.data_generation.timeseries.sdo_processing import (
     aia_l2,
+    crop_map,
     drms_pipeline,
     hmi_l2,
-    table_match,
     match_files,
     read_data,
-    crop_map,
+    table_match,
 )
 
+# Logging settings here.
+# May need to find a more robust solution with filters/exceptions for this.
+log.setLevel("ERROR")
+
 if __name__ == "__main__":
-    logger = logging.getLogger(__name__)
     starts = read_data(
         "/Users/danielgass/Desktop/ARCCnetDan/ARCCnet/hek_swpc_1996-01-01T00:00:00-2023-01-01T00:00:00_dev.parq", 10, 6
     )
@@ -28,6 +32,7 @@ if __name__ == "__main__":
     with ProcessPoolExecutor(cores) as executor:
         for record in [starts[1]]:
             noaa_ar, fl_class, start, end, date, lat, lon = record
+            pointing_table = calibrate.util.get_pointing_table(source="jsoc", time_range=[start - 3 * u.hour, end])
             date = start.value.split("T")[0]
             file_name = f"{fl_class}_{noaa_ar}_{date}"
             patch_height = int(config["drms"]["patch_height"])
@@ -48,19 +53,12 @@ if __name__ == "__main__":
                     executor.map(hmi_l2, hmi_maps),
                     total=len(hmi_maps),
                 )
-                packed_files = match_files(aia_maps, hmi_maps)
+                packed_files = match_files(aia_maps, hmi_maps, pointing_table)
 
                 aia_proc = tqdm(
                     executor.map(aia_l2, packed_files),
                     total=len(aia_maps),
                 )
-                
-                ## Map cropping will go here
-
-                # Will take list of aia and hmi maps, will pack them into list of tuples containing
-                # map, lat, long, and dimensions of box
-                # use executor to submap and save all of the provided maps
-                # returns the path of the saved submap
 
                 l2_hmi_packed = [[hmi_map, lat, lon, patch_height, patch_width] for hmi_map in hmi_proc]
                 l2_aia_packed = [[aia_map, lat, lon, patch_height, patch_width] for aia_map in aia_proc]
@@ -90,7 +88,7 @@ if __name__ == "__main__":
 
                 home_table.write(f"{batched_name}/records/{file_name}.csv", overwrite=True)
 
-            ## Commented out until we're ready to deliver.
+            ## Commented out until we're ready to package.
             # away_table.write(f"{batched_name}/records/out_{file_name}.csv", overwrite=True)
             # with tarfile.open(f"{batched_name}/tars/{file_name}.tar", "w") as tar:
             #     for file in aia_maps:
@@ -102,17 +100,7 @@ if __name__ == "__main__":
             #     tar.add(f"{batched_name}/records/out_{file_name}.csv", arcname=f"{file_name}.csv")
 
             except Exception as error:
-                logging.error(error, exc_info=True)
-                # Path(f"{config['paths']['data_dir_logs']}").mkdir(parents=True, exist_ok=True)
-                # logging.basicConfig(
-                #     filename=f"{config['paths']['data_dir_logs']}/{file_name}.log", encoding="utf-8", level=logging.INFO
-                # )
-                # print(f"ERROR HAS OCCURRED - {type(error).__name__} : {error} - SEE LOG {file_name}")
-                # run_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-                # logging.warning(f"ERROR HAS OCCURRED AT {run_time} - {type(error).__name__} : {error}")
-                # er_tcb = traceback.format_tb(error.__traceback__)
-                # [logging.info(f"{line.name}, line {line.lineno}") for line in traceback.extract_tb(error.__traceback__)]
-
+                logging.error(error)
 
 # 70 X class flares.
 # Read the flare list.
