@@ -100,8 +100,7 @@ if __name__ == "__main__":
             #     tar.add(f"{batched_name}/records/out_{file_name}.csv", arcname=f"{file_name}.csv")
 
             except Exception as error:
-                logging.error(error)
-
+                logging.error(error, exc_info=True)
 # 70 X class flares.
 # Read the flare list.
 # Not just HEK, look for save files for flares.
