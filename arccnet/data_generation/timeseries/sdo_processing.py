@@ -96,24 +96,6 @@ def read_data(hek_path: str, srs_path: str, size: int, duration: int):
 
     return tuples
 
-
-# def load_config():
-#     r"""
-#     Loads the configuration for the SDO processing pipeline.
-
-#     Returns
-#     -------
-#         config : `dict`
-#             The configuration dictionary.
-#     """
-#     # Replace this with whatever email(s) we want to use for this purpose.
-#     config['drms']
-#     os.environ["JSOC_EMAIL"] = "danielgass192@gmail.com"
-#     pipeline_config = config['drms']
-#     path_config = config['paths']
-#     return pipeline_config, path_config
-
-
 def change_time(time: str, shift: int):
     r"""
     Change the timestamp by a given time shift.
@@ -226,7 +208,7 @@ def drms_pipeline(
             String of wavelengths in list formatting for the AIA data to be provided to drms quotestrings (default all AIA wvl).
         sample : `int`
             Sample rate for the data cadence (default 1/hr).
-
+    Returns
     -------
         aia_maps, hmi_maps : `tuple`
             A tuple containing the AIA maps and HMI maps.
@@ -249,7 +231,7 @@ def hmi_query_export(time_1, time_2, keys: list, sample: int):
     Query and export HMI data from the JSOC database.
 
     Parameters
-    -----------
+    ----------
         time_1 : `str`
             The start timestamp in FITS format.
         time_2 : `str`
@@ -292,7 +274,7 @@ def aia_query_export(hmi_query, keys, wavelength="171, 193, 304, 211, 335, 94, 1
     Query and export AIA data from the JSOC database.
 
     Parameters
-    -----------
+    ----------
         hmi_query : `drms query`
             The HMI query result.
         keys : `list`
@@ -300,8 +282,8 @@ def aia_query_export(hmi_query, keys, wavelength="171, 193, 304, 211, 335, 94, 1
         wavelength : `list`
             List of AIA wavelengths.
 
-    Return
-    --------
+    Returns
+    -------
         aia_query_full, aia_result (tuple): A tuple containing the query result and the export data response.
     """
     client = drms.Client()
