@@ -1,12 +1,13 @@
 import logging
 from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 from aiapy import calibrate
 from tqdm import tqdm
+import drms
 
 import astropy.units as u
-from astropy import log
+from astropy import log as astropy_log
 from astropy.table import Table
 
 from arccnet import config
@@ -21,16 +22,19 @@ from arccnet.data_generation.timeseries.sdo_processing import (
 )
 
 # Logging settings here.
+drms_log = logging.getLogger('drms')
+drms_log.setLevel('WARNING')
+reproj_log = logging.getLogger('reproject.common')
+reproj_log.setLevel('WARNING')
 # May need to find a more robust solution with filters/exceptions for this.
-log.setLevel("ERROR")
+astropy_log.setLevel("ERROR")
 
 if __name__ == "__main__":
     starts = read_data(
-        "/Users/danielgass/Desktop/ARCCnetDan/ARCCnet/hek_swpc_1996-01-01T00:00:00-2023-01-01T00:00:00_dev.parq", 10, 6
-    )
+        hek_path = "/Users/danielgass/Desktop/ARCCnetDan/ARCCnet/hek_swpc_1996-01-01T00:00:00-2023-01-01T00:00:00_dev.parq", srs_path= "/Users/danielgass/Desktop/ARCCnetDan/ARCCnet/arccnet/data_generation/timeseries/srs_processed_catalog.parq", size = 10, duration= 6)
     cores = int(config["drms"]["cores"])
     with ProcessPoolExecutor(cores) as executor:
-        for record in [starts[1]]:
+        for record in starts:
             noaa_ar, fl_class, start, end, date, lat, lon = record
             pointing_table = calibrate.util.get_pointing_table(source="jsoc", time_range=[start - 3 * u.hour, end])
             date = start.value.split("T")[0]

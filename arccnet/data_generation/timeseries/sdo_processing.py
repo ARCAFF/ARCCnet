@@ -18,7 +18,7 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.io.fits import CompImageHDU
-from astropy.table import Table, vstack
+from astropy.table import Table, vstack, join
 from astropy.time import Time
 
 from arccnet import config
@@ -40,14 +40,16 @@ __all__ = [
 ]
 
 
-def read_data(path: str, size: int, duration: int):
+def read_data(hek_path: str, srs_path: str, size: int, duration: int):
     r"""
     Read and process data from a parquet file containing HEK catalogue information regarding flaring events.
 
     Parameters
     ----------
-        path : `str`
-            The path to the parquet file.
+        hek_path : `str`
+            The path to the parquet file containing hek flare information.
+        srs_path : `str`
+            The path to the parquet file containing parsed noaa srs active region information.
         size : `int`
             The size of the sample to be generated. (Generates 10% X, 30% M, 60% C)
         duration : `int`
@@ -63,19 +65,27 @@ def read_data(path: str, size: int, duration: int):
             - End time (1 hour before flaring event start time)
     """
 
-    table = Table.read(path)
+    table = Table.read(hek_path)
     noaa_num_df = table[table["noaa_number"] > 0]
     flares = noaa_num_df[noaa_num_df["event_type"] == "FL"]
     flares = flares[flares["frm_daterun"] > "2011-01-01"]
+    srs = Table.read(srs_path)
+    srs = srs[srs['number'] > 0]
+    srs = srs[srs['filtered'] == False]
+    srs['srs_date'] = srs['target_time'].value
+    srs['srs_date'] = [date.split('T')[0] for date in srs['srs_date']]
+    flares['tb_date'] = flares['start_time'].value
+    flares['tb_date'] = [date.split(' ')[0] for date in flares['tb_date']]
+    flares = join(flares, srs, keys_left= 'noaa_number', keys_right= 'number')
+    flares = flares[flares['tb_date'] == flares['srs_date']]
+
     x_flares = flares[[flare.startswith("X") for flare in flares["goes_class"]]]
     x_flares = x_flares[sample(range(len(x_flares)), k=int(0.1 * size))]
     m_flares = flares[[flare.startswith("M") for flare in flares["goes_class"]]]
-    m_flares = m_flares[m_flares["noaa_number"] == 12449]
-    m_flares = m_flares[m_flares["goes_class"] == "M3.9"]
-    # m_flares = m_flares[sample(range(len(m_flares)), k=int(0.3 * size))]
+    m_flares = m_flares[sample(range(len(m_flares)), k=int(0.3 * size))]
     c_flares = flares[[flare.startswith("C") for flare in flares["goes_class"]]]
     c_flares = c_flares[sample(range(len(c_flares)), k=int(0.6 * size))]
-    exp = ["noaa_number", "goes_class", "start_time", "frm_daterun", "hgs_latitude", "hgs_longitude"]
+    exp = ["noaa_number", "goes_class", "start_time", "frm_daterun", "latitude", "longitude"]
     combined = vstack([x_flares[exp], m_flares[exp], c_flares[exp]])
     combined["start_time"] = [time - (duration + 1) * u.hour for time in combined["start_time"]]
     combined["start_time"].format = "fits"
@@ -302,8 +312,8 @@ def aia_query_export(hmi_query, keys, wavelength="171, 193, 304, 211, 335, 94, 1
     euv_value = [aia_rec_find(qstr, keys, 3, 12) for qstr in qstrs_euv]
     uv_value = [aia_rec_find(qstr, keys, 2, 24) for qstr in qstrs_uv]
     vis_value = [aia_rec_find(qstr, keys, 1, 60) for qstr in qstrs_vis]
-
     unpacked_aia = list(itertools.chain(euv_value, uv_value, vis_value))
+    unpacked_aia = [set for set in unpacked_aia if set is not None]
     unpacked_aia = list(itertools.chain.from_iterable(unpacked_aia))
     joined_num = [str(num) for num in unpacked_aia]
     aia_num_str = str(joined_num).strip("[]")
@@ -337,7 +347,7 @@ def hmi_rec_find(qstr, keys):
     qry = client.query(ds=qstr, key=keys)
     time = sunpy.time.parse_time(qry["T_REC"].values[0])
     while qry["QUALITY"].values[0] != 0 and retries <= 3:
-        qry = client.query(f"hmi.M_720s[{time}]" + "{magnetogram}", keys)
+        qry = client.query(ds = f"hmi.M_720s[{time}]" + "{magnetogram}", key=keys)
         time = change_time(time, 720)
         retries += 1
     return qry["*recnum*"].values[0]
@@ -367,7 +377,7 @@ def aia_rec_find(qstr, keys, retries, time_add):
     if wvl == "4500":
         return qry["FSN"].values
     while qry["QUALITY"].values[0] != 0 and retry < retries:
-        qry = client.query(f"{qstr_head}[{time}][{wvl}]" + "{image}", keys)
+        qry = client.query(ds=f"{qstr_head}[{time}][{wvl}]" + "{image}", key=keys)
         time = change_time(time, time_add)
         retry += 1
     if qry["QUALITY"].values[0] == 0:
@@ -665,7 +675,7 @@ def crop_map(sdo_packed: tuple):
         fits_path : `sunpy.map.Map.submap`
             A submap centered around the provided coordinates.
     """
-    sdo_map, lat, lon, box_h, box_w = sdo_packed
+    sdo_map, lat, long, box_h, box_w = sdo_packed
     sdo_map = sunpy.map.Map(sdo_map)
 
     time = sdo_map.date.to_value("ymdhms")
@@ -677,9 +687,9 @@ def crop_map(sdo_packed: tuple):
     else:
         pix_scale = sdo_map.meta["cdelt1"]
         im_time = sdo_map.date
-    center = SkyCoord(lon * u.deg, lat * u.deg, obstime=im_time, frame=frames.HeliographicStonyhurst)
+    center = SkyCoord(long * u.deg, lat * u.deg, obstime=im_time, frame=frames.HeliographicStonyhurst)
     pix_center = sdo_map.world_to_pixel(center)
-    bottom_left_world = sdo_map.pixel_to_world(pix_center[0] - (box_h / 2) * u.pix, pix_center[1] - (box_w / 2) * u.pix)
+    bottom_left_world = sdo_map.pixel_to_world(pix_center[0] + (box_h / 2) * u.pix, pix_center[1] + (box_w / 2) * u.pix)
     s_map = sdo_map.submap(bottom_left_world, width=box_w * pix_scale * u.arcsec, height=box_h * pix_scale * u.arcsec)
     path = config["paths"]["data_folder"]
     map_path = f"{path}/03_processed/{year}/{month}/{day}/SDO/{sdo_map.nickname}"
