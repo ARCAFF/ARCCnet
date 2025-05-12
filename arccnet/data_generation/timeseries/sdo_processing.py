@@ -18,7 +18,7 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.io.fits import CompImageHDU
-from astropy.table import Table, vstack, join
+from astropy.table import Table, join, vstack
 from astropy.time import Time
 
 from arccnet import config
@@ -70,14 +70,14 @@ def read_data(hek_path: str, srs_path: str, size: int, duration: int):
     flares = noaa_num_df[noaa_num_df["event_type"] == "FL"]
     flares = flares[flares["frm_daterun"] > "2011-01-01"]
     srs = Table.read(srs_path)
-    srs = srs[srs['number'] > 0]
-    srs = srs[srs['filtered'] == False]
-    srs['srs_date'] = srs['target_time'].value
-    srs['srs_date'] = [date.split('T')[0] for date in srs['srs_date']]
-    flares['tb_date'] = flares['start_time'].value
-    flares['tb_date'] = [date.split(' ')[0] for date in flares['tb_date']]
-    flares = join(flares, srs, keys_left= 'noaa_number', keys_right= 'number')
-    flares = flares[flares['tb_date'] == flares['srs_date']]
+    srs = srs[srs["number"] > 0]
+    srs = srs[~srs["filtered"]]
+    srs["srs_date"] = srs["target_time"].value
+    srs["srs_date"] = [date.split("T")[0] for date in srs["srs_date"]]
+    flares["tb_date"] = flares["start_time"].value
+    flares["tb_date"] = [date.split(" ")[0] for date in flares["tb_date"]]
+    flares = join(flares, srs, keys_left="noaa_number", keys_right="number")
+    flares = flares[flares["tb_date"] == flares["srs_date"]]
 
     x_flares = flares[[flare.startswith("X") for flare in flares["goes_class"]]]
     x_flares = x_flares[sample(range(len(x_flares)), k=int(0.1 * size))]
@@ -347,7 +347,7 @@ def hmi_rec_find(qstr, keys):
     qry = client.query(ds=qstr, key=keys)
     time = sunpy.time.parse_time(qry["T_REC"].values[0])
     while qry["QUALITY"].values[0] != 0 and retries <= 3:
-        qry = client.query(ds = f"hmi.M_720s[{time}]" + "{magnetogram}", key=keys)
+        qry = client.query(ds=f"hmi.M_720s[{time}]" + "{magnetogram}", key=keys)
         time = change_time(time, 720)
         retries += 1
     return qry["*recnum*"].values[0]
