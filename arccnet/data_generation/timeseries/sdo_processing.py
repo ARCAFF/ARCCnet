@@ -658,17 +658,17 @@ def crop_map(sdo_packed: tuple):
     Parameters
     ----------
         sdo_packed : `tuple`
-            Contains the following:
-            sdo_map : `sunpy.map.Map`
-                Provided SDO map path (AIA/HMI).
-            lat : `float`
-                Provided latitude value in degrees (Heliographic Stonyhurst Coordinates).
-            lon : `float`
-                Provided longitude value in degrees (Heliographic Stonyhurst Coordinates).
-            height : `int`
-                The height of the submap in pixels.
-            width : `int`
-                The width of the submap in pixels. If not provided, assumed square dimension with width == to height.
+        Contains the following:
+        sdo_map : `sunpy.map.Map`
+            Provided SDO map path (AIA/HMI).
+        lat : `float`
+            Provided latitude value in degrees (Heliographic Stonyhurst Coordinates).
+        lon : `float`
+            Provided longitude value in degrees (Heliographic Stonyhurst Coordinates).
+        height : `int`
+            The height of the submap in pixels.
+        width : `int`
+            The width of the submap in pixels. If not provided, assumed square dimension with width == to height.
 
     Returns
     -------
