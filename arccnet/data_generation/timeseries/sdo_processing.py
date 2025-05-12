@@ -96,6 +96,7 @@ def read_data(hek_path: str, srs_path: str, size: int, duration: int):
 
     return tuples
 
+
 def change_time(time: str, shift: int):
     r"""
     Change the timestamp by a given time shift.
