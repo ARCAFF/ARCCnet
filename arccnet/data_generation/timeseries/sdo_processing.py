@@ -658,7 +658,7 @@ def crop_map(sdo_packed: tuple):
     Parameters
     ----------
         sdo_packed : `tuple`
-        Contains the following:
+            Contains the following:
         sdo_map : `sunpy.map.Map`
             Provided SDO map path (AIA/HMI).
         lat : `float`
