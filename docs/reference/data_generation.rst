@@ -20,3 +20,9 @@ Data Generation (`arccnet.data_generation`)
 .. automodapi:: arccnet.data_generation.magnetograms.instruments.hmi
 
 .. automodapi:: arccnet.data_generation.magnetograms.instruments.mdi
+
+.. automodapi:: arccnet.data_generation.timeseries
+
+.. automodapi:: arccnet.data_generation.timeseries.drms_pipeline
+
+.. automodapi:: arccnet.data_generation.timeseries.sdo_processing

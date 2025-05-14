@@ -9,6 +9,7 @@ class FlareCatalog(QTable):
     r"""
     Active region classification catalog.
     """
+
     required_column_types = {
         "start_time": Time,
         "peak_time": Time,
@@ -24,7 +25,7 @@ class FlareCatalog(QTable):
         super().__init__(*args, **kwargs)
         if not set(self.colnames).issuperset(set(self.required_column_types.keys())):
             raise ValueError(
-                f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns"
+                f"{self.__class__.__name__} must contain {list(self.required_column_types.keys())} columns"
             )
 
     @classmethod

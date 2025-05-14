@@ -171,6 +171,7 @@ def make_classes_histogram(
 
         # Annotate bars with values and percentages
         for bar in bars:
+<<<<<<< HEAD
             if horizontal:
                 value = bar.get_width()
                 y_center = bar.get_y() + bar.get_height() / 2
@@ -178,6 +179,29 @@ def make_classes_histogram(
                 text_y = y_center
                 ha = "left"
                 va = "center"
+=======
+            yval = bar.get_height()
+            if show_percentages:
+                percentage = f"{yval / total * 100:.2f}%" if total > 0 else "0.00%"
+                if ax is None:
+                    plt.text(
+                        bar.get_x() + bar.get_width() / 2,
+                        yval + y_off,
+                        f"{yval} ({percentage})",
+                        ha="center",
+                        va="bottom",
+                        fontsize=text_fontsize,
+                    )
+                else:
+                    ax.text(
+                        bar.get_x() + bar.get_width() / 2,
+                        yval + y_off,
+                        f"{yval} ({percentage})",
+                        ha="center",
+                        va="bottom",
+                        fontsize=text_fontsize,
+                    )
+>>>>>>> upstream/main
             else:
                 value = bar.get_height()
                 text_x = bar.get_x() + bar.get_width() / 2
@@ -322,7 +346,7 @@ def visualize_transformations(images, transforms, n_samples=16):
         # Plot transformed image
         plt.subplot(4, 4, i + 1)
         plt.imshow(transformed_image, cmap=magnetic_map, vmin=-1, vmax=1)
-        plt.title(f"Transformed Image {i+1}")
+        plt.title(f"Transformed Image {i + 1}")
         plt.axis("off")
 
     plt.tight_layout()
@@ -399,9 +423,7 @@ def plot_location_on_sun(df, long_limit_deg=60, experiment=None):
     num_front_cutouts = len(front_latV)
     percentage_rear = 100 * num_rear_cutouts / (num_rear_cutouts + num_front_cutouts)
 
-    text_output = (
-        f"Rear: {num_rear_cutouts}\n" f"Front: {num_front_cutouts}\n" f"Percentage of Rear: {percentage_rear:.2f}%"
-    )
+    text_output = f"Rear: {num_rear_cutouts}\nFront: {num_front_cutouts}\nPercentage of Rear: {percentage_rear:.2f}%"
 
     if experiment:
         plot_path = os.path.join("temp", "solar_disc_plot.png")

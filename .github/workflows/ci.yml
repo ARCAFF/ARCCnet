@@ -24,7 +24,7 @@ jobs:
       posargs: -n auto
       envs: |
         - linux: codestyle
-        - linux: py39
+        - linux: py311
       coverage: 'codecov'
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
@@ -37,8 +37,8 @@ jobs:
       coverage: codecov
       posargs: -n auto
       envs: |
-        - macos: py39-test
-        - windows: py39-test
+        - macos: py311-test
+        - windows: py311-test
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
@@ -46,7 +46,7 @@ jobs:
     needs: [test]
     uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@v1
     with:
-      default_python: '3.9'
+      default_python: '3.11'
       submodules: false
       pytest: false
       libraries: |

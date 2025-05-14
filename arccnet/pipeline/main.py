@@ -8,6 +8,7 @@ import numpy as np
 import astropy.units as u
 from astropy.table import Column, MaskedColumn, QTable, Table, join, vstack
 
+import arccnet
 from arccnet import config
 from arccnet.catalogs.active_regions.swpc import ClassificationCatalog, Query, Result, SWPCCatalog, filter_srs
 from arccnet.catalogs.flares.common import FlareCatalog
@@ -25,7 +26,6 @@ from arccnet.data_generation.magnetograms.instruments import (
 )
 from arccnet.data_generation.region_detection import RegionDetection, RegionDetectionTable
 from arccnet.utils.logging import get_logger
-from arccnet.version import __version__
 
 logger = get_logger(__name__, logging.DEBUG)
 
@@ -133,7 +133,7 @@ def process_flares(config):
     flare_catalogs = {c.catalog: None for c in catalogs}
 
     for catalog in catalogs:
-        version = __version__ if "dev" not in __version__ else "dev"  # unless it's a release use dev
+        version = arccnet.__version__ if "dev" not in arccnet.__version__ else "dev"  # unless it's a release use dev
         start = config["general"]["start_date"].isoformat()
         end = config["general"]["end_date"].isoformat()
         start = start if isinstance(start, datetime) else datetime.fromisoformat(start)

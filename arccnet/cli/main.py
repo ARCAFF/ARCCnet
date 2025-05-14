@@ -1,3 +1,4 @@
+import os
 import sys
 import argparse
 import configparser
@@ -8,6 +9,9 @@ from collections import ChainMap, defaultdict
 from collections.abc import Mapping
 
 from arccnet import load_config
+from arccnet.models.cutouts import config as config_module
+from arccnet.models.cutouts.inference import predict
+from arccnet.models.cutouts.train import run_training
 from arccnet.pipeline.main import process_ar_catalogs, process_ars, process_flares
 from arccnet.utils.logging import get_logger
 
@@ -83,17 +87,37 @@ def parser(args=None):
         "dataset", choices=["cutout_classification", "region_detection", "all"], help="Type of dataset to create"
     )
 
+    # Train
     train_parser = commands.add_parser("train", help="Train models on datasets")
-    train_parser.add_subparsers(dest="train")
+    train_parser.add_argument("--model_name", type=str, help="Timm model name")
+    train_parser.add_argument("--batch_size", type=int, help="Batch size for training.")
+    train_parser.add_argument("--num_workers", type=int, help="Number of workers for data loading and preprocessing.")
+    train_parser.add_argument("--num_epochs", type=int, help="Number of epochs for training.")
+    train_parser.add_argument("--patience", type=int, help="Patience for early stopping.")
+    train_parser.add_argument("--learning_rate", type=float, help="Learning rate for optimizer.")
+    train_parser.add_argument("--gpu_index", type=int, help="Index of the GPU to use.")
+    train_parser.add_argument("--data_folder", type=str, help="Path to the data folder.")
+    train_parser.add_argument("--dataset_folder", type=str, help="Path to the dataset folder.")
+    train_parser.add_argument("--df_file_name", type=str, help="Name of the dataframe file.")
 
-    eval_parser = commands.add_parser("eval", help="Evaluate models on given data")
-    eval_parser.add_subparsers(dest="eval")
+    # Eval
+    inference_parser = commands.add_parser("eval", help="Run inference on FITS data")
+    inference_parser.add_argument(
+        "--fits_file_path",
+        type=str,
+        default=os.path.join(
+            config_module.data_folder, config_module.dataset_folder, "fits", "20160203_235809_I-12493_HMI_SIDE1.fits"
+        ),
+        help="Path to the FITS file.",
+    )
+    inference_parser.add_argument("--project_name", type=str, default="arcaff-v2-qs-ia-a-b-bg", help="Project name.")
+    inference_parser.add_argument("--workspace", type=str, default="arcaff", help="Comet.ml workspace name.")
+    inference_parser.add_argument("--model_name", type=str, default="resnet18", help="Model name.")
+    inference_parser.add_argument("--model_version", type=str, default="1.0.0", help="Model version.")
 
     options, rest = root_parser.parse_known_args(args)
 
     options_dict = vars(options)
-    if "train" in options_dict or "eval" in options_dict:
-        raise NotImplementedError("Please wait 'train' and 'eval' commands have not been implemented")
 
     return options_dict, rest
 
@@ -107,6 +131,47 @@ def catalog_commands(options):
         if options["dataset"] == "ars":
             catalog = process_ar_catalogs(options)
             process_ars(options, catalog)
+
+
+def train_commands(options):
+    args = argparse.Namespace()
+
+    arg_to_config = {
+        "model_name": "model_name",
+        "batch_size": "batch_size",
+        "num_epochs": "num_epochs",
+        "patience": "patience",
+        "learning_rate": "learning_rate",
+        "gpu_index": "gpu_index",
+        "data_folder": "data_folder",
+        "dataset_folder": "dataset_folder",
+        "df_file_name": "df_file_name",
+        "num_workers": "num_workers",
+    }
+
+    def get_option_value(options, arg):
+        try:
+            return options[arg]
+        except KeyError:
+            return None
+
+    for arg in arg_to_config.keys():
+        value = get_option_value(options, arg)
+        setattr(args, arg, value)
+
+    run_training(config_module, args)
+
+
+def inference_commands(options):
+    args = argparse.Namespace()
+
+    args.model_name = options.get("model_name", "resnet18")
+    args.workspace = options.get("workspace", "arcaff")
+    args.model_version = options.get("model_version", "1.0.0")
+    args.fits_file_path = options.get("fits_file_path")
+    args.project_name = options.get("project_name", "arcaff-v2-qs-ia-a-b-bg")
+
+    predict(args)
 
 
 def combine_args(args=None):
@@ -174,5 +239,12 @@ def combine_args(args=None):
 
 def main(args=None):
     combined = combine_args(args)
-    if "catalog" in combined:
+    command = combined.get("command")
+    if command == "catalog":
         catalog_commands(combined)
+    elif command == "train":
+        train_commands(combined)
+    elif command == "eval":
+        inference_commands(combined)
+    else:
+        raise ValueError(f"Unknown command: {command}")

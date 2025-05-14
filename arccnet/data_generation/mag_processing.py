@@ -1,7 +1,6 @@
 import copy
 import random
 import multiprocessing
-from typing import Union
 from pathlib import Path
 
 import matplotlib
@@ -332,6 +331,7 @@ class ARClassification(QTable):
     Under the hood uses QTable and Masked columns to define if a file was downloaded or not
 
     """
+
     required_column_types = {
         "target_time": Time,
         "number": int,
@@ -346,7 +346,7 @@ class ARClassification(QTable):
         super().__init__(*args, **kwargs)
         if not set(self.colnames).issuperset(set(self.required_column_types.keys())):
             raise ValueError(
-                f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns"
+                f"{self.__class__.__name__} must contain {list(self.required_column_types.keys())} columns"
             )
 
     @classmethod
@@ -633,7 +633,7 @@ class RegionExtractor:
                     )
                 )
             else:
-                raise NotImplementedError(f'id == {row["id"]} is not implemented.')
+                raise NotImplementedError(f"id == {row['id']} is not implemented.")
 
             save_compressed_map(hmi_smap, path=output_filename, overwrite=True)
 
@@ -687,7 +687,7 @@ class RegionExtractor:
         cutout_size: tuple[u.pix, u.pix],
         num_random_attempts: int,
         max_iter: int,
-        existing_regions: list[Union[ARBox, QSBox]],
+        existing_regions: list[ARBox | QSBox],
         path: Path,
     ) -> list[QSBox]:
         """
@@ -762,7 +762,7 @@ class RegionExtractor:
     @u.quantity_input
     def summary_plots(
         self,
-        regions: list[Union[ARBox, QSBox]],
+        regions: list[ARBox | QSBox],
         sunpy_map: sunpy.map.Map,
         ysize: u.pix,
         output_filename: Path,

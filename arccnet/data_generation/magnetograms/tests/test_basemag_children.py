@@ -1,6 +1,7 @@
 """
 Testing for the instrument classes that inherit from BaseMagnetogram
 """
+
 import datetime
 
 import numpy as np
@@ -136,15 +137,11 @@ def test_fetch_metadata_v_batch(magnetogram_class, batch_frequency, start_date, 
         end_date=end_date,
         batch_frequency=batch_frequency,
         dynamic_columns=["url"],
-    ).drop(
-        columns="url"
-    )  # drop 'url' as it's dynamic
+    ).drop(columns="url")  # drop 'url' as it's dynamic
     batched_query = magnetogram.fetch_metadata_batch(
         start_date=start_date,
         end_date=end_date,
-    ).drop(
-        columns="url"
-    )  # drop 'url' as it's dynamic
+    ).drop(columns="url")  # drop 'url' as it's dynamic
     # assert single_query.equals(batched_query)
     pd.testing.assert_frame_equal(single_query, batched_query)
 

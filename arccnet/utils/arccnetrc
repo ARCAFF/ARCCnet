@@ -17,6 +17,15 @@ merge_tolerance = 30m
 jsoc_date_format = %Y.%m.%d_%H:%M:%S
 jsoc_base_url = http://jsoc.stanford.edu
 
+[drms]
+rep_tol = 60
+sample = 60
+hmi_keys = T_REC, T_OBS, QUALITY, *recnum*, WAVELNTH, INSTRUME
+aia_keys = T_REC, T_OBS, QUALITY, FSN, WAVELNTH, INSTRUME
+wavelengths = 171, 193, 304, 211, 335, 94, 131
+cores = 6
+
+
 ;;;;;;;;;;;;;;;;
 ; SRS          ;
 ;;;;;;;;;;;;;;;;
@@ -28,7 +37,7 @@ lon_lim_degrees = 85
 ; Magnetograms ;
 ;;;;;;;;;;;;;;;;
 [magnetograms]
-
+problematic_quicklooks = 20010116_000028_MDI.png, 20001130_000028_MDI.png, 19990420_235943_MDI.png
 
 
 [magnetograms.cutouts]
@@ -39,6 +48,7 @@ y_extent = 400
 ; Paths ;
 ;;;;;;;;;
 [paths]
+data_folder = ${ARCAFF_DATA_FOLDER}
 
 data_dir_raw = ${data_root}/01_raw
 data_dir_intermediate = ${data_root}/02_intermediate

@@ -1,78 +1,91 @@
 [build-system]
-
-requires = ["setuptools",
-            "setuptools_scm[toml]",
-            "wheel"]
-
+requires = [
+    "setuptools>=62.0.0",
+    "setuptools_scm[toml]>=8.0.1",
+    "wheel"
+]
 build-backend = 'setuptools.build_meta'
 
+[project]
+requires-python = ">=3.11"
+name = "ARCCnet"
+description = "Active Region Cutout Classification Network"
+readme = {file = "README.rst", content-type="text/x-rst"}
+license = "BSD-3-Clause"
+license-files = ["LICENSE.rst"]
+authors = [
+    {name="ARCAFF Team"},
+    {name="Shane Maloney", email = "shane.maloney@dias.ie"}
+]
+dynamic = ["version"]
+keywords = ["solar physics", "solar", "science", "machine learning", "space weather"]
+classifiers = [
+    "Development Status :: 2 - Beta",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Physics"
+]
+dependencies = [
+    "aiapy ~= 0.7",
+    "sunpy[all]~=6.1",
+    "packaging>=23.0",
+    "scikit-learn~=1.3",
+    "platformdirs~=3.9",
+    "pyarrow",
+    "drms~=0.9",
+    "astropy~=7.0",
+    "pandas~=2.0"
+]
+
+[project.optional-dependencies]
+models = [
+    "torch~=2.6",
+    "timm",
+    "comet_ml"
+]
+tests = [
+    "pytest",
+    "pytest-doctestplus",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-remotedata"
+]
+docs = [
+    "sphinx",
+    "sphinx-automodapi",
+    "pydata_sphinx_theme",
+    "sphinxcontrib-bibtex",
+    "myst_nb",
+    "linkify-it-py"
+]
+dev = ["arccnet[docs,tests]"]
+
+[project.scripts]
+arccnet-cli = "arccnet.cli.main:main"
+
+[project.urls]
+Homepage = "https://arcaff.eu"
+"Source Code" = "https://github.com/ARCAFF/arccnet"
+"Issue Tracker" = "https://github.com/ARCAFF/arccnet"
+
+
+[tool.setuptools]
+zip-safe = false
+include-package-data = true
+platforms = ["any"]
+provides = ["arccnet"]
+
+[tool.setuptools.packages.find]
+include = ["arccnet*"]
+exclude = ["arccnet._dev*"]
+
+[tool.setuptools.package-data]
+xrayvisim = []
+
 [tool.setuptools_scm]
-write_to = "arccnet/_version.py"
-
-[tool.ruff]
-target-version = "py39"
-line-length = 120
-exclude=[
-    ".git,",
-    "__pycache__",
-    "build",
-    "arccnet/version.py",
-]
-
-select = [
-       "E",
-       "F",
-       "W",
-       "UP",
-       "PT"
-]
-
-extend-ignore = [
-    # pycodestyle (E, W)
-    "E501",  # LineTooLong                             # TODO! fix
-
-    # pytest (PT)
-    "PT001",  # Always use pytest.fixture()
-    "PT004",  # Fixtures which don't return anything should have leading _
-    "PT007",  # Parametrize should be lists of tuples  # TODO! fix
-    "PT011",  # Too broad exception assert             # TODO! fix
-    "PT023",  # Always use () on pytest decorators
-]
-
-[tool.ruff.flake8-tidy-imports]
-[tool.ruff.flake8-tidy-imports.banned-api]
-"warnings.warn".msg = "Use sunpy specific warning helpers warn_* from sunpy.utils.exceptions"
-
-[tool.ruff.per-file-ignores]
-# Part of configuration, not a package.
-"setup.py" = ["INP001"]
-"conftest.py" = ["INP001"]
-# implicit-namespace-package. The examples are not a package.
-"docs/*.py" = ["INP001"]
-
-"__init__.py" = ["E402", "F401", "F403"]
-"test_*.py" = ["B011", "D", "E402", "PGH001", "S101"]
-
-[tool.ruff.pydocstyle]
-convention = "numpy"
-
-[tool.black]
-line-length = 120
-include = '\.pyi?$'
-exclude = '''
-(
-  /(
-    \.eggs
-    | \.git
-    | \.mypy_cache
-    | \.tox
-    | \.venv
-    | _build
-    | build
-    | dist
-    | docs
-    | \.history
-  )/
-  | docs/conf.py
-)
-'''
+version_file = "arccnet/_version.py"

@@ -32,6 +32,7 @@ class Query(QTable):
     Under the hood uses QTable and Masked columns to define if a expected result is present or missing
 
     """
+
     required_column_types = {"target_time": Time, "url": str}  # column types are not currently enforced
 
     def __init__(self, *args, **kwargs):
@@ -39,7 +40,7 @@ class Query(QTable):
 
         if not set(self.colnames).issuperset(set(self.required_column_types.keys())):
             raise ValueError(
-                f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns."
+                f"{self.__class__.__name__} must contain {list(self.required_column_types.keys())} columns."
             )
 
     @property
@@ -96,13 +97,14 @@ class Result(QTable):
     Under the hood uses QTable and Masked columns to define if a file was downloaded or not
 
     """
+
     required_column_types = {"target_time": Time, "url": str, "path": str}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if not set(self.colnames).issuperset(set(self.required_column_types.keys())):
             raise ValueError(
-                f"{self.__class__.__name__} must contain " f"{list(self.required_column_types.keys())} columns"
+                f"{self.__class__.__name__} must contain {list(self.required_column_types.keys())} columns"
             )
 
 
@@ -204,7 +206,7 @@ class DataManager:
         ]
 
         for meta in metadata_list:
-            logger.debug(f"{meta.__class__.__name__}: \n{meta[['T_REC','T_OBS','DATE-OBS','datetime', 'url']]}")
+            logger.debug(f"{meta.__class__.__name__}: \n{meta[['T_REC', 'T_OBS', 'DATE-OBS', 'datetime', 'url']]}")
 
         results = []
         for meta, query in zip(metadata_list, self._query_objects):
