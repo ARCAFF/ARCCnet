@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 import numpy as np
+import pandas as pd
 
 import astropy.units as u
 from astropy.table import Column, MaskedColumn, QTable, Table, join, vstack
@@ -1126,11 +1127,88 @@ def process_ar_catalogs(config):
     return processed_catalog
 
 
+def create_pit_flare_dataset(config):
+    logger.info("Generating `Point in Time Flare Forecasting` dataset")
+    data_root = Path(config["paths"]["data_root"])
+
+    flare_file = (
+        data_root
+        / "02_intermediate"
+        / "metadata"
+        / "flares"
+        / "hek_swpc_1996-01-01T00:00:00-2023-01-01T00:00:00_dev.parq"
+    )
+    classification_file = data_root / "04_final" / "data" / "region_cutouts" / "region_classification.parq"
+
+    # Load flares and extract flare stats
+    flares = Table.read(flare_file)
+    flare_stats = extract_flare_statistics(flares)
+
+    # rename to match ARs and parse time
+    flare_stats.rename(columns={"date": "target_time", "noaa_number": "number"}, inplace=True)
+    flare_stats.target_time = pd.to_datetime(flare_stats.target_time)
+
+    # Merge cutouts and flare stats
+    cutouts = Table.read(classification_file)
+    ars = cutouts[cutouts["region_type"] == "AR"]
+    good_cols = [name for name in cutouts.colnames if len(cutouts[name].shape) <= 1]
+    ars_df = ars[good_cols].to_pandas()
+
+    # outer join to keep flaring and no-flaring ARs for training
+    flares_and_ars = ars_df.merge(flare_stats, on=["target_time", "number"], how="outer")
+
+    version = __version__ if "dev" not in __version__ else "dev"  # unless it's a release use dev
+    start = config["general"]["start_date"]
+    end = config["general"]["end_date"]
+    start = start if isinstance(start, datetime) else datetime.fromisoformat(start)
+    end = end if isinstance(end, datetime) else datetime.fromisoformat(end)
+    file_name = f"mag-pit-flare-dataset_{start.isoformat()}" f"-{end.isoformat()}_{version}.parq"
+
+    data_dir_processed = Path(config["paths"]["data_dir_processed"])
+    flare_processed_catalog_file = data_dir_processed / file_name
+    flare_processed_catalog_file.parent.mkdir(exist_ok=True, parents=True)
+    flares_and_ars.to_parquet(flare_processed_catalog_file)
+
+    return flare_processed_catalog_file
+
+
+def extract_flare_statistics(flares):
+    r"""
+    Extract daily (24h) flare statistics for each NOAA AR
+
+    Uses flare peak time and extract the number of A, B, C, M and X class flare per AR per 24 hours.
+
+    Parameters
+    ----------
+    flares : `astropy.table.Table`
+        Flare events
+
+    """
+    noaa_num_mask = flares["noaa_number"] != 0
+    flares = flares[noaa_num_mask]
+
+    flares_df = flares.to_pandas()
+
+    # Group by day (date) and NOAA number and calculate number of flares per class
+    flare_counts = pd.DataFrame()
+    for (date, noaa_num), group in flares_df.groupby([flares_df["peak_time"].dt.date, "noaa_number"]):
+        flare_count_by_class = group["goes_class"].str[0].value_counts()
+        new_row = flare_count_by_class.to_dict()
+        new_row["date"] = date
+        new_row["noaa_number"] = noaa_num
+        flare_counts = pd.concat([flare_counts, pd.DataFrame([new_row])])
+
+    # will have nans for date, ar combo with no flares so fill with 0s
+    flare_counts.fillna(0, inplace=True)
+
+    return flare_counts
+
+
 def main():
     logger.debug("Starting main")
-    process_flares(config)
-    catalog = process_ar_catalogs(config)
-    process_ars(config, catalog)
+    create_pit_flare_dataset(config)
+    # catalog = process_ar_catalogs(config)
+    # process_ars(config, catalog)
 
 
 if __name__ == "__main__":
