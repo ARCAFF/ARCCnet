@@ -12,7 +12,7 @@ from comet_ml import API
 from astropy.io import fits
 
 from arccnet.models import train_utils as ut_t
-from arccnet.models.cutouts import config
+from arccnet.models.cutouts.mount_wilson import config
 from arccnet.utils.logging import get_logger
 from arccnet.visualisation import utils as ut_v
 

@@ -4,7 +4,7 @@ import argparse
 import torch
 from comet_ml import Experiment
 
-import arccnet.models.cutouts.config as config
+import arccnet.models.cutouts.mount_wilson.config as config
 import arccnet.models.dataset_utils as ut_d
 import arccnet.models.train_utils as ut_t
 import arccnet.visualisation.utils as ut_v
