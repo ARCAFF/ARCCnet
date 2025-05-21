@@ -61,7 +61,7 @@ def main(args):
     weights_dir = os.path.join(os.path.dirname(ut_t_file_path), "weights", run_id)
     os.makedirs(weights_dir, exist_ok=True)
 
-    # Process the AR dataset (this will load the parquet file)
+    # Process the AR dataset
     AR_df, encoders, mappings = mci_ut_d.process_ar_dataset(
         data_folder=config.data_folder,
         dataset_folder=config.dataset_folder,

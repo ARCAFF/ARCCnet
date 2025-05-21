@@ -12,7 +12,7 @@ from comet_ml import API
 from astropy.io import fits
 
 from arccnet.models import train_utils as ut_t
-from arccnet.models.cutouts.mount_wilson import config
+from arccnet.models.cutouts.hale import config
 from arccnet.utils.logging import get_logger
 from arccnet.visualisation import utils as ut_v
 
@@ -66,7 +66,7 @@ def run_inference(model, fits_file_path, device):
         model.eval()
         with torch.no_grad():
             data = preprocess_fits_data(fits_file_path)
-            data = data.to(device)  # Removed extra unsqueeze since preprocess already has unsqueeze
+            data = data.to(device)
             output = model(data)
         return output.cpu().numpy()
     except Exception:
