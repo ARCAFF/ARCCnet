@@ -46,7 +46,9 @@ dependencies = [
 models = [
     "torch~=2.6",
     "timm",
-    "comet_ml"
+    "p_tqdm",
+    "comet_ml",
+    "ultralytics"
 ]
 tests = [
     "pytest",
