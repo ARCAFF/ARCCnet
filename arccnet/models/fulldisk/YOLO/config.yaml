@@ -1,0 +1,7 @@
+train: '/ARCAFF/data/YOLO_dataset_BW/images/train'
+val: '/ARCAFF/data/YOLO_dataset_BW/images/val'
+nc: 3
+names:
+- Alpha
+- Beta
+- Beta-Gamma
