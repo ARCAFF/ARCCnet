@@ -90,10 +90,9 @@ class HMILOSMagnetogram(BaseMagnetogram):
         If you'd like to learn more about regex and its syntax, you can refer to the Python `re` module documentation:
         https://docs.python.org/3/library/re.html
         """
-        extracted_info = records.str.extract(r"\[(.*?)\]")
-        extracted_info.columns = ["T_REC"]
+        extracted_info = records.str.extract(r"\[(.*?)\]", expand=False)
 
-        return extracted_info
+        return extracted_info.to_frame("T_REC")
 
     @property
     def series_name(self) -> str:
@@ -168,7 +167,7 @@ class HMIContinuum(HMILOSMagnetogram):
         str
             The JSOC series name.
         """
-        return "hmi.Ic_720s"
+        return "hmi.Ic_nolimbdark_720s"
 
     @property
     def segment_column_name(self) -> str:
@@ -259,7 +258,7 @@ class HMISHARPs(HMILOSMagnetogram):
         extracted_info = records.str.extract(r"\[(.*?)\]\[(.*?)\]")
         extracted_info.columns = ["HARPNUM", "T_REC"]
         # cast to Int64 as NaN isn't represented in an int column
-        extracted_info["HARPNUM"] = extracted_info["HARPNUM"].astype("Int64")
+        extracted_info["HARPNUM"] = pd.to_numeric(extracted_info["HARPNUM"])
 
         return extracted_info
 

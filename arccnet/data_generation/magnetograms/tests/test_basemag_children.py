@@ -108,7 +108,7 @@ def test_cutout_get_matching_info_from_record(magnetogram_class, expected_column
     )
 
     # !TODO understand if this has unintended consequences
-    expected_values["XARPNUM"] = expected_values["XARPNUM"].astype("Int64")
+    expected_values["XARPNUM"] = pd.to_numeric(expected_values["XARPNUM"])
     # the column is cast to Int64 as it can handle NaN values (as pd.NA)
     # while a string (object) column can handle np.nan
 

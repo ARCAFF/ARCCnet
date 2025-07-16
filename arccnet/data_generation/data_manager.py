@@ -220,7 +220,24 @@ class DataManager:
             meta_datetime = (
                 meta[["datetime"]].drop_duplicates().dropna().sort_values("datetime").reset_index(drop=True)
             )  # adding sorting here... is this going to mess something up?
-
+            if len(meta_datetime) == 0:
+                results.append(
+                    Query(
+                        QTable(
+                            names=[
+                                "target_time",
+                                "datetime",
+                                "start_time",
+                                "end_time",
+                                "record",
+                                "filename",
+                                "url",
+                                "record_T_REC",
+                            ]
+                        )
+                    )
+                )
+                continue
             # generate a mapping between target_time to datetime with the specified tolerance.
             merged_time = pd.merge_asof(
                 left=pd_query[["target_time"]],
@@ -242,18 +259,9 @@ class DataManager:
             # which there may be multiple for cutouts at the same full-disk time, and join
             matched_rows = meta[meta["datetime"].isin(merged_time["datetime"])]
 
-            # -- Bit hacky to stop H(T)ARPNUM becoming a float
-            #    I think Shane may have found a better way to deal with this?
-            # Convert int64 columns to Int64
-            int64_columns = matched_rows.select_dtypes(include=["int64"]).columns
-            # Create a new DataFrame with Int64 data types
-            new_df = matched_rows.copy()
-            for col in int64_columns:
-                new_df[col] = matched_rows[col].astype("Int64")
-
             # merged_time <- this is the times that match between the query and output
-            # new_df / matched_rows are the rows in the output at the same time as the query
-            merged_df = pd.merge(merged_time, new_df, on="datetime", how="left")
+            # matched_rows are the rows in the output at the same time as the query
+            merged_df = pd.merge(merged_time, matched_rows, on="datetime", how="left")
             # I hope this isn't nonsense, and keeps the `urls` as a masked column
             # how does this work with sharps/smarps where same datetime for multiple rows
 
@@ -305,9 +313,12 @@ class DataManager:
 
             # !TODO a way of retrying missing would be good, but JSOC URLs are temporary.
             if new_query is not None:
-                downloaded_files = self._download(
-                    data_list=new_query[~new_query["url"].mask]["url"].data.data, path=path, overwrite=overwrite
-                )
+                if len(new_query) > 0:
+                    downloaded_files = self._download(
+                        data_list=new_query[~new_query.mask["url"]]["url"].data, path=path, overwrite=overwrite
+                    )
+                else:
+                    downloaded_files = []
                 results = self._match(results, downloaded_files)  # should return a results object.
             else:
                 raise NotImplementedError("new_query is none.")
