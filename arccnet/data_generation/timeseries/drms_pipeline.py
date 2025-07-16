@@ -39,21 +39,22 @@ if __name__ == "__main__":
     starts = read_data(
         hek_path=Path(f"{data_path}/flare_files/hek_swpc_1996-01-01T00:00:00-2023-01-01T00:00:00_dev.parq"),
         srs_path=Path(f"{data_path}/flare_files/srs_processed_catalog.parq"),
-        size=10,
+        size=1,
         duration=6,
+        long_lim=65,
+        types=["F1", "F2", "N1", "N2"],
     )
     cores = int(config["drms"]["cores"])
     with ProcessPoolExecutor(cores) as executor:
-        for record in [starts[-1]]:
-            noaa_ar, fl_class, start, end, date, center = record
+        for record in starts:
+            noaa_ar, fl_class, start, end, date, center, category = record
             pointing_table = calibrate.util.get_pointing_table(source="jsoc", time_range=[start - 6 * u.hour, end])
-
             start_split = start.value.split("T")[0]
-            file_name = f"{start_split}_{fl_class}_{noaa_ar}"
+            file_name = f"{category}_{start_split}_{fl_class}_{noaa_ar}"
             patch_height = int(config["drms"]["patch_height"]) * u.pix
             patch_width = int(config["drms"]["patch_width"]) * u.pix
             try:
-                print(record["noaa_number"], record["goes_class"], record["start_time"])
+                print(record["noaa_number"], record["goes_class"], record["start_time"], record["category"])
                 aia_maps, hmi_maps = drms_pipeline(
                     start_t=start,
                     end_t=end,
@@ -78,8 +79,8 @@ if __name__ == "__main__":
                 )
                 packed_maps = namedtuple("packed_maps", ["hmi_origin", "l2_map", "ar_num"])
                 hmi_origin_patch = crop_map(hmi_proc[0], center, patch_height, patch_width, date)
-                l2_hmi_packed = [[hmi_origin_patch, hmi_map, noaa_ar] for hmi_map in hmi_proc]
-                l2_aia_packed = [[hmi_origin_patch, aia_map, noaa_ar] for aia_map in aia_proc]
+                l2_hmi_packed = [[hmi_origin_patch, hmi_map, noaa_ar, center] for hmi_map in hmi_proc]
+                l2_aia_packed = [[hmi_origin_patch, aia_map, noaa_ar, center] for aia_map in aia_proc]
 
                 # Went back to tuples because this was failing in a weird way - something to do with pickle and concurrent futures. Left for future debugging.
                 # l2_hmi_packed = [packed_maps(hmi_origin_patch, hmi_map, noaa_ar) for hmi_map in hmi_proc]
@@ -87,14 +88,12 @@ if __name__ == "__main__":
 
                 hmi_patch_paths = tqdm(executor.map(map_reproject, l2_hmi_packed), total=len(l2_hmi_packed))
                 aia_patch_paths = tqdm(executor.map(map_reproject, l2_aia_packed), total=len(l2_aia_packed))
-                print(hmi_patch_paths)
 
                 # For some reason, aia_proc becomes an empty list after this function call.
                 home_table, aia_patch_paths, aia_quality, aia_time, hmi_patch_paths, hmi_quality, hmi_time = (
                     table_match(list(aia_patch_paths), list(hmi_patch_paths))
                 )
 
-                # This can probably be streamlined/functionalized to make the pipeline look better.
                 batched_name = f"{config['paths']['data_folder']}/04_final"
                 Path(f"{batched_name}/records").mkdir(parents=True, exist_ok=True)
                 Path(f"{batched_name}/tars").mkdir(parents=True, exist_ok=True)
