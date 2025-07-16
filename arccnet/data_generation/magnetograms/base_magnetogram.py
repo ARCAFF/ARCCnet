@@ -18,8 +18,10 @@ __all__ = ["BaseMagnetogram"]
 
 class BaseMagnetogram(ABC):
     def __init__(self) -> None:
+        from arccnet import config
+
         super().__init__()
-        self._drms_client = drms.Client(email=config["jsoc"]["jsoc_default_email"])
+        self._drms_client = drms.Client(email=config["jsoc"]["jsoc_email"])
 
     @abstractmethod
     def generate_drms_query(self, start_time: datetime, end_time: datetime, frequency: str) -> str:
@@ -418,7 +420,7 @@ class BaseMagnetogram(ABC):
             combined_metadata = pd.concat(all_metadata, ignore_index=True)  # test this
         else:
             logger.warning("No metadata from this query")
-            return None
+            return pd.DataFrame(columns=["T_REC", "T_OBS", "DATE-OBS", "datetime", "url"])
 
         # Check for duplicated rows in the combined metadata because we might be doing this accidentally
         # the "url" column is dynamic, and will not match (will the urls persist until we download them?)
