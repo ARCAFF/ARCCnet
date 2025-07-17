@@ -264,8 +264,8 @@ class RegionDetection:
         mag_map.plot(axes=mag_ax, cmap="hmimag")
         mag_map.draw_grid(axes=mag_ax)
 
-        cont_ax = fig.add_subplot(212, projection=mag_map)
-        cont_map.plot(axes=cont_ax)
+        cont_ax = fig.add_subplot(212, projection=cont_map)
+        cont_map.plot(axes=cont_ax, vmin=0.95, vmax=1.05)
         cont_map.draw_grid(axes=cont_ax)
 
         for row in table:

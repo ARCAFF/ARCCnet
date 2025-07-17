@@ -741,8 +741,8 @@ def region_cutouts(config, srs_hmi, srs_mdi):
     logger.info("Generating `Region Cutout` dataset")
     data_root = config["paths"]["data_root"]
 
-    intermediate_files = Path(data_root) / "02_intermediate" / "data" / "region_cutouts"
-    data_plot_path_root = Path(data_root) / "04_final" / "data" / "region_cutouts"
+    intermediate_files = Path(data_root) / "02_intermediate" / "data" / "cutout_classification"
+    data_plot_path_root = Path(data_root) / "04_final" / "data" / "cutout_classification"
     data_plot_path = data_plot_path_root / "fits"
     summary_plot_path = data_plot_path_root / "quicklook"
     classification_file = data_plot_path_root / "region_classification.parq"
@@ -761,7 +761,7 @@ def region_cutouts(config, srs_hmi, srs_mdi):
         int(config["magnetograms.cutouts"]["y_extent"]) * u.pix,
     )
 
-    hmi_file = intermediate_files / "hmi_region_cutouts.parq"
+    hmi_file = intermediate_files / "hmi_cutout_classification.parq"
     if hmi_file.exists():
         hmi_table = QTable.read(hmi_file)
     else:
@@ -776,7 +776,7 @@ def region_cutouts(config, srs_hmi, srs_mdi):
         logger.debug(f"writing {hmi_file}")
         hmi_table.write(hmi_file, format="parquet", overwrite=True)
 
-    mdi_file = intermediate_files / "mdi_region_cutouts.parq"
+    mdi_file = intermediate_files / "mdi_rcutout_classification.parq"
     if mdi_file.exists():
         mdi_table = QTable.read(mdi_file)
     else:
@@ -807,7 +807,8 @@ def region_cutouts(config, srs_hmi, srs_mdi):
             "magnetic_class",
             "latitude",
             "longitude",
-            "processed_path_image",
+            "processed_path_image_mag",
+            "processed_path_image_cont",
             "top_right_cutout",
             "bottom_left_cutout",
             "path_image_cutout",
@@ -856,8 +857,10 @@ def region_cutouts(config, srs_hmi, srs_mdi):
         # !TODO fix this later; shouldn't have to replace the fill values
         columns_with_fill_values = {
             "region_type": "XX",
-            "processed_path_image_mdi": "",
-            "processed_path_image_hmi": "",
+            "processed_path_image_mag_hmi": "",
+            "processed_path_image_cont_hmi": "",
+            "processed_path_image_mag_mdi": "",
+            "processed_path_image_cont_mdi": "",
             "quicklook_path_hmi": "",
             "quicklook_path_mdi": "",
             "path_image_cutout_hmi": "",
