@@ -1117,17 +1117,13 @@ def process_ars(config, catalog):
     # mdi_mag_cont_sharps = join(mdi_mag_smarps, mdi_cont_smarps[['target_time', 'path', 'processed_path_image']],
     #                            keys='target_time', table_names=['mag', 'cont'])
 
-    hmi_mag_sharps.rename_colums(["path", "processed_path_image"], ["path_mag", "processed_path_image_mag"])
-    hmi_cont_sharps.rename_colums(["path", "processed_path_image"], ["path_cont", "processed_path_image_cont"])
-    hmi_mag_sharps[["path_cont", "processed_path_image_cont"]] = hmi_cont_sharps[
-        ["path_cont", "processed_path_image_cont"]
-    ]
+    hmi_mag_sharps.rename_columns(["path", "processed_path_image"], ["path_mag", "processed_path_image_mag"])
+    hmi_cont_sharps.rename_columns(["path", "processed_path_image"], ["path_cont", "processed_path_image_cont"])
+    hmi_mag_sharps.add_columns([hmi_cont_sharps["path_cont"], hmi_cont_sharps["processed_path_image_cont"]])
 
-    mdi_mag_smarps.rename_colums(["path", "processed_path_image"], ["path_mag", "processed_path_image_mag"])
-    mdi_cont_smarps.rename_colums(["path", "processed_path_image"], ["path_cont", "processed_path_image_cont"])
-    mdi_mag_smarps[["path_cont", "processed_path_image_cont"]] = hmi_cont_sharps[
-        ["path_cont", "processed_path_image_cont"]
-    ]
+    mdi_mag_smarps.rename_columns(["path", "processed_path_image"], ["path_mag", "processed_path_image_mag"])
+    mdi_cont_smarps.rename_columns(["path", "processed_path_image"], ["path_cont", "processed_path_image_cont"])
+    mdi_mag_smarps.add_columns([mdi_cont_smarps["path_cont"], mdi_cont_smarps["processed_path_image_cont"]])
 
     ardeten = region_detection(config, hmi_mag_sharps, mdi_mag_smarps)
     # merged_table = merge_noaa_harp(arclass, ardeten)
