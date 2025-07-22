@@ -473,7 +473,7 @@ class RegionExtractor:
             cont_map = sunpy.map.Map(conf_file)
             quicklook_filename = (
                 summary_plot_path
-                / f"{mag_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{mag_map.instrument.replace(' ', '_')}.png"
+                / f"{mag_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{mag_map.detector.replace(' ', '_')}.png"
             )
             time_catalog = rows["target_time"][0].to_datetime()
 
@@ -622,11 +622,11 @@ class RegionExtractor:
             cont_submap = cont_map.submap(bottom_left, top_right=top_right)
             output_mag_filename = (
                 path / f"{mag_submap.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{row['id']}-{row['number']}_"
-                f"mag_{mag_submap.instrument.replace(' ', '_')}.fits"
+                f"mag_{mag_submap.detector.replace(' ', '_')}.fits"
             )
             output_cont_filename = (
                 path / f"{cont_submap.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{row['id']}-{row['number']}_"
-                f"cont_{cont_submap.instrument.replace(' ', '_')}.fits"
+                f"cont_{cont_submap.detector.replace(' ', '_')}.fits"
             )
 
             # store info in ARBox
@@ -750,12 +750,12 @@ class RegionExtractor:
                 # save to file
                 output_mag_filename = (
                     path / f"{qs_mag_submap.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_QS-{qs_df_len}_"
-                    f"mag_{qs_mag_submap.instrument.replace(' ', '_')}.fits"
+                    f"mag_{qs_mag_submap.detector.replace(' ', '_')}.fits"
                 )
                 qs_cont_submap = cont_map.submap(bottom_left, top_right=bottom_left)
                 output_cont_filename = (
                     path / f"{qs_cont_submap.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_QS-{qs_df_len}_"
-                    f"cont_{qs_cont_submap.instrument.replace(' ', '_')}.fits"
+                    f"cont_{qs_cont_submap.detector.replace(' ', '_')}.fits"
                 )
 
                 # create QS BBox object
