@@ -248,12 +248,12 @@ def process_hmi(config):
     )
 
     processed_data_mag = MagnetogramProcessor(download_objects[0], save_path=processed_path, column_name="path")
-    processed_table_mag = processed_data_mag.process(use_multiprocessing=False, overwrite=False)
+    processed_table_mag = processed_data_mag.process(use_multiprocessing=True, overwrite=False)
     logger.debug(f"Writing {hmi_processed_file_mag}")
     processed_table_mag.write(hmi_processed_file_mag, format="parquet", overwrite=True)
 
     processed_data_cont = MagnetogramProcessor(download_objects[1], save_path=processed_path, column_name="path")
-    processed_table_cont = processed_data_cont.process(use_multiprocessing=False, overwrite=False)
+    processed_table_cont = processed_data_cont.process(use_multiprocessing=True, overwrite=False)
     logger.debug(f"Writing {hmi_processed_file_cont}")
     processed_table_mag.write(hmi_processed_file_cont, format="parquet", overwrite=True)
 
@@ -327,12 +327,12 @@ def process_mdi(config):
     )
 
     processed_data_mag = MagnetogramProcessor(download_objects[0], save_path=processed_path, column_name="path")
-    processed_table_mag = processed_data_mag.process(use_multiprocessing=False, overwrite=False)
+    processed_table_mag = processed_data_mag.process(use_multiprocessing=True, overwrite=False)
     logger.debug(f"Writing {mdi_processed_file_mag}")
     processed_table_mag.write(mdi_processed_file_mag, format="parquet", overwrite=True)
 
     processed_data_cont = MagnetogramProcessor(download_objects[1], save_path=processed_path, column_name="path")
-    processed_table_cont = processed_data_cont.process(use_multiprocessing=False, overwrite=False)
+    processed_table_cont = processed_data_cont.process(use_multiprocessing=True, overwrite=False)
     logger.debug(f"Writing {mdi_processed_file_cont}")
     processed_table_cont.write(mdi_processed_file_cont, format="parquet", overwrite=True)
 

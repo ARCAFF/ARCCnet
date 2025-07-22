@@ -92,19 +92,18 @@ class MagnetogramProcessor:
         if use_multiprocessing:
             # Use tqdm to create a progress bar for multiprocessing
             with multiprocessing.Pool() as pool:
-                for processed_path in tqdm(
-                    pool.imap_unordered(
-                        self._multiprocess_and_save_data_wrapper,
+                for path in tqdm(
+                    pool.imap(
+                        _multiprocess_and_save_data_wrapper,
                         [(path, self.save_path, overwrite) for path in self.paths],
                     ),
                     total=len(self.paths),
                     desc="Processing",
                 ):
-                    processed_paths.append(processed_path)
-                    # pass
+                    processed_paths.append(path)
         else:
             for path in tqdm(self.paths, desc="Processing"):
-                processed_path = self._process_and_save_data(path, self.save_path, overwrite)
+                processed_path = _process_and_save_data(path, self.save_path, overwrite)
                 processed_paths.append(processed_path)
 
         self._processed_path_mapping = {path.name: path for path in processed_paths}
@@ -136,106 +135,110 @@ class MagnetogramProcessor:
 
         return MagResult(new_table)
 
-    def _multiprocess_and_save_data_wrapper(self, args):
-        r"""
-        Wrapper method to process and save data using `_process_and_save_data`.
 
-        This method takes a tuple of arguments containing the file path and the output directory,
-        and then calls the `_process_and_save_data` method with the provided arguments.
+def _multiprocess_and_save_data_wrapper(args):
+    r"""
+    Wrapper method to process and save data using `_process_and_save_data`.
 
-        Parameters
-        ----------
-        args : `tuple`
-            A tuple containing the file path and output directory.
+    This method takes a tuple of arguments containing the file path and the output directory,
+    and then calls the `_process_and_save_data` method with the provided arguments.
 
-        Returns
-        -------
-        `Path`
-            A path for the processed file
+    Parameters
+    ----------
+    args : `tuple`
+        A tuple containing the file path and output directory.
 
-        See Also:
-        --------
-        _process_and_save_data, process
-        """
-        file, output_dir, overwrite = args
-        return self._process_and_save_data(file, output_dir, overwrite)
+    Returns
+    -------
+    `Path`
+        A path for the processed file
 
-    def _process_and_save_data(self, file: Path, output_dir: Path, overwrite: bool) -> Path:
-        r"""
-        Process data and save compressed map.
+    See Also:
+    --------
+    _process_and_save_data, process
+    """
+    file, output_dir, overwrite = args
+    return _process_and_save_data(file, output_dir, overwrite)
 
-        Parameters
-        ----------
-        file : `Path`
-            Data file path.
 
-        output_dir : `Path`
-            Directory to save processed data.
+def _process_and_save_data(file: Path, output_dir: Path, overwrite: bool) -> Path:
+    r"""
+    Process data and save compressed map.
 
-        Returns
-        -------
-        None
-        """
-        output_file = output_dir / file.name  # !TODO prefix the file.name?
+    Parameters
+    ----------
+    file : `Path`
+        Data file path.
 
-        if not output_file.exists() or overwrite:
-            processed_data = self._process_datum(file)
-            save_compressed_map(processed_data, path=output_file, overwrite=True)
+    output_dir : `Path`
+        Directory to save processed data.
 
-        return output_file
+    Returns
+    -------
+    None
+    """
+    output_file = output_dir / file.name  # !TODO prefix the file.name?
 
-    def _process_datum(self, file: Path) -> sunpy.map.Map:
-        r"""
-        Process a single data file.
+    if not output_file.exists() or overwrite:
+        processed_data = _process_datum(file)
+        save_compressed_map(processed_data, path=output_file, overwrite=True)
 
-        Processing Steps:
-            1. Load and rotate
-            2. Set off-disk data to 0
-            3. !TODO additional steps?
-            4. Normalise radius to a fixed value
-            5. Project to a certain location in space
+    return output_file
 
-        Parameters
-        ----------
-        file : `Path`
-            Data file path.
 
-        Returns
-        -------
-        rotated_map : `sunpy.map.Map`
-            Processed sunpy map.
-        """
-        #!TODO remove 'BLANK' keyword
-        # v3925 WARNING: VerifyWarning: Invalid 'BLANK' keyword in header.
-        # The 'BLANK' keyword is only applicable to integer data, and will be ignored in this HDU.
-        # [astropy.io.fits.hdu.image]
-        # 1. Load & Rotate
-        single_map = sunpy.map.Map(file)
-        # 2. set data off-disk to 0 (np.nan would be ideal, but deep learning)
-        single_map.data[~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(single_map))] = 0.0
-        rotated_map = self._rotate_datum(single_map)
-        # 4. !TODO normalise radius to fixed value
-        # 5. !TODO project to a certain location in space
-        return rotated_map
+def _process_datum(file: Path) -> sunpy.map.Map:
+    r"""
+    Process a single data file.
 
-    def _rotate_datum(self, amap: sunpy.map.Map) -> sunpy.map.Map:
-        r"""
-        Rotate a map according to metadata.
+    Processing Steps:
+        1. Load and rotate
+        2. Set off-disk data to 0
+        3. !TODO additional steps?
+        4. Normalise radius to a fixed value
+        5. Project to a certain location in space
 
-        Args:
-        amap : `sunpy.map.Map`
-            An input sunpy map.
+    Parameters
+    ----------
+    file : `Path`
+        Data file path.
 
-        Parameters
-        ----------
-        rotated_map : `sunpy.map.Map`
-            Rotated sunpy map.
+    Returns
+    -------
+    rotated_map : `sunpy.map.Map`
+        Processed sunpy map.
+    """
+    #!TODO remove 'BLANK' keyword
+    # v3925 WARNING: VerifyWarning: Invalid 'BLANK' keyword in header.
+    # The 'BLANK' keyword is only applicable to integer data, and will be ignored in this HDU.
+    # [astropy.io.fits.hdu.image]
+    # 1. Load & Rotate
+    single_map = sunpy.map.Map(file)
+    # 2. set data off-disk to 0 (np.nan would be ideal, but deep learning)
+    single_map.data[~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(single_map))] = 0.0
+    rotated_map = _rotate_datum(single_map)
+    # 4. !TODO normalise radius to fixed value
+    # 5. !TODO project to a certain location in space
+    return rotated_map
 
-        Notes
-        -----
-        before rotation a HMI map may have: `crota2 = 180.082565`, for example.
-        """
-        return amap.rotate()
+
+def _rotate_datum(amap: sunpy.map.Map) -> sunpy.map.Map:
+    r"""
+    Rotate a map according to metadata.
+
+    Args:
+    amap : `sunpy.map.Map`
+        An input sunpy map.
+
+    Parameters
+    ----------
+    rotated_map : `sunpy.map.Map`
+        Rotated sunpy map.
+
+    Notes
+    -----
+    before rotation a HMI map may have: `crota2 = 180.082565`, for example.
+    """
+    return amap.rotate()
 
 
 class RegionBox:
