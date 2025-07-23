@@ -35,7 +35,7 @@ class RegionDetectionResult(QTable):
 
     required_column_types = {
         "target_time": Time,
-        "processed_path_image": str,
+        # "processed_path_image": str,
         "path_arc": str,
         "filtered": bool,
         "filter_reason": str,
@@ -59,7 +59,7 @@ class RegionDetectionTable(QTable):
 
     required_column_types = {
         "target_time": Time,
-        "processed_path_image": str,
+        # "processed_path_image": str,
         "path_arc": str,
         "filtered": bool,
         "filter_reason": str,
@@ -139,7 +139,7 @@ class RegionDetection:
                 logger.error(group[["target_time", "filtered", "filter_reason", "NOAA", "NOAANUM"]])
                 raise NotImplementedError()
 
-            fulldisk_path = group["processed_path_image"][0]
+            fulldisk_path = group["processed_path_image_mag"][0]
             fulldisk_map = sunpy.map.Map(Path(fulldisk_path))
 
             for row in group:
@@ -218,7 +218,7 @@ class RegionDetection:
         col = MaskedColumn(data=[Path()] * len(data), mask=[True] * len(data))
         data.add_column(col, name="quicklook_path")
 
-        grouped_data = data.group_by("processed_path_image")
+        grouped_data = data.group_by("processed_path_image_mag")
         result_table = data[:0].copy()
 
         for group in tqdm(grouped_data.groups, total=len(grouped_data.groups), desc="Plotting"):
@@ -227,38 +227,46 @@ class RegionDetection:
                     result_table.add_row(row)
                 continue
 
-            fulldisk_path = group["processed_path_image"][0]
+            fulldisk_mag_path = group["processed_path_image_mag"][0]
+            fulldisk_cont_path = group["processed_path_image_cont"][0]
             instrument = group["instrument"][0]
 
-            fulldisk_map = sunpy.map.Map(Path(fulldisk_path))
+            fulldisk_mag_map = sunpy.map.Map(Path(fulldisk_mag_path))
+            fulldisk_cont_map = sunpy.map.Map(Path(fulldisk_cont_path))
 
             output_filename = (
-                summary_plot_path / f"{fulldisk_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{instrument}.png"
+                summary_plot_path / f"{fulldisk_mag_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{instrument}.png"
             )  # need to add to the table
 
             for row in group:
                 row["quicklook_path"] = output_filename
                 result_table.add_row(row)
 
-            RegionDetection._summary_plot(group, fulldisk_map, output_filename)
+            RegionDetection._summary_plot(group, fulldisk_mag_map, fulldisk_cont_map, output_filename)
 
         assert len(result_table) == len(data)
 
         return RegionDetectionResult(result_table)
 
     @staticmethod
-    def _summary_plot(table: RegionDetectionResult, sunpy_map: sunpy.map.Map, output_filename: Path):
+    def _summary_plot(
+        table: RegionDetectionResult, mag_map: sunpy.map.Map, cont_map: sunpy.map.Map, output_filename: Path
+    ):
         """
         assumes a RegionDetectionTable that has been grouped by `processed_path`
         """
         # set up plot
-        fig = plt.figure(figsize=(5, 5))
+        fig = plt.figure(figsize=(5, 10))
         # there may be an issue with this cmap and vmin/max (different gray values as background)
-        ax = fig.add_subplot(projection=sunpy_map)
-        sunpy_map.plot_settings["norm"].vmin = -1499
-        sunpy_map.plot_settings["norm"].vmax = 1499
-        sunpy_map.plot(axes=ax, cmap="hmimag")
-        sunpy_map.draw_grid(axes=ax)
+        mag_ax = fig.add_subplot(211, projection=mag_map)
+        mag_map.plot_settings["norm"].vmin = -1499
+        mag_map.plot_settings["norm"].vmax = 1499
+        mag_map.plot(axes=mag_ax, cmap="hmimag")
+        mag_map.draw_grid(axes=mag_ax)
+
+        cont_ax = fig.add_subplot(212, projection=cont_map)
+        cont_map.plot(axes=cont_ax, vmin=0.95, vmax=1.05)
+        cont_map.draw_grid(axes=cont_ax)
 
         for row in table:
             if row["id"] == "I":
@@ -272,9 +280,18 @@ class RegionDetection:
                 ls = "-."
 
             # deal with boxes off the edge
-            sunpy_map.draw_quadrangle(
+            mag_map.draw_quadrangle(
                 row["bottom_left_cutout"],
-                axes=ax,
+                axes=mag_ax,
+                top_right=row["top_right_cutout"],
+                linewidth=1,
+                ls=ls,
+                edgecolor=edgecolor,
+            )
+
+            mag_map.draw_quadrangle(
+                row["bottom_left_cutout"],
+                axes=cont_ax,
                 top_right=row["top_right_cutout"],
                 linewidth=1,
                 ls=ls,
@@ -282,7 +299,16 @@ class RegionDetection:
             )
 
             if not row["latitude"].mask and not row["longitude"].mask:
-                ax.plot_coord(
+                mag_ax.plot_coord(
+                    SkyCoord(row["longitude"], row["latitude"], frame=sunpy.coordinates.frames.HeliographicStonyhurst),
+                    marker="o",
+                    linestyle="None",
+                    markeredgecolor="k",
+                    markersize=4,
+                    label=f"NOAA {row['NOAA']}",
+                )
+
+                cont_ax.plot_coord(
                     SkyCoord(row["longitude"], row["latitude"], frame=sunpy.coordinates.frames.HeliographicStonyhurst),
                     marker="o",
                     linestyle="None",
@@ -299,12 +325,12 @@ class RegionDetection:
                     np.linspace(start, end, 2),
                     row["latitude"],
                     frame=sunpy.coordinates.frames.HeliographicStonyhurst,
-                    obstime=sunpy_map.date,
+                    obstime=mag_map.date,
                 )
 
-                ax.plot_coord(constant_lon, color="k")
-
-                ax.legend()
+                mag_ax.plot_coord(constant_lon, color="k")
+                cont_ax.plot_coord(constant_lon, color="k")
+                mag_ax.legend()
 
         plt.savefig(
             output_filename,

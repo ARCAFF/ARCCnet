@@ -8,6 +8,7 @@ from datetime import datetime
 from collections import ChainMap, defaultdict
 from collections.abc import Mapping
 
+import arccnet
 from arccnet import load_config
 from arccnet.models.cutouts.hale import config as config_module
 from arccnet.models.cutouts.hale.inference import predict
@@ -239,6 +240,7 @@ def combine_args(args=None):
 
 def main(args=None):
     combined = combine_args(args)
+    arccnet.config = combined
     command = combined.get("command")
     if command == "catalog":
         catalog_commands(combined)
@@ -248,3 +250,8 @@ def main(args=None):
         inference_commands(combined)
     else:
         raise ValueError(f"Unknown command: {command}")
+
+
+if __name__ == "__main__":
+    main()
+    sys.exit(0)
