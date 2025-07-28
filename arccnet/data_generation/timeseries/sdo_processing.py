@@ -1,4 +1,3 @@
-# Define required libraries - check to see if Arccnet already has these as requirements.
 import os
 import sys
 import glob
@@ -34,6 +33,7 @@ warnings.simplefilter("ignore", RuntimeWarning)
 reproj_log = logging.getLogger("reproject.common")
 reproj_log.setLevel("WARNING")
 os.environ["JSOC_EMAIL"] = "danielgass192@gmail.com"
+data_path = config["paths"]["data_folder"]
 
 __all__ = [
     "read_data",
@@ -50,8 +50,58 @@ __all__ = [
     "l4_file_pack",
 ]
 
+# def test_rand():
+#     combined = read_data(
+#     hek_path=Path(f"{data_path}/flare_files/hek_swpc_1996-01-01T00:00:00-2023-01-01T00:00:00_dev.parq"),
+#     srs_path=Path(f"{data_path}/flare_files/srs_processed_catalog.parq"),
+#     size=1,
+#     duration=6,
+#     long_lim=65,
+#     types=["F1", "F2", "N1", "N2"],
+#     )[1]
 
-def read_data(hek_path: str, srs_path: str, size: int, duration: int):
+#     types=["F1", "F2", "N1", "N2"]
+
+#     # 1. test with full list of samples
+#     rand_comb_1 = rand_select(combined, 1, types)
+#     rand_comb_2 = rand_select(combined, 1, types)
+#     assert (rand_comb_1 != rand_comb_2)
+#     # 2. test with partial list of samples
+#     rand_comb_1 = rand_select(combined, 1, ["F1", "N1"])
+
+#     # 3. test with higher number of sizes
+#     rand_comb_1 = rand_select(combined, 3, types)
+#     rand_comb_2 = rand_select(combined, 3, types)
+#     assert (rand_comb_1 != rand_comb_2)
+
+
+def rand_select(table, size, types: list):
+    r"""
+    Randomly selects targets from provided table and list of data subsets.
+
+    Parameters
+    ----------
+        table : `Astropy.Table`
+            Provided full table of records.
+        size : `int`
+            The size of the returned subsets.
+        types: `list`
+            List of datatypes to include.
+
+    Returns
+    -------
+        comb_sample : `Astropy.Table`
+            Returned random subset containing size records from each data subset.
+    """
+    selection = []
+    for type in types:
+        subtable = table[table["category"] == type]
+        selection.append(subtable[sample(range(len(subtable)), k=int(size))])
+    comb_sample = vstack(selection)
+    return comb_sample
+
+
+def read_data(hek_path: str, srs_path: str, size: int, duration: int, long_lim: int, types: list):
     r"""
     Read and process data from a parquet file containing HEK catalogue information regarding flaring events.
 
@@ -62,62 +112,95 @@ def read_data(hek_path: str, srs_path: str, size: int, duration: int):
         srs_path : `str`
             The path to the parquet file containing parsed noaa srs active region information.
         size : `int`
-            The size of the sample to be generated. (Generates 10% X, 30% M, 60% C by default)
+            The size of each subsample to be generated.
         duration : `int`
             The duration of the data sample in hours.
+        flares : `str`
+            Determines if runs provided 'positive' (flares), 'negative' (no flares), or 'both' (50/50 split of both)
+        long_lim : `str`
+            The longitudinal limit of Active Regions which are accepted for target runs.
+        types : `list`
+            Types of data to include in final subsection, corresponds to flares vs non flares (F v N) and incidental and clear runs (1 v 2)
+
 
     Returns
     -------
         `Astropy.Table`
             A table of tuples containing the following columns for each flare:
             - NOAA Active Region Number
-            - GOES Flare class (C,M,X classes)
+            - GOES Flare class (C,M,X classes or N for none)
             - Start time (Duration + 1 hours before event in FITS format)
             - End time (1 hour before flaring event start time)
             - The date of the run, used for reprojection
             - The coordinate of the noaa active region
     """
-
+    # table_name = f"{size}_{duration}_{long_lim}_{types}.parq".strip(' ')
+    # if os.path.exists(f"{data_path}/flare_files/{table_name}"):
+    #     print("Run table cached - loading")
+    #     combined = Table.read(table_name)
+    # else:
+    #     print("No run table cached - creating new table")
     table = Table.read(hek_path)
+    srs = Table.read(srs_path)
+
     noaa_num_df = table[table["noaa_number"] > 0]
     flares = noaa_num_df[noaa_num_df["event_type"] == "FL"]
     flares = flares[flares["frm_daterun"] > "2011-01-01"]
-    srs = Table.read(srs_path)
+    flares = flares[
+        [flare.startswith("C") or flare.startswith("M") or flare.startswith("X") for flare in flares["goes_class"]]
+    ]
+
     srs = srs[srs["number"] > 0]
+    srs = srs[srs["target_time"] > "2011-01-01"]
+    srs = srs[abs(srs["longitude"].value) <= long_lim]
     srs = srs[~srs["filtered"]]
     srs["srs_date"] = srs["target_time"].value
     srs["srs_date"] = [date.split("T")[0] for date in srs["srs_date"]]
+    srs["srs_end_time"] = [(Time(time) + duration * u.hour) for time in srs["target_time"]]
+    print("Parsing Flares")
+    flares["start_time"] = [time - (duration + 1) * u.hour for time in flares["start_time"]]
+    flares["start_time"].format = "fits"
     flares["tb_date"] = flares["start_time"].value
-    flares["tb_date"] = [date.split(" ")[0] for date in flares["tb_date"]]
+    flares["tb_date"] = [date.split("T")[0] for date in flares["tb_date"]]
+    flares["end_time"] = flares["start_time"] + duration * u.hour
+    flare_splits = [flare_check(row["start_time"], row["end_time"], row["noaa_number"], flares) for row in flares]
+    flares["category"] = [f"F{flare[0]}" for flare in flare_splits]
+    flares["fl_count"] = [flare[1] for flare in flare_splits]
     flares = join(flares, srs, keys_left="noaa_number", keys_right="number")
-
-    flares = flares[abs(flares["longitude"].value) <= 65]
     flares = flares[flares["tb_date"] == flares["srs_date"]]
-    x_flares = flares[[flare.startswith("X") for flare in flares["goes_class"]]]
-    # x_flares = x_flares[x_flares["noaa_number"] == 11158]
-    # x_flares = x_flares[x_flares["goes_class"] == "X2.2"]
-    # x_flares = x_flares[x_flares["tb_date"] == "2014-10-27"]
-    x_flares = x_flares[sample(range(len(x_flares)), k=int(0.1 * size))]
-    m_flares = flares[[flare.startswith("M") for flare in flares["goes_class"]]]
-    m_flares = m_flares[sample(range(len(m_flares)), k=int(0.3 * size))]
-
-    c_flares = flares[[flare.startswith("C") for flare in flares["goes_class"]]]
-    # c_flares = c_flares[sample(range(len(c_flares)), k=int(0.6 * size))]
-    c_flares = c_flares[c_flares["noaa_number"] == 11818]
-    c_flares = c_flares[c_flares["goes_class"] == "C1.6"]
-    c_flares = c_flares[c_flares["tb_date"] == "2013-08-20"]
-
-    combined = vstack([x_flares, m_flares, c_flares])
-    combined["c_coord"] = [
+    flares["c_coord"] = [
         SkyCoord(lon * u.deg, lat * u.deg, obstime=t_time, observer="earth", frame=frames.HeliographicStonyhurst)
-        for lat, lon, t_time in zip(combined["latitude"], combined["longitude"], combined["target_time"])
+        for lat, lon, t_time in zip(flares["latitude"], flares["longitude"], flares["target_time"])
     ]
-    combined["start_time"] = [time - (duration + 1) * u.hour for time in combined["start_time"]]
-    combined["start_time"].format = "fits"
-    combined["end_time"] = combined["start_time"] + duration * u.hour
-    subset = combined["noaa_number", "goes_class", "start_time", "end_time", "frm_daterun", "c_coord"]
+    srs["c_coord"] = [
+        SkyCoord(lon * u.deg, lat * u.deg, obstime=t_time, observer="earth", frame=frames.HeliographicStonyhurst)
+        for lat, lon, t_time in zip(srs["latitude"], srs["longitude"], srs["target_time"])
+    ]
+    print("Parsing Active Regions")
+    ar_cat, fl_cat = [], []
+    for ar in srs:
+        erl_time = Time(ar["target_time"]) - (duration + 1) * u.hour
+        n_splits = flare_check(erl_time, Time(ar["target_time"]) - 1 * u.hour, ar["number"], flares)
+        ar_cat.append(f"N{n_splits[0]}")
+        fl_cat.append(n_splits[1])
+    srs["category"] = ar_cat
+    srs["n_fl_count"] = fl_cat
+    srs["ar"] = "N"
 
-    return subset
+    srs_exp = srs["number", "ar", "target_time", "srs_end_time", "srs_date", "c_coord", "category", "n_fl_count"]
+    flares_exp = flares[
+        "noaa_number", "goes_class", "start_time", "end_time", "tb_date", "c_coord", "category", "fl_count"
+    ]
+    srs_exp.rename_columns(
+        names=("number", "ar", "target_time", "srs_end_time", "srs_date", "c_coord", "category", "n_fl_count"),
+        new_names=("noaa_number", "goes_class", "start_time", "end_time", "tb_date", "c_coord", "category", "fl_count"),
+    )
+    combined = vstack([flares_exp, srs_exp])
+    # combined.write(f"{data_path}/flare_files/{table_name}", format='parquet')
+
+    final = rand_select(combined, size, types)
+    subset = final["noaa_number", "goes_class", "start_time", "end_time", "tb_date", "c_coord", "category"]
+    return subset, combined
 
 
 def change_time(time: str, shift: int):
@@ -169,7 +252,7 @@ def match_files(aia_maps, hmi_maps, table):
             List of AIA maps.
         hmi_maps : `list`
             List of HMI maps.
-        table : `JSOCResponse`
+        table : `JSOC Response`
             AIA pointing table as provided by JSOC.
 
     Returns
@@ -274,15 +357,15 @@ def hmi_query_export(time_1, time_2, keys: list, sample: int):
     """
     client = drms.Client()
     duration = round((time_2 - time_1).to_value(u.hour))
-    qstr_hmi = f"hmi.M_720s[{time_1.value}/{duration}h@{sample}m]" + "{magnetogram}"
-    hmi_query = client.query(ds=qstr_hmi, key=keys)
+    qstr_m_hmi = f"hmi.M_720s[{time_1.value}/{duration}h@{sample}m]" + "{magnetogram}"
+    hmi_query = client.query(ds=qstr_m_hmi, key=keys)
 
     good_result = hmi_query[hmi_query.QUALITY == 0]
     good_num = good_result["*recnum*"].values
     bad_result = hmi_query[hmi_query.QUALITY != 0]
 
-    qstrs_hmi = [f"hmi.M_720s[{time}]" + "{magnetogram}" for time in bad_result["T_REC"]]
-    hmi_values = [hmi_rec_find(qstr, keys) for qstr in qstrs_hmi]
+    qstrs_m_hmi = [f"hmi.M_720s[{time}]" + "{magnetogram}" for time in bad_result["T_REC"]]
+    hmi_values = [hmi_rec_find(qstr, keys, True) for qstr in qstrs_m_hmi]
     patched_num = [*hmi_values]
 
     joined_num = [*good_num, *patched_num]
@@ -292,7 +375,25 @@ def hmi_query_export(time_1, time_2, keys: list, sample: int):
     hmi_query_full = client.query(ds=hmi_qstr, key=keys)
     hmi_result = client.export(hmi_qstr, method="url", protocol="fits", email=os.environ["JSOC_EMAIL"])
     hmi_result.wait()
-    return hmi_query_full, hmi_result
+    ic_query_full, ic_result = hmi_continuum_export(hmi_query_full, keys)
+    return hmi_query_full, hmi_result, ic_query_full, ic_result
+
+
+def hmi_continuum_export(hmi_query, keys):
+    client = drms.Client()
+    qstrs_ic = [f"hmi.Ic_720s[{time}]" + "{image}" for time in hmi_query["T_REC"]]
+
+    ic_value = [hmi_rec_find(qstr, keys, 3, 12) for qstr in qstrs_ic]
+    unpacked_ic = list(itertools.chain.from_iterable(ic_value))
+    joined_num = [str(num) for num in unpacked_ic]
+    ic_num_str = str(joined_num).strip("[]")
+    ic_comb_qstr = f"aia.lev1[! FSN in ({ic_num_str}) !]" + "{image_lev1}"
+
+    ic_query_full = client.query(ds=ic_comb_qstr, key=keys)
+
+    ic_result = client.export(ic_comb_qstr, method="url", protocol="fits", email=os.environ["JSOC_EMAIL"])
+    ic_result.wait()
+    return ic_query_full, ic_result
 
 
 def aia_query_export(hmi_query, keys, wavelength):
@@ -316,11 +417,11 @@ def aia_query_export(hmi_query, keys, wavelength):
     qstrs_euv = [f"aia.lev1_euv_12s[{time}][{wavelength}]" + "{image}" for time in hmi_query["T_REC"]]
     qstrs_uv = [f"aia.lev1_uv_24s[{time}]{[1600, 1700]}" + "{image}" for time in hmi_query["T_REC"]]
     qstrs_vis = [f"aia.lev1_vis_1h[{time}]{[4500]}" + "{image}" for time in hmi_query["T_REC"]]
-
     euv_value = [aia_rec_find(qstr, keys, 3, 12) for qstr in qstrs_euv]
     uv_value = [aia_rec_find(qstr, keys, 2, 24) for qstr in qstrs_uv]
     vis_value = [aia_rec_find(qstr, keys, 1, 60) for qstr in qstrs_vis]
     unpacked_aia = list(itertools.chain(euv_value, uv_value, vis_value))
+    unpacked_aia = list(itertools.chain(euv_value, uv_value))
     unpacked_aia = [set for set in unpacked_aia if set is not None]
     unpacked_aia = list(itertools.chain.from_iterable(unpacked_aia))
     joined_num = [str(num) for num in unpacked_aia]
@@ -334,7 +435,7 @@ def aia_query_export(hmi_query, keys, wavelength):
     return aia_query_full, aia_result
 
 
-def hmi_rec_find(qstr, keys):
+def hmi_rec_find(qstr, keys, cont=False):
     r"""
     Find the HMI record number for a given query string.
 
@@ -344,18 +445,26 @@ def hmi_rec_find(qstr, keys):
             A query string.
         keys : `list`
             List of keys to query.
+        cont : `bool`
+            indicates whether continuum is needed, searches for magnetogram if false.
 
     Returns
     -------
         `int`
             The HMI record number.
     """
+    seg = "{magnetogram}"
+    series = "hmi.M_720s"
+    if cont:
+        seg = "{image}"
+        series = "hmi.Ic_720s"
+
     client = drms.Client()
     retries = 0
     qry = client.query(ds=qstr, key=keys)
     time = sunpy.time.parse_time(qry["T_REC"].values[0])
     while qry["QUALITY"].values[0] != 0 and retries <= 3:
-        qry = client.query(ds=f"hmi.M_720s[{time}]" + "{magnetogram}", key=keys)
+        qry = client.query(ds=f"{series}[{time}]" + seg, key=keys)
         time = change_time(time, 720)
         retries += 1
     return qry["*recnum*"].values[0]
@@ -708,7 +817,8 @@ def map_reproject(sdo_packed):
         fits_path : `str`
             The path location of the saved submap.
     """
-    hmi_origin, sdo_path, ar_num = sdo_packed
+    hmi_origin, sdo_path, ar_num, center = sdo_packed
+    lon = int(center.lon.value)
     # sdo_map = sunpy.map.Map(sdo_packed.l2_map)
     sdo_map = sunpy.map.Map(sdo_path)
     with propagate_with_solar_surface():
@@ -722,6 +832,8 @@ def map_reproject(sdo_packed):
     sdo_rpr.meta["quality"] = sdo_map.meta["quality"]
     sdo_rpr.meta["wavelnth"] = sdo_map.meta["wavelnth"]
     sdo_rpr.meta["date-obs"] = sdo_map.meta["date-obs"]
+    if sdo_rpr.dimensions[0].value < int(config["drms"]["patch_width"]):
+        sdo_rpr = pad_map(sdo_rpr, lon, config["drms"]["patch_width"])
     save_compressed_map(sdo_rpr, fits_path, hdu_type=CompImageHDU, overwrite=True)
 
     return fits_path
@@ -795,3 +907,109 @@ def l4_file_pack(aia_paths, hmi_paths, dir_path, rec, out_table, anim_path):
 
     shutil.copy(anim_path, f"{dir_path}/data/{rec}")
     out_table.write(f"{dir_path}/data/{rec}/{rec}.csv", overwrite=True)
+
+
+# def test_padding():
+#     map_width = int(config["drms"]["patch_width"])
+#     # 1. test with undersized AR cutout on right side of map, check map size.
+#     sdo_map = sunpy.map.Map('/Users/danielgass/Library/Application Support/ARCCnet/arccnet/03_processed/2013/8/20/SDO/AIA/11818_03_171.aia.lev1.2013-08-20T075936Z.73314087.image_lev1.fits')
+#     assert(int(pad_map(sdo_map, map_width).dimensions[0].value) == map_width)
+#     # 2. test with undersized AR cutout on left side of map, check map size.
+#     sdo_map = sunpy.map.Map('/Users/danielgass/Library/Application Support/ARCCnet/arccnet/03_processed/2013/1/6/SDO/AIA/11653_03_1700.aia.lev1.2013-01-06T234743Z.60394065.image_lev1.fits')
+#     assert(int(pad_map(sdo_map, int(map_width)).dimensions[0].value) == map_width)
+#     # 3. test with different targ width, to check that it works with arbitrary widths.
+#     sdo_map = sunpy.map.Map('/Users/danielgass/Library/Application Support/ARCCnet/arccnet/03_processed/2013/1/6/SDO/AIA/11653_03_1700.aia.lev1.2013-01-06T234743Z.60394065.image_lev1.fits')
+#     assert(int(pad_map(sdo_map, 900).dimensions[0].value) == 900)
+
+
+def pad_map(map, targ_width):
+    r"""
+    Pads the map data of a submap which is narrower than the specified submap width due to reaching the edge of the image array.
+
+    Parameters
+    ----------
+        map : `sunpy.map`
+            The sunpy submap to be resized.
+        targ_width : `int`
+            The target width of the submaps within the data run.
+
+    Returns
+    ----------
+        new_map : `sunpy.map`
+            The new, padded submap.
+    """
+    x_dim = map.dimensions[0].value
+    diff = int(targ_width - x_dim)
+    if map.center.Tx > 0:
+        data = np.pad(map.data, ((0, 0), (diff, 0)), constant_values=np.nan)
+    else:
+        data = np.pad(map.data, ((0, 0), (0, diff)), constant_values=np.nan)
+    new_map = sunpy.map.Map(data, map.meta)
+    return new_map
+
+
+# def test_flare_check():
+#     combined = read_data(
+#     hek_path=Path(f"{data_path}/flare_files/hek_swpc_1996-01-01T00:00:00-2023-01-01T00:00:00_dev.parq"),
+#     srs_path=Path(f"{data_path}/flare_files/srs_processed_catalog.parq"),
+#     size=1,
+#     duration=6,
+#     long_lim=65,
+#     types=["F1", "F2", "N1", "N2"],
+#     )[1]
+#     # 1. test a flare run known to contain flares
+#     flares = combined[combined['goes_class'] != 'N']
+#     flare = flares[flares['goes_class'] == "C3.7"]
+#     flare = flare[flare["noaa_number"] == 12644]
+#     assert(flare_check(flare['start_time'], flare['end_time'], flare['noaa_number'], flares)[0]) == 2
+#     # 2. test a non flare run known to contain flares
+#     ar = combined[combined['goes_class'] == "N"]
+#     ar = ar[ar["noaa_number"] == 12038]
+#     ar = ar[ar['tb_date'] == '2014-04-23']
+#     erl_time = Time(ar["start_time"]) - (6 + 1) * u.hour
+#     assert(flare_check(erl_time, Time(ar["start_time"]) - 1 * u.hour, ar["noaa_number"], flares)[0]) == 2
+#     # 3. test a flare run without flares
+#     flares = combined[combined['goes_class'] != 'N']
+#     flare = combined[combined['goes_class'] == "M1.6"]
+#     flare = flare[flare["noaa_number"] == 12192]
+#     print(flare)
+#     assert(flare_check(flare['start_time'], flare['end_time'], flare['noaa_number'], flares)[0]) == 1
+#     # 4. test a non flare run without flares
+#     ar = combined[combined['goes_class'] == "N"]
+#     ar = ar[ar["noaa_number"] == 12524]
+#     ar = ar[ar['tb_date'] == '2016-03-20']
+#     erl_time = Time(ar["start_time"]) - (6 + 1) * u.hour
+#     assert(flare_check(erl_time, Time(ar["start_time"]) - 1 * u.hour, ar["noaa_number"], flares)[0]) == 1
+# assert(flare_check(flare['start_time'], flare['end_time'], flare['noaa_number'], combined)[0]) == 1
+
+
+def flare_check(start, end, ar_num, table):
+    r"""
+    Checks a provided start time and end time, along with an active region number, and determines if a flare occurs within that period.
+
+    Parameters
+    ----------
+        start : `Astropy.Time`
+            The start time (duration - 1 hour) of a target run.
+        end : `Astropy.Time`
+            The end time (start_time - 1 hour) of a target run.
+        ar_num : `str`
+            The active region number of a target run.
+        table : `int`
+            The table of flare times used to check for flare events within run duration.
+
+    Returns
+    ----------
+        category : `int`
+            The category of the run. If no flare detected in run, category = 1, otherwise, category = 2.
+    """
+    ar_table = table[table["noaa_number"] == ar_num]
+    ar_table = ar_table[Time(ar_table["start_time"]) < end]
+    ar_table = ar_table[Time(ar_table["start_time"]) > start]
+    category = 1
+    flares = {"X": 0, "M": 0, "C": 0}
+    if len(ar_table) > 0:
+        category = 2
+        for cat in flares:
+            flares[cat] = int(len(ar_table[[flare.startswith(cat) for flare in ar_table["goes_class"]]]))
+    return category, flares
