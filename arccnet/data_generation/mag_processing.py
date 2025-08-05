@@ -238,7 +238,7 @@ def _rotate_datum(amap: sunpy.map.Map) -> sunpy.map.Map:
     -----
     before rotation a HMI map may have: `crota2 = 180.082565`, for example.
     """
-    return amap.rotate()
+    return amap.rotate(missing=np.nan if isinstance(amap.data, np.floating) else 0)
 
 
 class RegionBox:
