@@ -18,8 +18,10 @@ __all__ = ["BaseMagnetogram"]
 
 class BaseMagnetogram(ABC):
     def __init__(self) -> None:
+        from arccnet import config
+
         super().__init__()
-        self._drms_client = drms.Client(email=config["jsoc"]["jsoc_default_email"])
+        self._drms_client = drms.Client(email=config["jsoc"]["jsoc_email"])
 
     @abstractmethod
     def generate_drms_query(self, start_time: datetime, end_time: datetime, frequency: str) -> str:
@@ -98,6 +100,10 @@ class BaseMagnetogram(ABC):
         """
         return self.__class__.__name__
 
+    @property
+    def keys(self) -> list[str, ...]:
+        return "**ALL**"
+
     @abstractmethod
     def _get_matching_info_from_record(self, records: pd.Series) -> tuple[pd.DataFrame, list[str]]:
         """
@@ -136,7 +142,7 @@ class BaseMagnetogram(ABC):
         """
         keys, segs = self._drms_client.query(
             query,
-            key="**ALL**",  # the needed columns vary, **ALL** returns all available keys
+            key=self.keys,  # the needed columns vary, **ALL** returns all available keys
             seg=self.segment_column_name,
             skip_conversion="QUALITY",
         )
@@ -222,37 +228,38 @@ class BaseMagnetogram(ABC):
         """
         retries = 1
         while retries <= max_retries:
+            # Two primary Exceptions have been raised in testing:
+            # 1. http.client.RemoteDisconnected
+            # 2. drms.exceptions.DrmsExportError
+            # The latter occurs after the former due to the request still pending
             try:
                 return self._data_export_request(query, **kwargs)
-            except Exception as e:
-                # Two primary Exceptions have been raised in testing:
-                # 1. http.client.RemoteDisconnected
-                # 2. drms.exceptions.DrmsExportError
-                # The latter occurs after the former due to the request still pending
-                if isinstance(e, http.client.RemoteDisconnected):
+
+            except http.client.RemoteDisconnected as e:
+                logger.warning(
+                    f"\t ... Exception: '{e}' raised. Retrying in {retry_delay} seconds: retry {retries} of {max_retries}."
+                )
+                time.sleep(retry_delay)
+                retries += 1
+            except drms.exceptions.DrmsExportError as e:
+                if "pending export requests" in str(e):
+                    logger.info(f"\t ... waiting {drms_export_delay} seconds for pending export requests to complete.")
+                    time.sleep(drms_export_delay)
+                else:
                     logger.warning(
                         f"\t ... Exception: '{e}' raised. Retrying in {retry_delay} seconds: retry {retries} of {max_retries}."
                     )
                     time.sleep(retry_delay)
                     retries += 1
-                elif isinstance(e, drms.exceptions.DrmsExportError):
-                    if "pending export requests" in str(e):
-                        logger.info(
-                            f"\t ... waiting {drms_export_delay} seconds for pending export requests to complete."
-                        )
-                        time.sleep(drms_export_delay)
-                    else:
-                        logger.warning(
-                            f"\t ... Exception: '{e}' raised. Retrying in {retry_delay} seconds: retry {retries} of {max_retries}."
-                        )
-                        time.sleep(retry_delay)
-                        retries += 1
-                elif isinstance(e, urllib.error.HTTPError) and e.code == 504:
+            except urllib.error.HTTPError as e:
+                if e.code == 504:
                     logger.info(f"\t ... HTTP Error 504: waiting {drms_export_delay} seconds before trying again.")
                     time.sleep(drms_export_delay)
                     retries += 1
-                else:
-                    raise e
+            except TimeoutError:
+                logger.info(f"Timeout for query: {query}, waiting {drms_export_delay} seconds before trying again.")
+                time.sleep(drms_export_delay)
+                retries += 1
 
         raise DataExportRequestError("Failed to export data after multiple retries")
 
@@ -284,7 +291,7 @@ class BaseMagnetogram(ABC):
             formatted_string = "{" + ", ".join([f"{seg}" for seg in self.segment_column_name]) + "}"
         else:
             formatted_string = f"{{{self.segment_column_name}}}"
-        logger.info(f"\t ... requesting {self.segment_column_name} urls from JSOC")
+        logger.info(f"\t ... requesting {query + formatted_string} from JSOC")
 
         export_response = self._drms_client.export(query + formatted_string, method="url", protocol="fits", **kwargs)
         export_response.wait()
@@ -418,7 +425,7 @@ class BaseMagnetogram(ABC):
             combined_metadata = pd.concat(all_metadata, ignore_index=True)  # test this
         else:
             logger.warning("No metadata from this query")
-            return None
+            return pd.DataFrame(columns=["T_REC", "T_OBS", "DATE-OBS", "datetime", "url"])
 
         # Check for duplicated rows in the combined metadata because we might be doing this accidentally
         # the "url" column is dynamic, and will not match (will the urls persist until we download them?)
@@ -475,7 +482,7 @@ class BaseMagnetogram(ABC):
 
         query = self.generate_drms_query(start_date, end_date)
         query_string = f"\t {self._type} Query: {query} "
-
+        logger.info(f"DRMS query: {query}")
         keys, _ = self._query_jsoc(query)
         if len(keys) == 0:
             # return None if there are no results

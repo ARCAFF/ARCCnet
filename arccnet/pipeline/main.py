@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 import numpy as np
+import pandas as pd
 
 import astropy.units as u
 from astropy.table import Column, MaskedColumn, QTable, Table, join, vstack
@@ -24,6 +25,8 @@ from arccnet.data_generation.magnetograms.instruments import (
     MDILOSMagnetogram,
     MDISMARPs,
 )
+from arccnet.data_generation.magnetograms.instruments.hmi import HMIContinuum
+from arccnet.data_generation.magnetograms.instruments.mdi import MDIContinuum
 from arccnet.data_generation.region_detection import RegionDetection, RegionDetectionTable
 from arccnet.utils.logging import get_logger
 
@@ -52,9 +55,7 @@ def process_srs(config):
     srs_processed_catalog_file.parent.mkdir(exist_ok=True, parents=True)
     srs_clean_catalog_file.parent.mkdir(exist_ok=True, parents=True)
 
-    srs_query = Query.create_empty(
-        config["general"]["start_date"].isoformat(), config["general"]["end_date"].isoformat()
-    )
+    srs_query = Query.create_empty(config["general"]["start_date"], config["general"]["end_date"])
 
     # Check if the query file exists
     if srs_query_file.exists():
@@ -197,6 +198,7 @@ def process_hmi(config):
 
     mag_objs = [
         HMILOSMagnetogram(),
+        HMIContinuum(),
         HMISHARPs(),
     ]
 
@@ -205,45 +207,57 @@ def process_hmi(config):
     processed_path = Path(data_root) / "03_processed" / "data" / "mag" / "fits" / "hmi"
 
     # query files
-    hmi_query_file = Path(data_root) / "01_raw" / "data" / "mag" / "hmi_query.parq"
+    hmi_mag_query_file = Path(data_root) / "01_raw" / "data" / "mag" / "hmi_mag_query.parq"
+    hmi_cont_query_file = Path(data_root) / "01_raw" / "data" / "mag" / "hmi_cont_query.parq"
     sharps_query_file = Path(data_root) / "01_raw" / "data" / "mag" / "sharps_query.parq"
     # results files
-    hmi_results_file_raw = Path(data_root) / "01_raw" / "data" / "mag" / "hmi_results_empty.parq"
+    hmi_mag_results_file_raw = Path(data_root) / "01_raw" / "data" / "mag" / "hmi_mag_results_empty.parq"
+    hmi_cont_results_file_raw = Path(data_root) / "01_raw" / "data" / "mag" / "hmi_cont_results_empty.parq"
     sharps_results_file_raw = Path(data_root) / "01_raw" / "data" / "mag" / "sharps_results_empty.parq"
-    hmi_results_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "hmi_results.parq"
+
+    hmi_mag_results_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "hmi_mag_results.parq"
+    hmi_cont_results_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "hmi_cont_results.parq"
     sharps_results_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "sharps_results.parq"
     # save the downloads files in 02_intermediate as they do not link to processed data
-    hmi_downloads_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "hmi_downloads.parq"
+
+    hmi_mag_downloads_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "hmi_mag_downloads.parq"
+    hmi_cont_downloads_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "hmi_cont_downloads.parq"
     sharps_downloads_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "sharps_downloads.parq"
-    hmi_processed_file = Path(data_root) / "03_processed" / "data" / "mag" / "hmi_processed.parq"
+    hmi_processed_file_mag = Path(data_root) / "03_processed" / "data" / "mag" / "hmi_processed_mag.parq"
+    hmi_processed_file_cont = Path(data_root) / "03_processed" / "data" / "mag" / "hmi_processed_cont.parq"
 
     download_path.mkdir(exist_ok=True, parents=True)
     processed_path.mkdir(exist_ok=True, parents=True)
-    hmi_query_file.parent.mkdir(exist_ok=True, parents=True)
-    hmi_results_file_raw.parent.mkdir(exist_ok=True, parents=True)
-    hmi_results_file.parent.mkdir(exist_ok=True, parents=True)
-    hmi_downloads_file.parent.mkdir(exist_ok=True, parents=True)
+    hmi_mag_query_file.parent.mkdir(exist_ok=True, parents=True)
+    hmi_mag_results_file_raw.parent.mkdir(exist_ok=True, parents=True)
+    hmi_mag_results_file.parent.mkdir(exist_ok=True, parents=True)
+    hmi_mag_downloads_file.parent.mkdir(exist_ok=True, parents=True)
 
     download_objects = _process_mag(
         config=config,
         download_path=download_path,
         mag_objs=mag_objs,
-        query_files=[hmi_query_file, sharps_query_file],
-        results_files_empty=[hmi_results_file_raw, sharps_results_file_raw],
-        results_files=[hmi_results_file, sharps_results_file],
-        downloads_files=[hmi_downloads_file, sharps_downloads_file],
+        query_files=[hmi_mag_query_file, hmi_cont_query_file, sharps_query_file],
+        results_files_empty=[hmi_mag_results_file_raw, hmi_cont_results_file_raw, sharps_results_file_raw],
+        results_files=[hmi_mag_results_file, hmi_cont_results_file, sharps_results_file],
+        downloads_files=[hmi_mag_downloads_file, hmi_cont_downloads_file, sharps_downloads_file],
         freq=timedelta(days=1),
         batch_frequency=3,
         merge_tolerance=timedelta(minutes=30),
         overwrite_downloads=False,
     )
 
-    processed_data = MagnetogramProcessor(download_objects[0], save_path=processed_path, column_name="path")
-    processed_table = processed_data.process(use_multiprocessing=False, overwrite=False)
-    logger.debug(f"Writing {hmi_processed_file}")
-    processed_table.write(hmi_processed_file, format="parquet", overwrite=True)
+    processed_data_mag = MagnetogramProcessor(download_objects[0], save_path=processed_path, column_name="path")
+    processed_table_mag = processed_data_mag.process(use_multiprocessing=True, overwrite=False)
+    logger.debug(f"Writing {hmi_processed_file_mag}")
+    processed_table_mag.write(hmi_processed_file_mag, format="parquet", overwrite=True)
 
-    return [processed_table, download_objects[1]]
+    processed_data_cont = MagnetogramProcessor(download_objects[1], save_path=processed_path, column_name="path")
+    processed_table_cont = processed_data_cont.process(use_multiprocessing=True, overwrite=False)
+    logger.debug(f"Writing {hmi_processed_file_cont}")
+    processed_table_mag.write(hmi_processed_file_cont, format="parquet", overwrite=True)
+
+    return [processed_table_mag, processed_table_cont, download_objects[-1]]  # SHARP data is last
 
 
 def process_mdi(config):
@@ -264,6 +278,7 @@ def process_mdi(config):
 
     mag_objs = [
         MDILOSMagnetogram(),
+        MDIContinuum(),
         MDISMARPs(),
     ]
 
@@ -272,45 +287,56 @@ def process_mdi(config):
     processed_path = Path(data_root) / "03_processed" / "data" / "mag" / "fits" / "mdi"
 
     # query files
-    mdi_query_file = Path(data_root) / "01_raw" / "data" / "mag" / "mdi_query.parq"
+    mdi_mag_query_file = Path(data_root) / "01_raw" / "data" / "mag" / "mdi_mag_query.parq"
+    mdi_cont_query_file = Path(data_root) / "01_raw" / "data" / "mag" / "mdi_cont_query.parq"
     smarps_query_file = Path(data_root) / "01_raw" / "data" / "mag" / "smarps_query.parq"
     # results files
-    mdi_results_file_raw = Path(data_root) / "01_raw" / "data" / "mag" / "mdi_results_empty.parq"
+    mdi_mag_results_file_raw = Path(data_root) / "01_raw" / "data" / "mag" / "mdi_mag_results_empty.parq"
+    mdi_cont_results_file_raw = Path(data_root) / "01_raw" / "data" / "mag" / "mdi_cont_results_empty.parq"
     smarps_results_file_raw = Path(data_root) / "01_raw" / "data" / "mag" / "smarps_results_empty.parq"
-    mdi_results_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "mdi_results.parq"
+    mdi_mag_results_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "mdi_mag_results.parq"
+    mdi_cont_results_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "mdi_cont_results.parq"
     smarps_results_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "smarps_results.parq"
     # save the downloads files in 02_intermediate as they do not link to processed data
-    mdi_downloads_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "mdi_downloads.parq"
+    mdi_mag_downloads_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "mdi_mag_downloads.parq"
+    mdi_cont_downloads_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "mdi_cont_downloads.parq"
     smarps_downloads_file = Path(data_root) / "02_intermediate" / "data" / "mag" / "smarps_downloads.parq"
-    mdi_processed_file = Path(data_root) / "03_processed" / "data" / "mag" / "mdi_processed.parq"
+    mdi_processed_file_mag = Path(data_root) / "03_processed" / "data" / "mag" / "mdi_processed_mag.parq"
+    mdi_processed_file_cont = Path(data_root) / "03_processed" / "data" / "mag" / "mdi_processed_cont.parq"
 
     download_path.mkdir(exist_ok=True, parents=True)
     processed_path.mkdir(exist_ok=True, parents=True)
-    mdi_query_file.parent.mkdir(exist_ok=True, parents=True)
-    mdi_results_file_raw.parent.mkdir(exist_ok=True, parents=True)
-    mdi_results_file.parent.mkdir(exist_ok=True, parents=True)
-    mdi_downloads_file.parent.mkdir(exist_ok=True, parents=True)
+    mdi_mag_query_file.parent.mkdir(exist_ok=True, parents=True)
+    mdi_cont_query_file.parent.mkdir(exist_ok=True, parents=True)
+    mdi_mag_results_file_raw.parent.mkdir(exist_ok=True, parents=True)
+    mdi_mag_results_file.parent.mkdir(exist_ok=True, parents=True)
+    mdi_mag_downloads_file.parent.mkdir(exist_ok=True, parents=True)
 
     download_objects = _process_mag(
         config=config,
         download_path=download_path,
         mag_objs=mag_objs,
-        query_files=[mdi_query_file, smarps_query_file],
-        results_files_empty=[mdi_results_file_raw, smarps_results_file_raw],
-        results_files=[mdi_results_file, smarps_results_file],
-        downloads_files=[mdi_downloads_file, smarps_downloads_file],
+        query_files=[mdi_mag_query_file, mdi_cont_query_file, smarps_query_file],
+        results_files_empty=[mdi_mag_results_file_raw, mdi_cont_results_file_raw, smarps_results_file_raw],
+        results_files=[mdi_mag_results_file, mdi_cont_results_file, smarps_results_file],
+        downloads_files=[mdi_mag_downloads_file, mdi_cont_downloads_file, smarps_downloads_file],
         freq=timedelta(days=1),
         batch_frequency=4,
         merge_tolerance=timedelta(minutes=30),
         overwrite_downloads=False,
     )
 
-    processed_data = MagnetogramProcessor(download_objects[0], save_path=processed_path, column_name="path")
-    processed_table = processed_data.process(use_multiprocessing=False, overwrite=False)
-    logger.debug(f"Writing {mdi_processed_file}")
-    processed_table.write(mdi_processed_file, format="parquet", overwrite=True)
+    processed_data_mag = MagnetogramProcessor(download_objects[0], save_path=processed_path, column_name="path")
+    processed_table_mag = processed_data_mag.process(use_multiprocessing=True, overwrite=False)
+    logger.debug(f"Writing {mdi_processed_file_mag}")
+    processed_table_mag.write(mdi_processed_file_mag, format="parquet", overwrite=True)
 
-    return [processed_table, download_objects[1]]
+    processed_data_cont = MagnetogramProcessor(download_objects[1], save_path=processed_path, column_name="path")
+    processed_table_cont = processed_data_cont.process(use_multiprocessing=True, overwrite=False)
+    logger.debug(f"Writing {mdi_processed_file_cont}")
+    processed_table_cont.write(mdi_processed_file_cont, format="parquet", overwrite=True)
+
+    return [processed_table_mag, processed_table_cont, download_objects[-1]]  # HARP data is last
 
 
 def _process_mag(
@@ -414,7 +440,7 @@ def _process_mag(
     return download_objects
 
 
-def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
+def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps, type):
     """
     Merge magnetogram data tables from different sources.
 
@@ -442,11 +468,11 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     logger.info("Merging magnetogram tables")
 
     data_root = config["paths"]["data_root"]
-    srs_hmi_merged_file = Path(data_root) / "03_processed" / "data" / "mag" / "srs_hmi_merged.parq"
-    srs_mdi_merged_file = Path(data_root) / "03_processed" / "data" / "mag" / "srs_mdi_merged.parq"
-    srs_hmi_mdi_merged_file = Path(data_root) / "03_processed" / "data" / "mag" / "srs_hmi_mdi_merged.parq"
-    hmi_sharps_merged_file = Path(data_root) / "03_processed" / "data" / "mag" / "hmi_sharps_merged.parq"
-    mdi_smarps_merged_file = Path(data_root) / "03_processed" / "data" / "mag" / "mdi_smarps_merged.parq"
+    srs_hmi_merged_file = Path(data_root) / "03_processed" / "data" / "mag" / f"srs_hmi_{type}_merged.parq"
+    srs_mdi_merged_file = Path(data_root) / "03_processed" / "data" / "mag" / f"srs_mdi_{type}_merged.parq"
+    srs_hmi_mdi_merged_file = Path(data_root) / "03_processed" / "data" / "mag" / f"srs_hmi_{type}_mdi_merged.parq"
+    hmi_sharps_merged_file = Path(data_root) / "03_processed" / "data" / "mag" / f"hmi_{type}_sharps_merged.parq"
+    mdi_smarps_merged_file = Path(data_root) / "03_processed" / "data" / "mag" / f"mdi_{type}_smarps_merged.parq"
     srs_hmi_mdi_merged_file.parent.mkdir(exist_ok=True, parents=True)
 
     # ---------
@@ -521,7 +547,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
         if filtered_hmi["processed_path_image"].mask[idx]:
             row["filtered"] = True
             filter_reason_column_hmi[row.index] += "no_magnetogram,"
-        if not filtered_hmi["QUALITY"].mask[idx]:
+        if not filtered_hmi.mask["QUALITY"][idx]:
             # QUALITY limit from https://github.com/mbobra/SMARPs/blob/main/example_gallery/Compare_SMARP_and_SHARP_bitmaps.ipynb
             if np.int32(int(filtered_hmi["QUALITY"][idx], 16)) >= 65536:
                 row["filtered"] = True
@@ -578,8 +604,8 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
 
     # 3. Split the table into rows with and without an associated HARPNUM
     # joining with the harp-to-noaa mapping
-    rows_with_harpnum = hmi_sharps_table2[~hmi_sharps_table2["record_HARPNUM_arc"].mask]
-    rows_without_harpnum = hmi_sharps_table2[hmi_sharps_table2["record_HARPNUM_arc"].mask]
+    rows_with_harpnum = hmi_sharps_table2[~hmi_sharps_table2.mask["record_HARPNUM_arc"]]
+    rows_without_harpnum = hmi_sharps_table2[hmi_sharps_table2.mask["record_HARPNUM_arc"]]
     joined_table = join(rows_with_harpnum, harp_noaa_map, keys="record_HARPNUM_arc", join_type="left")
     srshmi_table_2 = vstack([joined_table, rows_without_harpnum])
     srshmi_table_2.sort("target_time")
@@ -593,7 +619,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     srshmi_harpnoaa2 = QTable.from_pandas(srshmi_table)
 
     # remove this? what the hell?
-    srshmi_harpnoaa2["NOAANUM"] = Column([int(val) for val in srshmi_harpnoaa2["NOAANUM"]], dtype=int)
+    srshmi_harpnoaa2["NOAANUM"] = pd.to_numeric(srshmi_harpnoaa2["NOAANUM"])
 
     # 5. Merge HARP and NOAA (from SRS)
     # doesn't include info about the filtered SRS, but I think it's fine as long as Stanford say the mapping exists?
@@ -671,7 +697,7 @@ def merge_mag_tables(config, srs, hmi, mdi, sharps, smarps):
     srsmdi_tarpnoaa2 = QTable.from_pandas(srsmdi_table)
 
     # remove this? what the hell?
-    srsmdi_tarpnoaa2["NOAANUM"] = Column([int(val) for val in srsmdi_tarpnoaa2["NOAANUM"]], dtype=int)
+    srsmdi_tarpnoaa2["NOAANUM"] = pd.to_numeric(srsmdi_tarpnoaa2["NOAANUM"])
 
     # 5.
     catalog_mdi_min = catalog_mdi[
@@ -715,8 +741,8 @@ def region_cutouts(config, srs_hmi, srs_mdi):
     logger.info("Generating `Region Cutout` dataset")
     data_root = config["paths"]["data_root"]
 
-    intermediate_files = Path(data_root) / "02_intermediate" / "data" / "region_cutouts"
-    data_plot_path_root = Path(data_root) / "04_final" / "data" / "region_cutouts"
+    intermediate_files = Path(data_root) / "02_intermediate" / "data" / "cutout_classification"
+    data_plot_path_root = Path(data_root) / "04_final" / "data" / "cutout_classification"
     data_plot_path = data_plot_path_root / "fits"
     summary_plot_path = data_plot_path_root / "quicklook"
     classification_file = data_plot_path_root / "region_classification.parq"
@@ -735,7 +761,7 @@ def region_cutouts(config, srs_hmi, srs_mdi):
         int(config["magnetograms.cutouts"]["y_extent"]) * u.pix,
     )
 
-    hmi_file = intermediate_files / "hmi_region_cutouts.parq"
+    hmi_file = intermediate_files / "hmi_cutout_classification.parq"
     if hmi_file.exists():
         hmi_table = QTable.read(hmi_file)
     else:
@@ -750,7 +776,7 @@ def region_cutouts(config, srs_hmi, srs_mdi):
         logger.debug(f"writing {hmi_file}")
         hmi_table.write(hmi_file, format="parquet", overwrite=True)
 
-    mdi_file = intermediate_files / "mdi_region_cutouts.parq"
+    mdi_file = intermediate_files / "mdi_rcutout_classification.parq"
     if mdi_file.exists():
         mdi_table = QTable.read(mdi_file)
     else:
@@ -781,7 +807,8 @@ def region_cutouts(config, srs_hmi, srs_mdi):
             "magnetic_class",
             "latitude",
             "longitude",
-            "processed_path_image",
+            "processed_path_image_mag",
+            "processed_path_image_cont",
             "top_right_cutout",
             "bottom_left_cutout",
             "path_image_cutout",
@@ -830,8 +857,10 @@ def region_cutouts(config, srs_hmi, srs_mdi):
         # !TODO fix this later; shouldn't have to replace the fill values
         columns_with_fill_values = {
             "region_type": "XX",
-            "processed_path_image_mdi": "",
-            "processed_path_image_hmi": "",
+            "processed_path_image_mag_hmi": "",
+            "processed_path_image_cont_hmi": "",
+            "processed_path_image_mag_mdi": "",
+            "processed_path_image_cont_mdi": "",
             "quicklook_path_hmi": "",
             "quicklook_path_mdi": "",
             "path_image_cutout_hmi": "",
@@ -941,7 +970,7 @@ def region_detection(config, hmi_sharps, mdi_smarps):
         hmi_sharps_detection_table = QTable.read(hmi_ar_det_file)
     else:
         hmidetection = RegionDetection(
-            table=hmi_sharps, col_group_path="processed_path_image", col_cutout_path="path_arc"
+            table=hmi_sharps, col_group_path="processed_path_image_mag", col_cutout_path="path_arc"
         )
         hmi_sharps_detection_table, hmi_sharps_detection_bboxes = hmidetection.get_bboxes()
         hmi_sharps_detection_table.write(hmi_ar_det_file, format="parquet", overwrite=True)
@@ -952,7 +981,7 @@ def region_detection(config, hmi_sharps, mdi_smarps):
         mdi_smarps_detection_table = QTable.read(mdi_ar_det_file)
     else:
         mdidetection = RegionDetection(
-            table=mdi_smarps, col_group_path="processed_path_image", col_cutout_path="path_arc"
+            table=mdi_smarps, col_group_path="processed_path_image_mag", col_cutout_path="path_arc"
         )
         mdi_smarps_detection_table, mdi_smarps_detection_bboxes = mdidetection.get_bboxes()
         # cols_to_remove = [
@@ -971,8 +1000,10 @@ def region_detection(config, hmi_sharps, mdi_smarps):
             "target_time",
             "datetime",
             "instrument",
-            "path",
-            "processed_path_image",
+            "path_mag",
+            "processed_path_image_mag",
+            "path_cont",
+            "processed_path_image_cont",
             "target_time_arc",
             "datetime_arc",
             "record_T_REC_arc",
@@ -1017,30 +1048,87 @@ def region_detection(config, hmi_sharps, mdi_smarps):
 def process_ars(config, catalog):
     logger.info("Processing AR images with config")
 
-    hmi_download_obj, sharps_download_obj = process_hmi(config)
-    mdi_download_obj, smarps_download_obj = process_mdi(config)
+    hmi_download_mag, hmi_download_cont, sharps_download = process_hmi(config)
+    mdi_download_mag, mdi_download_cont, smarps_download = process_mdi(config)
 
     # generate:
     #   SRS-HMI: merge SRS with HMI
     #   SRS-MDI: merge SRS with MDI
     #   HMI-SHARPS: merge HMI and SHARPs (null datetime dropped before merge)
     #   MDI-SMARPS: merge HMI and SHARPs (null datetime dropped before merge)
-    srs_hmi, srs_mdi, hmi_sharps, mdi_smarps = merge_mag_tables(
+    srs_hmi_mag, srs_mdi_mag, hmi_mag_sharps, mdi_mag_smarps = merge_mag_tables(
         config,
         srs=catalog,
-        hmi=hmi_download_obj,
-        mdi=mdi_download_obj,
-        sharps=sharps_download_obj,
-        smarps=smarps_download_obj,
+        hmi=hmi_download_mag,
+        mdi=mdi_download_mag,
+        sharps=sharps_download,
+        smarps=smarps_download,
+        type="mag",
     )
 
+    srs_hmi_cont, srs_mdi_cont, hmi_cont_sharps, mdi_cont_smarps = merge_mag_tables(
+        config,
+        srs=catalog,
+        hmi=hmi_download_cont,
+        mdi=mdi_download_cont,
+        sharps=sharps_download,
+        smarps=smarps_download,
+        type="cont",
+    )
+
+    # Combine mag and cont
+    if len(srs_hmi_mag) != len(srs_hmi_cont):
+        raise ValueError(f"Size of mag {len(srs_hmi_mag)} and cont {len(srs_hmi_cont)} tables don't match")
+
+    srs_hmi_mag_cont = join(
+        srs_hmi_mag[["target_time", "number", "path_image", "processed_path_image"]],
+        srs_hmi_cont,
+        keys=["target_time", "number"],
+        table_names=["mag", "cont"],
+    )
+
+    if len(srs_hmi_mag_cont) != len(srs_hmi_cont):
+        raise ValueError(
+            f"Size of joined srs mag and cont {len(srs_hmi_mag_cont)} and original mag {len(srs_hmi_mag)} tables don't match"
+        )
+
+    if len(srs_mdi_mag) != len(srs_mdi_cont):
+        raise ValueError(f"Size of mag {len(srs_hmi_mag)} and cont {len(srs_hmi_cont)} tables don't match")
+
+    srs_mdi_mag_cont = join(
+        srs_mdi_mag[["target_time", "number", "path_image", "processed_path_image"]],
+        srs_mdi_cont,
+        keys=["target_time", "number"],
+        table_names=["mag", "cont"],
+    )
+
+    if len(srs_mdi_mag_cont) != len(srs_mdi_cont):
+        raise ValueError(
+            f"Size of joined srs mag and cont {len(srs_hmi_mag_cont)} and original mag {len(srs_hmi_mag)} tables don't match"
+        )
+
     # extract AR/QS regions from HMI and MDI
-    _ = region_cutouts(config, srs_hmi, srs_mdi)
+    _ = region_cutouts(config, srs_hmi_mag_cont, srs_mdi_mag_cont)
 
     # bounding box locations of cutouts (in pixel space) on the full-disk images
     # !TODO perform region_detection after the merging of noaa_harp
 
-    ardeten = region_detection(config, hmi_sharps, mdi_smarps)
+    # Combine mag and cont
+    # hmi_mag_cont_sharps = join(hmi_mag_sharps[['target_time', 'path', 'processed_path_image', 'HARPNUM_arc']],
+    #                            hmi_cont_sharps,
+    #                            keys=['target_time', 'HARPNUM_arc'], table_names=['mag', 'cont'])
+    # mdi_mag_cont_sharps = join(mdi_mag_smarps, mdi_cont_smarps[['target_time', 'path', 'processed_path_image']],
+    #                            keys='target_time', table_names=['mag', 'cont'])
+
+    hmi_mag_sharps.rename_columns(["path", "processed_path_image"], ["path_mag", "processed_path_image_mag"])
+    hmi_cont_sharps.rename_columns(["path", "processed_path_image"], ["path_cont", "processed_path_image_cont"])
+    hmi_mag_sharps.add_columns([hmi_cont_sharps["path_cont"], hmi_cont_sharps["processed_path_image_cont"]])
+
+    mdi_mag_smarps.rename_columns(["path", "processed_path_image"], ["path_mag", "processed_path_image_mag"])
+    mdi_cont_smarps.rename_columns(["path", "processed_path_image"], ["path_cont", "processed_path_image_cont"])
+    mdi_mag_smarps.add_columns([mdi_cont_smarps["path_cont"], mdi_cont_smarps["processed_path_image_cont"]])
+
+    ardeten = region_detection(config, hmi_mag_sharps, mdi_mag_smarps)
     # merged_table = merge_noaa_harp(arclass, ardeten)
 
     merged_table_quicklook = RegionDetection.summary_plots(

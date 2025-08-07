@@ -46,7 +46,12 @@ class MagnetogramProcessor:
         self._column_name = column_name
 
         # need to fix these for QTable
-        file_list = pd.Series(self._table[~self._table[self._column_name].mask][self._column_name]).dropna().unique()
+        if len(self._table) > 0:
+            file_list = (
+                pd.Series(self._table[~self._table.mask[self._column_name]][self._column_name]).dropna().unique()
+            )
+        else:
+            file_list = []
         paths = [Path(path) if isinstance(path, str) else np.nan for path in file_list]
 
         # check if paths exist
@@ -87,19 +92,18 @@ class MagnetogramProcessor:
         if use_multiprocessing:
             # Use tqdm to create a progress bar for multiprocessing
             with multiprocessing.Pool() as pool:
-                for processed_path in tqdm(
-                    pool.imap_unordered(
-                        self._multiprocess_and_save_data_wrapper,
+                for path in tqdm(
+                    pool.imap(
+                        _multiprocess_and_save_data_wrapper,
                         [(path, self.save_path, overwrite) for path in self.paths],
                     ),
                     total=len(self.paths),
                     desc="Processing",
                 ):
-                    processed_paths.append(processed_path)
-                    # pass
+                    processed_paths.append(path)
         else:
             for path in tqdm(self.paths, desc="Processing"):
-                processed_path = self._process_and_save_data(path, self.save_path, overwrite)
+                processed_path = _process_and_save_data(path, self.save_path, overwrite)
                 processed_paths.append(processed_path)
 
         self._processed_path_mapping = {path.name: path for path in processed_paths}
@@ -119,7 +123,7 @@ class MagnetogramProcessor:
 
         # Update 'processed_path' directly within the masked column
         for i, path in enumerate(new_table[self._column_name]):
-            if not new_table[self._column_name].mask[i]:
+            if not new_table.mask[self._column_name][i]:
                 filename = Path(path).name
                 if filename in filename_mapping:
                     new_table["temp_processed_path"][i] = filename_mapping[filename]
@@ -131,106 +135,110 @@ class MagnetogramProcessor:
 
         return MagResult(new_table)
 
-    def _multiprocess_and_save_data_wrapper(self, args):
-        r"""
-        Wrapper method to process and save data using `_process_and_save_data`.
 
-        This method takes a tuple of arguments containing the file path and the output directory,
-        and then calls the `_process_and_save_data` method with the provided arguments.
+def _multiprocess_and_save_data_wrapper(args):
+    r"""
+    Wrapper method to process and save data using `_process_and_save_data`.
 
-        Parameters
-        ----------
-        args : `tuple`
-            A tuple containing the file path and output directory.
+    This method takes a tuple of arguments containing the file path and the output directory,
+    and then calls the `_process_and_save_data` method with the provided arguments.
 
-        Returns
-        -------
-        `Path`
-            A path for the processed file
+    Parameters
+    ----------
+    args : `tuple`
+        A tuple containing the file path and output directory.
 
-        See Also:
-        --------
-        _process_and_save_data, process
-        """
-        file, output_dir, overwrite = args
-        return self._process_and_save_data(file, output_dir, overwrite)
+    Returns
+    -------
+    `Path`
+        A path for the processed file
 
-    def _process_and_save_data(self, file: Path, output_dir: Path, overwrite: bool) -> Path:
-        r"""
-        Process data and save compressed map.
+    See Also:
+    --------
+    _process_and_save_data, process
+    """
+    file, output_dir, overwrite = args
+    return _process_and_save_data(file, output_dir, overwrite)
 
-        Parameters
-        ----------
-        file : `Path`
-            Data file path.
 
-        output_dir : `Path`
-            Directory to save processed data.
+def _process_and_save_data(file: Path, output_dir: Path, overwrite: bool) -> Path:
+    r"""
+    Process data and save compressed map.
 
-        Returns
-        -------
-        None
-        """
-        output_file = output_dir / file.name  # !TODO prefix the file.name?
+    Parameters
+    ----------
+    file : `Path`
+        Data file path.
 
-        if not output_file.exists() or overwrite:
-            processed_data = self._process_datum(file)
-            save_compressed_map(processed_data, path=output_file, overwrite=True)
+    output_dir : `Path`
+        Directory to save processed data.
 
-        return output_file
+    Returns
+    -------
+    None
+    """
+    output_file = output_dir / file.name  # !TODO prefix the file.name?
 
-    def _process_datum(self, file: Path) -> sunpy.map.Map:
-        r"""
-        Process a single data file.
+    if not output_file.exists() or overwrite:
+        processed_data = _process_datum(file)
+        save_compressed_map(processed_data, path=output_file, overwrite=True)
 
-        Processing Steps:
-            1. Load and rotate
-            2. Set off-disk data to 0
-            3. !TODO additional steps?
-            4. Normalise radius to a fixed value
-            5. Project to a certain location in space
+    return output_file
 
-        Parameters
-        ----------
-        file : `Path`
-            Data file path.
 
-        Returns
-        -------
-        rotated_map : `sunpy.map.Map`
-            Processed sunpy map.
-        """
-        #!TODO remove 'BLANK' keyword
-        # v3925 WARNING: VerifyWarning: Invalid 'BLANK' keyword in header.
-        # The 'BLANK' keyword is only applicable to integer data, and will be ignored in this HDU.
-        # [astropy.io.fits.hdu.image]
-        # 1. Load & Rotate
-        single_map = sunpy.map.Map(file)
-        # 2. set data off-disk to 0 (np.nan would be ideal, but deep learning)
-        single_map.data[~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(single_map))] = 0.0
-        rotated_map = self._rotate_datum(single_map)
-        # 4. !TODO normalise radius to fixed value
-        # 5. !TODO project to a certain location in space
-        return rotated_map
+def _process_datum(file: Path) -> sunpy.map.Map:
+    r"""
+    Process a single data file.
 
-    def _rotate_datum(self, amap: sunpy.map.Map) -> sunpy.map.Map:
-        r"""
-        Rotate a map according to metadata.
+    Processing Steps:
+        1. Load and rotate
+        2. Set off-disk data to 0
+        3. !TODO additional steps?
+        4. Normalise radius to a fixed value
+        5. Project to a certain location in space
 
-        Args:
-        amap : `sunpy.map.Map`
-            An input sunpy map.
+    Parameters
+    ----------
+    file : `Path`
+        Data file path.
 
-        Parameters
-        ----------
-        rotated_map : `sunpy.map.Map`
-            Rotated sunpy map.
+    Returns
+    -------
+    rotated_map : `sunpy.map.Map`
+        Processed sunpy map.
+    """
+    #!TODO remove 'BLANK' keyword
+    # v3925 WARNING: VerifyWarning: Invalid 'BLANK' keyword in header.
+    # The 'BLANK' keyword is only applicable to integer data, and will be ignored in this HDU.
+    # [astropy.io.fits.hdu.image]
+    # 1. Load & Rotate
+    single_map = sunpy.map.Map(file)
+    # 2. set data off-disk to 0 (np.nan would be ideal, but deep learning)
+    single_map.data[~sunpy.map.coordinate_is_on_solar_disk(sunpy.map.all_coordinates_from_map(single_map))] = 0.0
+    rotated_map = _rotate_datum(single_map)
+    # 4. !TODO normalise radius to fixed value
+    # 5. !TODO project to a certain location in space
+    return rotated_map
 
-        Notes
-        -----
-        before rotation a HMI map may have: `crota2 = 180.082565`, for example.
-        """
-        return amap.rotate()
+
+def _rotate_datum(amap: sunpy.map.Map) -> sunpy.map.Map:
+    r"""
+    Rotate a map according to metadata.
+
+    Args:
+    amap : `sunpy.map.Map`
+        An input sunpy map.
+
+    Parameters
+    ----------
+    rotated_map : `sunpy.map.Map`
+        Rotated sunpy map.
+
+    Notes
+    -----
+    before rotation a HMI map may have: `crota2 = 180.082565`, for example.
+    """
+    return amap.rotate(missing=np.nan if isinstance(amap.data, np.floating) else 0)
 
 
 class RegionBox:
@@ -337,7 +345,7 @@ class ARClassification(QTable):
         "number": int,
         "latitude": u.deg,
         "longitude": u.deg,
-        "processed_path_image": str,
+        # "processed_path_image": str,
         "filtered": bool,
         "filter_reason": str,
     }
@@ -408,7 +416,7 @@ class RegionExtractor:
             "dim_image_cutout",
             "longitude",
             "latitude",
-            "processed_path_image",
+            "processed_path_image_mag",
             "sum_ondisk_nans",
             "quicklook_path",
             "region_type",
@@ -422,10 +430,12 @@ class RegionExtractor:
         ar_table_all = None
 
         for tbtt in tqdm(table_by_target_time.groups):
-            if len(np.unique(tbtt["processed_path_image"])) != 1:
+            if len(np.unique(tbtt["processed_path_image_mag"])) != 1 and len(
+                np.unique(tbtt["processed_path_image_cont"])
+            ):
                 raise ValueError("len(image_file) is not 1")
 
-            if np.any(tbtt["processed_path_image"].mask):
+            if np.any(tbtt["processed_path_image_mag"].mask):
                 continue
 
             # if np.any(tbtt["filtered"] == True):
@@ -454,20 +464,22 @@ class RegionExtractor:
                     ar_table_all = ARClassification(vstack([QTable(ar_table_all), QTable(ar_table)]))
                 continue
 
-            if tbtt["processed_path_image"][0] == "None":
+            if tbtt["processed_path_image_mag"][0] == "None":
                 continue
 
-            image_file = rows["processed_path_image"][0]
-            image_map = sunpy.map.Map(image_file)
+            mag_file = rows["processed_path_image_mag"][0]
+            conf_file = rows["processed_path_image_cont"][0]
+            mag_map = sunpy.map.Map(mag_file)
+            cont_map = sunpy.map.Map(conf_file)
             quicklook_filename = (
                 summary_plot_path
-                / f"{image_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{image_map.instrument.replace(' ', '_')}.png"
+                / f"{mag_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{mag_map.detector.replace(' ', '_')}.png"
             )
             time_catalog = rows["target_time"][0].to_datetime()
 
             # set nan values in the map to zero
             # workaround for issues seen in processing
-            data = image_map.data
+            data = mag_map.data
             on_disk_nans = np.isnan(data)
             # if on_disk_nans.sum() > 0:
             #     indices = np.where(on_disk_nans)
@@ -476,14 +488,15 @@ class RegionExtractor:
             regions = []
 
             # add active regions to regions list
-            valid_regions = self._validregion_extraction(rows, image_map, cutout_size, path=data_path)
+            valid_regions = self._validregion_extraction(rows, mag_map, cont_map, cutout_size, path=data_path)
             rows_filtered_labels, rows_filtered_unlabeled, filtered_regions = self._filteredregion_extraction(
-                rows_filtered, image_map, cutout_size, path=data_path
+                rows_filtered, mag_map, cutout_size, path=data_path
             )
             regions.extend(valid_regions)
 
             # ... update the table
-            assert len(rows) == len(regions)
+            if len(rows) != len(regions):
+                raise ValueError("len(rows) != len(regions)")
             for r, reg in zip(rows, regions):
                 r["top_right_cutout"] = reg.top_right
                 r["bottom_left_cutout"] = reg.bottom_left
@@ -522,7 +535,8 @@ class RegionExtractor:
             # if quiet_sun, attempt to extract `num_random_attempts` regions and append
             if qs_random_attempts > 0:
                 quiet_regions = self._quietsun_extraction(
-                    sunpy_map=image_map,
+                    mag_map=mag_map,
+                    cont_map=cont_map,
                     cutout_size=cutout_size,
                     num_random_attempts=qs_random_attempts,
                     max_iter=qs_max_iter,
@@ -541,7 +555,8 @@ class RegionExtractor:
                         "dim_image_cutout": qsreg.shape * u.pix,
                         "longitude": qsreg.longitude * u.deg,
                         "latitude": qsreg.latitude * u.deg,
-                        "processed_path_image": image_file,
+                        "processed_path_image_mag": mag_file,
+                        # "processed_path_image_cutout": conf_file,
                         "sum_ondisk_nans": on_disk_nans.sum(),
                         "quicklook_path": quicklook_filename,
                         "region_type": qsreg.region_type,
@@ -549,9 +564,9 @@ class RegionExtractor:
                     qs_table.add_row(new_row)
 
             # pass regions to plotting
-            self.summary_plots(regions, image_map, cutout_size[1], quicklook_filename)
+            self.summary_plots(regions, mag_map, cont_map, cutout_size[1], quicklook_filename)
 
-            del image_map
+            del mag_map
 
             if ar_table_all is None:
                 ar_table_all = copy.deepcopy(ar_table)
@@ -584,29 +599,34 @@ class RegionExtractor:
 
         return art, qst, all_regions
 
-    def _validregion_extraction(self, group, sunpy_map, cutout_size, path) -> list[ARBox, IABox]:
+    def _validregion_extraction(self, group, mag_map, cont_map, cutout_size, path) -> list[ARBox, IABox]:
         """
         given a table `group` that share the same `sunpy_map`, return ARBox objects with a determined cutout_size
         """
         ar_objs = []
         xsize, ysize = cutout_size
+
         for row in group:
             """
             iterate through group, extracting active regions from lat/lon into image pixels
             """
             top_right, bottom_left, ar_pos_pixels = extract_region_lonlat(
-                sunpy_map,
+                mag_map,
                 row["latitude"],
                 row["longitude"],
                 xsize=xsize,
                 ysize=ysize,
             )
 
-            hmi_smap = sunpy_map.submap(bottom_left, top_right=top_right)
-
-            output_filename = (
-                path
-                / f"{sunpy_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{row['id']}-{row['number']}_{sunpy_map.instrument.replace(' ', '_')}.fits"
+            mag_submap = mag_map.submap(bottom_left, top_right=top_right)
+            cont_submap = cont_map.submap(bottom_left, top_right=top_right)
+            output_mag_filename = (
+                path / f"{mag_submap.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{row['id']}-{row['number']}_"
+                f"mag_{mag_submap.detector.replace(' ', '_')}.fits"
+            )
+            output_cont_filename = (
+                path / f"{cont_submap.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{row['id']}-{row['number']}_"
+                f"cont_{cont_submap.detector.replace(' ', '_')}.fits"
             )
 
             # store info in ARBox
@@ -615,10 +635,10 @@ class RegionExtractor:
                     ARBox(
                         top_right=top_right,
                         bottom_left=bottom_left,
-                        shape=hmi_smap.data.shape * u.pix,
+                        shape=mag_submap.data.shape * u.pix,
                         ar_pos_pixels=ar_pos_pixels,
                         identifier=row["number"],
-                        filepath=output_filename,
+                        filepath=output_mag_filename,
                     )
                 )
             elif row["id"] == "IA":
@@ -626,18 +646,20 @@ class RegionExtractor:
                     IABox(
                         top_right=top_right,
                         bottom_left=bottom_left,
-                        shape=hmi_smap.data.shape * u.pix,
+                        shape=mag_submap.data.shape * u.pix,
                         ar_pos_pixels=ar_pos_pixels,
                         identifier=str(row["number"]),
-                        filepath=output_filename,
+                        filepath=output_mag_filename,
                     )
                 )
             else:
                 raise NotImplementedError(f"id == {row['id']} is not implemented.")
 
-            save_compressed_map(hmi_smap, path=output_filename, overwrite=True)
+            save_compressed_map(mag_submap, path=output_mag_filename, overwrite=True)
+            save_compressed_map(cont_submap, path=output_cont_filename, overwrite=True)
 
-            del hmi_smap
+            del mag_submap
+
         return ar_objs
 
     def _filteredregion_extraction(self, group, sunpy_map, cutout_size, path) -> list[FilteredBox]:
@@ -683,7 +705,8 @@ class RegionExtractor:
 
     def _quietsun_extraction(
         self,
-        sunpy_map: sunpy.map.Map,
+        mag_map: sunpy.map.Map,
+        cont_map: sunpy.map.Map,
         cutout_size: tuple[u.pix, u.pix],
         num_random_attempts: int,
         max_iter: int,
@@ -706,8 +729,8 @@ class RegionExtractor:
             qs_center_hproj = SkyCoord(
                 random.uniform(-1000, 1000) * u.arcsec,
                 random.uniform(-1000, 1000) * u.arcsec,
-                frame=sunpy_map.coordinate_frame,
-            ).to_pixel(sunpy_map.wcs)
+                frame=mag_map.coordinate_frame,
+            ).to_pixel(mag_map.wcs)
 
             # check ar_pos_hproj is far enough from other vals
             candidates = list(
@@ -723,23 +746,27 @@ class RegionExtractor:
             if all(candidates):
                 # generate the submap
                 bottom_left, top_right = pixel_to_bboxcoords(xsize, ysize, qs_center_hproj * u.pix)
-                qs_submap = sunpy_map.submap(bottom_left, top_right=top_right)
-
+                qs_mag_submap = mag_map.submap(bottom_left, top_right=top_right)
                 # save to file
-                output_filename = (
-                    path
-                    / f"{sunpy_map.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_QS-{qs_df_len}_{sunpy_map.instrument.replace(' ', '_')}.fits"
+                output_mag_filename = (
+                    path / f"{qs_mag_submap.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_QS-{qs_df_len}_"
+                    f"mag_{qs_mag_submap.detector.replace(' ', '_')}.fits"
+                )
+                qs_cont_submap = cont_map.submap(bottom_left, top_right=bottom_left)
+                output_cont_filename = (
+                    path / f"{qs_cont_submap.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_QS-{qs_df_len}_"
+                    f"cont_{qs_cont_submap.detector.replace(' ', '_')}.fits"
                 )
 
                 # create QS BBox object
                 qs_region = QSBox(
-                    sunpy_map=qs_submap,
+                    sunpy_map=qs_mag_submap,
                     top_right=top_right,
                     bottom_left=bottom_left,
-                    shape=qs_submap.data.shape,
+                    shape=qs_mag_submap.data.shape,
                     ar_pos_pixels=qs_center_hproj,
                     identifier=qs_df_len,
-                    filepath=output_filename,
+                    filepath=output_mag_filename,
                 )
 
                 # only keep those with the center on disk
@@ -747,12 +774,13 @@ class RegionExtractor:
                     iterations += 1
                     continue
 
-                save_compressed_map(qs_submap, path=output_filename, overwrite=True)
+                save_compressed_map(qs_mag_submap, path=output_mag_filename, overwrite=True)
+                save_compressed_map(qs_cont_submap, path=output_cont_filename, overwrite=True)
 
                 existing_regions.append(qs_region)
                 qsbox_objs.append(qs_region)
 
-                del qs_submap  # unsure if necessary; was having memories issues
+                del qs_mag_submap, qs_cont_submap  # unsure if necessary; was having memories issues
 
                 qs_df_len += 1
                 iterations += 1
@@ -763,18 +791,23 @@ class RegionExtractor:
     def summary_plots(
         self,
         regions: list[ARBox | QSBox],
-        sunpy_map: sunpy.map.Map,
+        mag_map: sunpy.map.Map,
+        cont_map: sunpy.map.Map,
         ysize: u.pix,
         output_filename: Path,
     ) -> None:
-        fig = plt.figure(figsize=(5, 5))
+        fig = plt.figure(figsize=(5, 10))
 
         # there may be an issue with this cmap and vmin/max (different gray values as background)
-        ax = fig.add_subplot(projection=sunpy_map)
-        sunpy_map.plot_settings["norm"].vmin = -1499
-        sunpy_map.plot_settings["norm"].vmax = 1499
-        sunpy_map.plot(axes=ax, cmap="hmimag")
-        sunpy_map.draw_grid(axes=ax)
+        mag_ax = fig.add_subplot(211, projection=mag_map)
+        mag_map.plot_settings["norm"].vmin = -1499
+        mag_map.plot_settings["norm"].vmax = 1499
+        mag_map.plot(axes=mag_ax, cmap="hmimag")
+        mag_map.draw_grid(axes=mag_ax)
+
+        cont_ax = fig.add_subplot(212, projection=cont_map)
+        cont_map.plot(axes=cont_ax, vmin=0.95, vmax=1.05)
+        cont_map.draw_grid(axes=cont_ax)
 
         text_objects = []
 
@@ -791,21 +824,28 @@ class RegionExtractor:
                 raise ValueError("Unsupported box type")
 
             # deal with boxes off the edge
-            sunpy_map.draw_quadrangle(
-                box_info.bottom_left,
-                axes=ax,
-                top_right=box_info.top_right,
-                edgecolor=rectangle_cr,
-                linewidth=1,
+            mag_map.draw_quadrangle(
+                box_info.bottom_left, axes=mag_ax, top_right=box_info.top_right, edgecolor=rectangle_cr, linewidth=1
             )
 
-            text = ax.text(
+            cont_map.draw_quadrangle(
+                box_info.bottom_left, axes=cont_ax, top_right=box_info.top_right, edgecolor=rectangle_cr, linewidth=1
+            )
+
+            text = mag_ax.text(
                 box_info.ar_pos_pixels[0],
                 box_info.ar_pos_pixels[1] + ysize / u.pix / 2 + ysize / u.pix / 10,
                 box_info.identifier,
                 **{"size": "x-small", "color": "black", "ha": "center"},
             )
+            text_objects.append(text)
 
+            text = cont_ax.text(
+                box_info.ar_pos_pixels[0],
+                box_info.ar_pos_pixels[1] + ysize / u.pix / 2 + ysize / u.pix / 10,
+                box_info.identifier,
+                **{"size": "x-small", "color": "black", "ha": "center"},
+            )
             text_objects.append(text)
 
         plt.savefig(

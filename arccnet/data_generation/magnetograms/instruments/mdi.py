@@ -186,7 +186,7 @@ class MDISMARPs(MDILOSMagnetogram):
         """
         extracted_info = records.str.extract(r"\[(.*?)\]\[(.*?)\]")
         extracted_info.columns = ["TARPNUM", "T_REC"]
-        extracted_info["TARPNUM"] = extracted_info["TARPNUM"].astype("Int64")  # !TODO fix this hack
+        extracted_info["TARPNUM"] = pd.to_numeric(extracted_info["TARPNUM"])  # !TODO fix this hack
 
         return extracted_info
 
@@ -233,3 +233,32 @@ class MDISMARPs(MDILOSMagnetogram):
             The name of the HMI data segment.
         """
         return "bitmap"
+
+
+class MDIContinuum(MDILOSMagnetogram):
+    def __init__(self):
+        super().__init__()
+
+    @property
+    def series_name(self) -> str:
+        """
+        Get the JSOC series name.
+
+        Returns
+        -------
+        str
+            The JSOC series name.
+        """
+        return "mdi.fd_ic_interp"
+
+    @property
+    def segment_column_name(self) -> str:
+        """
+        Get the name of the HMI data segment.
+
+        Returns
+        -------
+        str
+            The name of the HMI data segment.
+        """
+        return "continuum"
