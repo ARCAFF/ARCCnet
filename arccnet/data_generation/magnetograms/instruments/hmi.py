@@ -1,7 +1,6 @@
 import datetime
-import pandas as pd
 
-from astropy.time import Time
+import pandas as pd
 
 from arccnet.data_generation.magnetograms.base_magnetogram import BaseMagnetogram
 from arccnet.data_generation.magnetograms.utils import datetime_to_jsoc
@@ -53,8 +52,8 @@ class HMIBase(BaseMagnetogram):
             - Fixed in https://github.com/sunpy/drms/pull/102
         """
         # https://github.com/sunpy/drms/issues/98; Fixed in https://github.com/sunpy/drms/pull/102
-        
-        #if end_time >= Time('2010-05-01') :
+
+        # if end_time >= Time('2010-05-01') :
         return f"{self.series_name}[{datetime_to_jsoc(start_time)}-{datetime_to_jsoc(end_time)}@{frequency}]"  # [? QUALITY=0 ?]"
 
     def _get_matching_info_from_record(self, records: pd.Series) -> tuple[pd.DataFrame, list[str]]:

@@ -234,7 +234,7 @@ class BaseMagnetogram(ABC):
             # The latter occurs after the former due to the request still pending
             try:
                 return self._data_export_request(query, **kwargs)
-        
+
             except http.client.RemoteDisconnected as e:
                 logger.warning(
                     f"\t ... Exception: '{e}' raised. Retrying in {retry_delay} seconds: retry {retries} of {max_retries}."
@@ -243,9 +243,7 @@ class BaseMagnetogram(ABC):
                 retries += 1
             except drms.exceptions.DrmsExportError as e:
                 if "pending export requests" in str(e):
-                    logger.info(
-                        f"\t ... waiting {drms_export_delay} seconds for pending export requests to complete."
-                    )
+                    logger.info(f"\t ... waiting {drms_export_delay} seconds for pending export requests to complete.")
                     time.sleep(drms_export_delay)
                 else:
                     logger.warning(
@@ -258,11 +256,11 @@ class BaseMagnetogram(ABC):
                     logger.info(f"\t ... HTTP Error 504: waiting {drms_export_delay} seconds before trying again.")
                     time.sleep(drms_export_delay)
                     retries += 1
-            except TimeoutError as e:
-                logger.info(f'Timeout for query: {query}, waiting {drms_export_delay} seconds before trying again.')
+            except TimeoutError:
+                logger.info(f"Timeout for query: {query}, waiting {drms_export_delay} seconds before trying again.")
                 time.sleep(drms_export_delay)
                 retries += 1
-                
+
         raise DataExportRequestError("Failed to export data after multiple retries")
 
     def _data_export_request(
@@ -294,7 +292,7 @@ class BaseMagnetogram(ABC):
         else:
             formatted_string = f"{{{self.segment_column_name}}}"
         logger.info(f"\t ... requesting {query + formatted_string} from JSOC")
-        
+
         export_response = self._drms_client.export(query + formatted_string, method="url", protocol="fits", **kwargs)
         export_response.wait()
         r_urls = export_response.urls.copy()
