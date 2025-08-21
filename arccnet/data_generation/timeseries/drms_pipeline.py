@@ -67,8 +67,8 @@ if __name__ == "__main__":
                     wavelengths=config["drms"]["wavelengths"],
                     sample=config["drms"]["sample"],
                 )
-                if len(aia_maps != 60):
-                    logging.warning("Bad Run detected - missing frames.")
+                if len(aia_maps) != 60:
+                    logging.info("Bad run - missing frames, skipping.")
                     continue
 
                 hmi_proc = list(

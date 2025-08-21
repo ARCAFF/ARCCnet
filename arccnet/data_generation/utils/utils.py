@@ -7,6 +7,8 @@ import sunpy.map
 from pandas.core.interchange.dataframe_protocol import DataFrame
 from sklearn.model_selection import StratifiedGroupKFold
 
+from astropy.io.fits import CompImageHDU
+
 from arccnet.utils.logging import logger
 
 __all__ = [
@@ -55,7 +57,7 @@ def save_compressed_map(amap: sunpy.map.Map, path: Path, **kwargs) -> None:
     if "bzero" in amap.meta:
         del amap.meta["bzero"]
 
-    amap.save(path, **kwargs)  # , hdu_type=astropy.io.fits.CompImageHDU, **kwargs)
+    amap.save(path, hdu_type=CompImageHDU, **kwargs)
 
 
 def round_to_midnight(dt: datetime):

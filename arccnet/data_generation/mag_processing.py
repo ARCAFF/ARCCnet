@@ -620,13 +620,15 @@ class RegionExtractor:
 
             mag_submap = mag_map.submap(bottom_left, top_right=top_right)
             cont_submap = cont_map.submap(bottom_left, top_right=top_right)
+            det = mag_submap.detector if mag_submap.detector != "" else mag_submap.instrument
             output_mag_filename = (
                 path / f"{mag_submap.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{row['id']}-{row['number']}_"
-                f"mag_{mag_submap.detector.replace(' ', '_')}.fits"
+                f"mag_{det.replace(' ', '_')}.fits"
             )
+            det = cont_submap.detector if cont_submap.detector != "" else cont_submap.instrument
             output_cont_filename = (
                 path / f"{cont_submap.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_{row['id']}-{row['number']}_"
-                f"cont_{cont_submap.detector.replace(' ', '_')}.fits"
+                f"cont_{det.replace(' ', '_')}.fits"
             )
 
             # store info in ARBox
@@ -748,14 +750,16 @@ class RegionExtractor:
                 bottom_left, top_right = pixel_to_bboxcoords(xsize, ysize, qs_center_hproj * u.pix)
                 qs_mag_submap = mag_map.submap(bottom_left, top_right=top_right)
                 # save to file
+                det = qs_mag_submap.detector if qs_mag_submap.detector != "" else qs_mag_submap.instrument
                 output_mag_filename = (
                     path / f"{qs_mag_submap.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_QS-{qs_df_len}_"
-                    f"mag_{qs_mag_submap.detector.replace(' ', '_')}.fits"
+                    f"mag_{det.replace(' ', '_')}.fits"
                 )
-                qs_cont_submap = cont_map.submap(bottom_left, top_right=bottom_left)
+                qs_cont_submap = cont_map.submap(bottom_left, top_right=top_right)
+                det = qs_cont_submap.detector if qs_cont_submap.detector != "" else qs_cont_submap.instrument
                 output_cont_filename = (
                     path / f"{qs_cont_submap.date.to_datetime().strftime('%Y%m%d_%H%M%S')}_QS-{qs_df_len}_"
-                    f"cont_{qs_cont_submap.detector.replace(' ', '_')}.fits"
+                    f"cont_{det.replace(' ', '_')}.fits"
                 )
 
                 # create QS BBox object

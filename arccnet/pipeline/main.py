@@ -776,7 +776,7 @@ def region_cutouts(config, srs_hmi, srs_mdi):
         logger.debug(f"writing {hmi_file}")
         hmi_table.write(hmi_file, format="parquet", overwrite=True)
 
-    mdi_file = intermediate_files / "mdi_rcutout_classification.parq"
+    mdi_file = intermediate_files / "mdi_cutout_classification.parq"
     if mdi_file.exists():
         mdi_table = QTable.read(mdi_file)
     else:
