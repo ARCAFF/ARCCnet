@@ -69,10 +69,10 @@ def bad_query(qry, data_path, name):
             Log filename.
     """
     logging.warning(f"Bad Query Detected - {qry}")
-    f_name = f"{data_path}/logs/{name}.txt"
+    f_name = f"{data_path}/logs/{name}here.txt"
     if not os.path.exists(f_name):
-        file = open(f"{data_path}/logs/{name}.txt", "x")
-    file = open(f"{data_path}/logs/{name}.txt", "+")
+        file = open(f_name, "x")
+    file = open(f_name, "+")
     entries = [row for row in file]
     if qry not in entries:
         file.write(qry)
@@ -137,6 +137,7 @@ def read_data(hek_path: str, srs_path: str, size: int, duration: int, long_lim: 
             - End time (1 hour before flaring event start time)
             - The date of the run, used for reprojection
             - The coordinate of the noaa active region
+            - The classes of X, M, and C flares within the observed period
     """
     table = Table.read(hek_path)
     srs = Table.read(srs_path)
@@ -185,19 +186,25 @@ def read_data(hek_path: str, srs_path: str, size: int, duration: int, long_lim: 
     srs["category"] = ar_cat
     srs["n_fl_count"] = fl_cat
     srs["ar"] = "N"
-
     srs_exp = srs["number", "ar", "target_time", "srs_end_time", "srs_date", "c_coord", "category", "n_fl_count"]
     flares_exp = flares[
         "noaa_number", "goes_class", "start_time", "end_time", "tb_date", "c_coord", "category", "fl_count"
     ]
+
     srs_exp.rename_columns(
         names=("number", "ar", "target_time", "srs_end_time", "srs_date", "c_coord", "category", "n_fl_count"),
         new_names=("noaa_number", "goes_class", "start_time", "end_time", "tb_date", "c_coord", "category", "fl_count"),
     )
     combined = vstack([flares_exp, srs_exp])
 
+    combined["X_fl"] = [flare["X"] for flare in combined["fl_count"]]
+    combined["M_fl"] = [flare["M"] for flare in combined["fl_count"]]
+    combined["C_fl"] = [flare["C"] for flare in combined["fl_count"]]
+
     final = rand_select(combined, size, types)
-    subset = final["noaa_number", "goes_class", "start_time", "end_time", "tb_date", "c_coord", "category"]
+    subset = final[
+        "noaa_number", "goes_class", "start_time", "end_time", "tb_date", "c_coord", "category", "X_fl", "M_fl", "C_fl"
+    ]
     return subset, combined
 
 
@@ -789,10 +796,10 @@ def table_match(aia_maps, hmi_maps):
             "Wavelength": aia_wavelnth,
             "AIA files": aia_paths,
             "AIA quality": aia_quality,
-            "AIA time": aia_times,
+            # "AIA time": aia_times,
             "HMI files": hmi_paths,
             "HMI quality": hmi_quality,
-            "HMI time": paired_times,
+            # "HMI time": paired_times,
         }
     )
     return paired_table, aia_paths, aia_quality, aia_times, hmi_paths, hmi_quality, paired_times

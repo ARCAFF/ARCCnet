@@ -32,7 +32,6 @@ if __name__ == "__main__":
     drms_log.setLevel("ERROR")
     reproj_log = logging.getLogger("reproject.common")
     reproj_log.setLevel("ERROR")
-    # May need to find a more robust solution with filters/exceptions for this.
     astropy_log.setLevel("ERROR")
     data_path = config["paths"]["data_folder"]
     packed_maps = namedtuple("packed_maps", ["hmi_origin", "l2_map"])
@@ -42,16 +41,18 @@ if __name__ == "__main__":
         size=1,
         duration=6,
         long_lim=65,
-        types=["F1", "F2", "N1", "N2"],
+        # types=["F1", "F2", "N1", "N2"],
+        types=["N2"],
     )[0]
 
     cores = int(config["drms"]["cores"])
     with ProcessPoolExecutor(cores) as executor:
         for record in starts:
-            noaa_ar, fl_class, start, end, date, center, category = record
+            noaa_ar, fl_class, start, end, date, center, category, x_fl, m_fl, c_fl = record
             pointing_table = calibrate.util.get_pointing_table(source="jsoc", time_range=[start - 6 * u.hour, end])
             start_split = start.value.split("T")[0]
-            file_name = f"{category}_{start_split}_{fl_class}_{noaa_ar}"
+            file_name = f"{category}_{start_split}_{fl_class}_{noaa_ar}_X{x_fl}_M{m_fl}_C{c_fl}"
+            print(file_name)
             patch_height = int(config["drms"]["patch_height"]) * u.pix
             patch_width = int(config["drms"]["patch_width"]) * u.pix
             try:
