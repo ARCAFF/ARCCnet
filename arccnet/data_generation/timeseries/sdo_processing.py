@@ -79,7 +79,40 @@ def bad_query(qry, data_path, name):
     file.close()
 
 
-def rand_select(table, size, types: list):
+def rand_select(table, years: list, size):
+    r"""
+    Randomly selects targets from provided table and list of data subsets.
+
+    Parameters
+    ----------
+        table : `Astropy.Table`
+            Provided full table of records.
+        size : `int`
+            The size of the returned subsets.
+        types: `list`
+            List of datatypes to include.
+
+    Returns
+    -------
+        comb_sample : `Astropy.Table`
+            Returned random subset containing size records from each data subset.
+    """
+
+    selection = []
+    for year in years:
+        table["year"] = table["target_time"].ymdhms.year
+        subtable = table[table["year"] == year]
+        if size == -1:
+            selection.append(subtable)
+        else:
+            selection.append(subtable[sample(range(len(subtable)), k=int(size))])
+    comb_sample = vstack(selection)
+
+    return comb_sample
+
+
+# Old rand select, use for generating v2 data.
+def rand_select_old(table, size, types: list):
     r"""
     Randomly selects targets from provided table and list of data subsets.
 
@@ -105,7 +138,7 @@ def rand_select(table, size, types: list):
     return comb_sample
 
 
-def read_data(hek_path: str, srs_path: str, size: int, duration: int, long_lim: int, types: list):
+def read_data(hek_path: str, srs_path: str, size: int, duration: int, long_lim: int, years: list):
     r"""
     Read and process data from a parquet file containing HEK catalogue information regarding flaring events.
 
@@ -125,6 +158,86 @@ def read_data(hek_path: str, srs_path: str, size: int, duration: int, long_lim: 
             The longitudinal limit of Active Regions which are accepted for target runs.
         types : `list`
             Types of data to include in final subsection, corresponds to flares vs non flares (F v N) and incidental and clear runs (1 v 2)
+        p_window : `int`
+            Prediction window for training set for prediction. 6 = six hour window containing flare, etc.
+
+
+    Returns
+    -------
+        `Astropy.Table`
+            A table of tuples containing the following columns for each flare:
+            - NOAA Active Region Number
+            - GOES Flare class (C,M,X classes or N for none)
+            - Start time (Duration + 1 hours before event in FITS format)
+            - End time (1 hour before flaring event start time)
+            - The date of the run, used for reprojection
+            - The coordinate of the noaa active region
+            - The classes of X, M, and C flares within the observed period
+    """
+    table = Table.read(hek_path)
+    srs = Table.read(srs_path)
+
+    noaa_num_df = table[table["noaa_number"] > 0]
+    flares = noaa_num_df[noaa_num_df["event_type"] == "FL"]
+    flares = flares[flares["frm_daterun"] > "2011-01-01"]
+    flares = flares[
+        [flare.startswith("C") or flare.startswith("M") or flare.startswith("X") for flare in flares["goes_class"]]
+    ]
+
+    srs = srs[srs["number"] > 0]
+    srs = srs[srs["target_time"] > "2011-01-01"]
+    srs = srs[abs(srs["longitude"].value) <= long_lim]
+    srs = srs[~srs["filtered"]]
+
+    srs["srs_date"] = srs["target_time"].value
+    srs["srs_date"] = [date.split("T")[0] for date in srs["srs_date"]]
+    srs["target_time"] = srs["target_time"] + 30 * u.min
+    srs["run_start_time"] = [(Time(time) - duration * u.hour) for time in srs["target_time"]]
+    srs["c_coord"] = [
+        SkyCoord(lon * u.deg, lat * u.deg, obstime=t_time, observer="earth", frame=frames.HeliographicStonyhurst)
+        for lat, lon, t_time in zip(srs["latitude"], srs["longitude"], srs["target_time"])
+    ]
+    logging.info("Parsing Flares")
+
+    logging.info("Parsing Active Regions")
+    srs_exp = srs["number", "magnetic_class", "mcintosh_class", "target_time", "run_start_time", "srs_date", "c_coord"]
+
+    final = rand_select(srs_exp, years, size)
+    flares_before = [
+        flare_log(Time(row["run_start_time"]), Time(row["target_time"]), row["number"], flares) for row in final
+    ]
+    flares_after = [
+        flare_log(Time(row["target_time"]), Time(row["target_time"] + 24 * u.hour), row["number"], flares)
+        for row in final
+    ]
+    subset = final["number", "magnetic_class", "mcintosh_class", "target_time", "run_start_time", "srs_date", "c_coord"]
+
+    return subset, flares_before, flares_after
+
+
+# Old data parser - use if you want to generate v2 data.
+def read_data_old(hek_path: str, srs_path: str, size: int, duration: int, long_lim: int, types: list):
+    r"""
+    Read and process data from a parquet file containing HEK catalogue information regarding flaring events.
+
+    Parameters
+    ----------
+        hek_path : `str`
+            The path to the parquet file containing hek flare information.
+        srs_path : `str`
+            The path to the parquet file containing parsed noaa srs active region information.
+        size : `int`
+            The size of each subsample to be generated.
+        duration : `int`
+            The duration of the data sample in hours.
+        flares : `str`
+            Determines if runs provided 'positive' (flares), 'negative' (no flares), or 'both' (50/50 split of both)
+        long_lim : `str`
+            The longitudinal limit of Active Regions which are accepted for target runs.
+        types : `list`
+            Types of data to include in final subsection, corresponds to flares vs non flares (F v N) and incidental and clear runs (1 v 2)
+        p_window : `int`
+            Prediction window for training set for prediction. 6 = six hour window containing flare, etc.
 
 
     Returns
@@ -157,12 +270,16 @@ def read_data(hek_path: str, srs_path: str, size: int, duration: int, long_lim: 
     srs["srs_date"] = [date.split("T")[0] for date in srs["srs_date"]]
     srs["srs_end_time"] = [(Time(time) + duration * u.hour) for time in srs["target_time"]]
     logging.info("Parsing Flares")
-    flares["start_time"] = [time - (duration + 1) * u.hour for time in flares["start_time"]]
     flares["start_time"].format = "fits"
-    flares["tb_date"] = flares["start_time"].value
+    flares["run_start_time"] = [time - (duration + 1) * u.hour for time in flares["start_time"]]
+    flares["tb_date"] = flares["run_start_time"].value
     flares["tb_date"] = [date.split("T")[0] for date in flares["tb_date"]]
-    flares["end_time"] = flares["start_time"] + duration * u.hour
-    flare_splits = [flare_check(row["start_time"], row["end_time"], row["noaa_number"], flares) for row in flares]
+    flares["run_end_time"] = flares["run_start_time"] + duration * u.hour
+
+    flare_splits = [
+        flare_check(Time(row["run_start_time"]), Time(row["run_end_time"]), row["noaa_number"], flares)
+        for row in flares
+    ]
     flares["category"] = [f"F{flare[0]}" for flare in flare_splits]
     flares["fl_count"] = [flare[1] for flare in flare_splits]
     flares = join(flares, srs, keys_left="noaa_number", keys_right="number")
@@ -175,7 +292,6 @@ def read_data(hek_path: str, srs_path: str, size: int, duration: int, long_lim: 
         SkyCoord(lon * u.deg, lat * u.deg, obstime=t_time, observer="earth", frame=frames.HeliographicStonyhurst)
         for lat, lon, t_time in zip(srs["latitude"], srs["longitude"], srs["target_time"])
     ]
-
     logging.info("Parsing Active Regions")
     ar_cat, fl_cat = [], []
     for ar in srs:
@@ -188,12 +304,21 @@ def read_data(hek_path: str, srs_path: str, size: int, duration: int, long_lim: 
     srs["ar"] = "N"
     srs_exp = srs["number", "ar", "target_time", "srs_end_time", "srs_date", "c_coord", "category", "n_fl_count"]
     flares_exp = flares[
-        "noaa_number", "goes_class", "start_time", "end_time", "tb_date", "c_coord", "category", "fl_count"
+        "noaa_number", "goes_class", "run_start_time", "run_end_time", "tb_date", "c_coord", "category", "fl_count"
     ]
 
     srs_exp.rename_columns(
         names=("number", "ar", "target_time", "srs_end_time", "srs_date", "c_coord", "category", "n_fl_count"),
-        new_names=("noaa_number", "goes_class", "start_time", "end_time", "tb_date", "c_coord", "category", "fl_count"),
+        new_names=(
+            "noaa_number",
+            "goes_class",
+            "run_start_time",
+            "run_end_time",
+            "tb_date",
+            "c_coord",
+            "category",
+            "fl_count",
+        ),
     )
     combined = vstack([flares_exp, srs_exp])
 
@@ -202,10 +327,30 @@ def read_data(hek_path: str, srs_path: str, size: int, duration: int, long_lim: 
     combined["C_fl"] = [flare["C"] for flare in combined["fl_count"]]
 
     final = rand_select(combined, size, types)
-    subset = final[
-        "noaa_number", "goes_class", "start_time", "end_time", "tb_date", "c_coord", "category", "X_fl", "M_fl", "C_fl"
+
+    flares_before = [
+        flare_log(Time(row["run_start_time"]), Time(row["run_end_time"]), row["noaa_number"], flares) for row in final
     ]
-    return subset, combined
+    flares_after = [
+        flare_log(
+            Time(row["run_end_time"] + 1 * u.hour), Time(row["run_end_time"] + 25 * u.hour), row["noaa_number"], flares
+        )
+        for row in final
+    ]
+    subset = final[
+        "noaa_number",
+        "goes_class",
+        "run_start_time",
+        "run_end_time",
+        "tb_date",
+        "c_coord",
+        "category",
+        "X_fl",
+        "M_fl",
+        "C_fl",
+    ]
+
+    return subset, flares_before, flares_after
 
 
 def change_time(time: str, shift: int):
@@ -895,7 +1040,7 @@ def vid_match(table, name, path):
     wvls = np.unique([table["Wavelength"].value])
 
     hmi_files = np.unique(hmi_files)
-    nrows, ncols = 4, 3  # define subplot grid
+    nrows, ncols = 4, 3
     for file in range(len(hmi_files)):
         hmi = hmi_files[file]
         mosaic_plot(hmi, name, file, nrows, ncols, wvls, table, path)
@@ -903,7 +1048,7 @@ def vid_match(table, name, path):
     return mosaic_animate(path, name)
 
 
-def l4_file_pack(aia_paths, hmi_paths, dir_path, rec, out_table, anim_path):
+def l4_file_pack(aia_paths, hmi_paths, dir_path, rec, out_table, before_fls, after_fls, anim_path):
     r"""
     Packs files into folders along with folder specific records identifying .fits files
 
@@ -916,9 +1061,13 @@ def l4_file_pack(aia_paths, hmi_paths, dir_path, rec, out_table, anim_path):
         dir_path : `str`
             The path to the directory of the l4 data.
         rec : `str`
-            The record value unique to the current run (date, ar number, flare class).
+            The record name unique to the current run.
         out_table : `AstropyTable`
             The table containing the records specific to the folder containing information for the current run.
+        before_fls : `AstropyTable`
+            Table containing log of flares occurring within the current run.
+        after_fls : `AstropyTable`
+            Table containing log of flares occurring within 24 hours of target time (end of run).
         anim_path: `str`
             The path to the mosaic animation of the current run.
     """
@@ -941,6 +1090,8 @@ def l4_file_pack(aia_paths, hmi_paths, dir_path, rec, out_table, anim_path):
 
     shutil.copy(anim_path, f"{dir_path}/data/{rec}")
     out_table.write(f"{dir_path}/data/{rec}/{rec}.csv", overwrite=True)
+    before_fls.write(f"{dir_path}/data/{rec}/before_flares.parquet", overwrite=True)
+    after_fls.write(f"{dir_path}/data/{rec}/after_flares.parquet", overwrite=True)
 
 
 def pad_map(map, targ_width):
@@ -989,6 +1140,8 @@ def flare_check(start, end, ar_num, table):
     ----------
         category : `int`
             The category of the run. If no flare detected in run, category = 1, otherwise, category = 2.
+        flares : `dict`
+            A dictionary containing the number of flares in a given category, used for instructional filenames.
     """
     ar_table = table[table["noaa_number"] == ar_num]
     ar_table = ar_table[Time(ar_table["start_time"]) < end]
@@ -1000,3 +1153,35 @@ def flare_check(start, end, ar_num, table):
         for cat in flares:
             flares[cat] = int(len(ar_table[[flare.startswith(cat) for flare in ar_table["goes_class"]]]))
     return category, flares
+
+
+def flare_log(start, end, ar_num, table):
+    r"""
+    Checks a provided start time and end time, along with an active region number, and logs flares within that period.
+
+    Parameters
+    ----------
+        start : `Astropy.Time`
+            The start time of a target window.
+        end : `Astropy.Time`
+            The end time of a target window.
+        ar_num : `str`
+            The active region number of a target run.
+        table : `int`
+            The table of flare times used to check for flare events within run duration.
+
+    Returns
+    ----------
+        ar_table : `Atropy.Table
+            A table containing information on flares occurring within the time period for a given active region.
+    """
+    ar_table = table[table["noaa_number"] == ar_num]
+    ar_table = ar_table[Time(ar_table["start_time"]) < end]
+    ar_table = ar_table[Time(ar_table["start_time"]) > start]
+    ar_table = ar_table["noaa_number", "goes_class", "start_time", "peak_time", "end_time"]
+    ar_table = ar_table[ar_table.argsort("start_time")]
+    flares = {"X": 0, "M": 0, "C": 0}
+    if len(ar_table) > 0:
+        for cat in flares:
+            flares[cat] = int(len(ar_table[[flare.startswith(cat) for flare in ar_table["goes_class"]]]))
+    return ar_table, flares

@@ -34,31 +34,39 @@ if __name__ == "__main__":
     reproj_log.setLevel("ERROR")
     astropy_log.setLevel("ERROR")
     data_path = config["paths"]["data_folder"]
+    wavelengths = config["drms"]["wavelengths"]
     packed_maps = namedtuple("packed_maps", ["hmi_origin", "l2_map"])
-    starts = read_data(
+    starts, before_fl_tables, after_fl_tables = read_data(
         hek_path=Path(f"{data_path}/flare_files/hek_swpc_1996-01-01T00:00:00-2023-01-01T00:00:00_dev.parq"),
         srs_path=Path(f"{data_path}/flare_files/srs_processed_catalog.parq"),
-        size=1,
+        # Set size to -1 for all AR's in a year
+        size=10,
         duration=6,
         long_lim=65,
+        # Use these instead of years if generating old flare target data.
         # types=["F1", "F2", "N1", "N2"],
-        types=["N2"],
-    )[0]
+        years=[2014],
+    )
 
     cores = int(config["drms"]["cores"])
+
     with ProcessPoolExecutor(cores) as executor:
-        for record in starts:
-            noaa_ar, fl_class, start, end, date, center, category, x_fl, m_fl, c_fl = record
+        for rec_num in range(len(starts)):
+            record = starts[rec_num]
+            noaa_ar, mag_class, mcintosh, end, start, date, center = record
+            before_fls = before_fl_tables[rec_num]
+            after_fls = after_fl_tables[rec_num]
+            b_x, b_m, b_c = before_fls[1]["X"], before_fls[1]["M"], before_fls[1]["C"]
+            a_x, a_m, a_c = after_fls[1]["X"], after_fls[1]["M"], after_fls[1]["C"]
             pointing_table = calibrate.util.get_pointing_table(source="jsoc", time_range=[start - 6 * u.hour, end])
-            start_split = start.value.split("T")[0]
-            file_name = f"{category}_{start_split}_{fl_class}_{noaa_ar}_X{x_fl}_M{m_fl}_C{c_fl}"
-            print(file_name)
+            start_split = end.value.split("T")[0]
+            file_name = (
+                f"{start_split}_{noaa_ar}_{mag_class}_{mcintosh}_Xb{b_x}_Mb{b_m}_Cb{b_c}_Xa{a_x}_Ma{a_m}_Ca{a_c}"
+            )
             patch_height = int(config["drms"]["patch_height"]) * u.pix
             patch_width = int(config["drms"]["patch_width"]) * u.pix
             try:
-                logging.info(
-                    f"{record['noaa_number']} {record['goes_class']} {record['start_time']} {record['category']}"
-                )
+                logging.info(file_name)
                 aia_maps, hmi_maps = drms_pipeline(
                     start_t=start,
                     end_t=end,
@@ -68,7 +76,8 @@ if __name__ == "__main__":
                     wavelengths=config["drms"]["wavelengths"],
                     sample=config["drms"]["sample"],
                 )
-                if len(aia_maps) != 60:
+                # WILL NEED TO ADJUST IF USING MORE/LESS THAN 6 TIME STEPS
+                if len(aia_maps) != (60):
                     logging.info("Bad run - missing frames, skipping.")
                     continue
 
@@ -120,7 +129,16 @@ if __name__ == "__main__":
                 home_table.write(f"{batched_name}/records/{file_name}.csv", overwrite=True)
 
                 vid_path = vid_match(home_table, file_name, batched_name)
-                l4_file_pack(aia_patch_paths, hmi_patch_paths, batched_name, file_name, away_table, vid_path)
+                l4_file_pack(
+                    aia_patch_paths,
+                    hmi_patch_paths,
+                    batched_name,
+                    file_name,
+                    away_table,
+                    before_fls[0],
+                    after_fls[0],
+                    vid_path,
+                )
 
             except Exception as error:
                 logging.error(error, exc_info=True)
