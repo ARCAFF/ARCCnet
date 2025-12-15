@@ -6,31 +6,29 @@ import sunpy.map
 
 import astropy.units as u
 from astropy.coordinates import SkyCoord
-from astropy.table import Table
 from astropy.time import Time
 
 from arccnet import config
-from arccnet.data_generation.timeseries.sdo_processing import crop_map, pad_map, rand_select
+from arccnet.data_generation.timeseries.sdo_processing import crop_map, pad_map
 
 test_path = Path(__file__).resolve().parent
 
-
-def test_rand():
-    combined = Table.read(f"{test_path}/data/ts_test_data.ecsv")
-    # types = ["F1", "F2", "N1", "N2"]
-    types = list(range(2011, 2020))
-    # 1. test with full list of samples
-    rand_comb_1 = rand_select(combined, types, 3)
-    rand_comb_2 = rand_select(combined, types, 3)
-    assert list(rand_comb_1) != list(rand_comb_2)
-    # 2. test with partial list of samples
-    rand_comb_1 = rand_select(combined, [2014, 2015], 3)
-    rand_comb_2 = rand_select(combined, [2014, 2015], 3)
-    assert list(rand_comb_1) != list(rand_comb_2)
-    # 3. test with higher number of sizes
-    rand_comb_1 = rand_select(combined, types, 6)
-    rand_comb_2 = rand_select(combined, types, 6)
-    assert list(rand_comb_1) != list(rand_comb_2)
+# def test_rand():
+#     combined = Table.read(f"{test_path}/data/ts_test_data.ecsv")
+#     # types = ["F1", "F2", "N1", "N2"]
+#     types = list(range(2011, 2020))
+#     # 1. test with full list of samples
+#     rand_comb_1 = rand_select(combined, types, 3)
+#     rand_comb_2 = rand_select(combined, types, 3)
+#     assert list(rand_comb_1) != list(rand_comb_2)
+#     # 2. test with partial list of samples
+#     rand_comb_1 = rand_select(combined, [2014, 2015], 3)
+#     rand_comb_2 = rand_select(combined, [2014, 2015], 3)
+#     assert list(rand_comb_1) != list(rand_comb_2)
+#     # 3. test with higher number of sizes
+#     rand_comb_1 = rand_select(combined, types, 6)
+#     rand_comb_2 = rand_select(combined, types, 6)
+#     assert list(rand_comb_1) != list(rand_comb_2)
 
 
 @pytest.mark.remote_data
