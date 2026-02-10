@@ -30,7 +30,7 @@ def make_relative(base_path, path):
     return Path(path).relative_to(Path(base_path))
 
 
-def save_compressed_map(amap: sunpy.map.Map, path: Path, **kwargs) -> None:
+def save_compressed_map(amap: sunpy.map.Map, path: Path, hdu_type=CompImageHDU, **kwargs) -> None:
     """
     Save a compressed map.
     If "bscale" and "bzero" exist in the metadata, remove before saving.
@@ -57,7 +57,7 @@ def save_compressed_map(amap: sunpy.map.Map, path: Path, **kwargs) -> None:
     if "bzero" in amap.meta:
         del amap.meta["bzero"]
 
-    amap.save(path, hdu_type=CompImageHDU, **kwargs)
+    amap.save(path, hdu_type=hdu_type, **kwargs)
 
 
 def round_to_midnight(dt: datetime):
