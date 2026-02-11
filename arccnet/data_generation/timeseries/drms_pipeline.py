@@ -1,6 +1,9 @@
 import logging
+from time import perf_counter
 from pathlib import Path
+from itertools import repeat
 from collections import namedtuple
+from multiprocessing import Semaphore
 from concurrent.futures import ProcessPoolExecutor
 
 from aiapy import calibrate
@@ -27,6 +30,9 @@ from arccnet.data_generation.timeseries.sdo_processing import (
 if __name__ == "__main__":
     __all__ = []
 
+    ss = perf_counter()
+
+    drms_limit = Semaphore(4)
     # Logging settings here.
     drms_log = logging.getLogger("drms")
     drms_log.setLevel("ERROR")
@@ -50,7 +56,7 @@ if __name__ == "__main__":
 
     cores = int(config["drms"]["cores"])
 
-    with ProcessPoolExecutor(cores) as executor:
+    with ProcessPoolExecutor(None) as executor:
         for rec_num in range(len(starts)):
             record = starts[rec_num]
             noaa_ar, mag_class, mcintosh, end, start, date, center = record
@@ -75,6 +81,7 @@ if __name__ == "__main__":
                     aia_keys=config["drms"]["aia_keys"],
                     wavelengths=config["drms"]["wavelengths"],
                     sample=config["drms"]["sample"],
+                    drms_limit=drms_limit,
                 )
                 # WILL NEED TO ADJUST IF USING MORE/LESS THAN 6 TIME STEPS
                 if len(aia_maps) != (60):
@@ -89,21 +96,26 @@ if __name__ == "__main__":
                 )
 
                 packed_files = match_files(aia_maps, hmi_maps, pointing_table)
-                aia_proc = tqdm(
-                    executor.map(aia_l2, packed_files),
-                    total=len(aia_maps),
-                )
+                aia_proc = tqdm(executor.map(aia_l2, packed_files), total=len(aia_maps), desc="AIA prep")
                 packed_maps = namedtuple("packed_maps", ["hmi_origin", "l2_map", "ar_num"])
                 hmi_origin_patch = crop_map(hmi_proc[0], center, patch_height, patch_width, date)
-                l2_hmi_packed = [[hmi_origin_patch, hmi_map, noaa_ar, center] for hmi_map in hmi_proc]
-                l2_aia_packed = [[hmi_origin_patch, aia_map, noaa_ar, center] for aia_map in aia_proc]
+                # l2_hmi_packed = ((hmi_origin_patch, hmi_map, noaa_ar, center) for hmi_map in hmi_proc)
+                # l2_aia_packed = ((hmi_origin_patch, aia_map, noaa_ar, center) for aia_map in aia_proc)
 
                 # Went back to tuples because this was failing in a weird way - something to do with pickle and concurrent futures. Left for future debugging.
                 # l2_hmi_packed = [packed_maps(hmi_origin_patch, hmi_map, noaa_ar) for hmi_map in hmi_proc]
                 # l2_aia_packed = [packed_maps(hmi_origin_patch, aia_map, noaa_ar) for aia_map in aia_proc]
 
-                hmi_patch_paths = tqdm(executor.map(map_reproject, l2_hmi_packed), total=len(l2_hmi_packed))
-                aia_patch_paths = tqdm(executor.map(map_reproject, l2_aia_packed), total=len(l2_aia_packed))
+                hmi_patch_paths = tqdm(
+                    executor.map(map_reproject, repeat(hmi_origin_patch), hmi_proc, repeat(noaa_ar)),
+                    total=len(hmi_proc),
+                    desc="HMI reprojection",
+                )
+                aia_patch_paths = tqdm(
+                    executor.map(map_reproject, repeat(hmi_origin_patch), aia_proc, repeat(noaa_ar)),
+                    total=len(aia_proc),
+                    desc="AIA reprojection",
+                )
 
                 # For some reason, aia_proc becomes an empty list after this function call.
                 home_table, aia_patch_paths, aia_quality, aia_time, hmi_patch_paths, hmi_quality, hmi_time = (
@@ -142,3 +154,6 @@ if __name__ == "__main__":
 
             except Exception as error:
                 logging.error(error, exc_info=True)
+
+    ee = perf_counter()
+    print(f"Total time took {(ee - ss) / 60} minutes.")

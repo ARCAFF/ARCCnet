@@ -30,6 +30,9 @@ from arccnet.data_generation.mag_processing import pixel_to_bboxcoords
 from arccnet.data_generation.utils.utils import save_compressed_map
 from arccnet.visualisation.data import mosaic_animate, mosaic_plot
 
+rng = np.random.default_rng(42)
+
+
 data_path = config["paths"]["data_folder"]
 qry_log = "bad_queries"
 
@@ -105,7 +108,7 @@ def rand_select(table, years: list, size):
         if size == -1:
             selection.append(subtable)
         else:
-            selection.append(subtable[sample(range(len(subtable)), k=int(size))])
+            selection.append(subtable[rng.choice(len(subtable), size=int(size), replace=False)])
     comb_sample = vstack(selection)
 
     return comb_sample
@@ -450,6 +453,7 @@ def drms_pipeline(
     aia_keys: list,
     wavelengths: str = "171, 193, 304, 211, 335, 94, 131, 1600, 4500, 1700",
     sample: int = 60,
+    drms_limit=None,
 ):
     r"""
     Performs pipeline to download and process AIA and HMI data.
@@ -471,9 +475,9 @@ def drms_pipeline(
         aia_maps, hmi_maps : `tuple`
             A tuple containing the AIA maps and HMI maps.
     """
-
-    hmi_query, hmi_export, ic_query, ic_export = hmi_query_export(start_t, end_t, hmi_keys, sample)
-    aia_query, aia_export = aia_query_export(hmi_query, aia_keys, wavelengths)
+    with drms_limit:
+        hmi_query, hmi_export, ic_query, ic_export = hmi_query_export(start_t, end_t, hmi_keys, sample)
+        aia_query, aia_export = aia_query_export(hmi_query, aia_keys, wavelengths)
 
     hmi_dls, hmi_exs = l1_file_save(hmi_export, hmi_query, path)
     cnt_dls, cnt_exs = l1_file_save(ic_export, ic_query, path)
@@ -983,7 +987,7 @@ def crop_map(sdo_map, center, height, width, noaa_time):
     return s_map
 
 
-def map_reproject(sdo_packed):
+def map_reproject(hmi_origin, sdo_path, ar_num):
     r"""
     Reprojects a provided SDO map onto the wcs of a provided origin map. As intended, this is to reproject a "level 2" map onto the wcs of a cropped and centered level 3 HMI map.
 
@@ -997,7 +1001,6 @@ def map_reproject(sdo_packed):
         fits_path : `str`
             The path location of the saved submap.
     """
-    hmi_origin, sdo_path, ar_num, center = sdo_packed
     sdo_map = sunpy.map.Map(sdo_path)
     with propagate_with_solar_surface():
         sdo_rpr = sdo_map.reproject_to(hmi_origin.wcs)
