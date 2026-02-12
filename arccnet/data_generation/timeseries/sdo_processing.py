@@ -2,7 +2,6 @@ import os
 import re
 import sys
 import glob
-import shutil
 import logging
 import warnings
 import itertools
@@ -987,7 +986,7 @@ def crop_map(sdo_map, center, height, width, noaa_time):
     return s_map
 
 
-def map_reproject(hmi_origin, sdo_path, ar_num):
+def map_reproject(hmi_origin_wcs, sdo_path, ar_num):
     r"""
     Reprojects a provided SDO map onto the wcs of a provided origin map. As intended, this is to reproject a "level 2" map onto the wcs of a cropped and centered level 3 HMI map.
 
@@ -1003,7 +1002,7 @@ def map_reproject(hmi_origin, sdo_path, ar_num):
     """
     sdo_map = sunpy.map.Map(sdo_path)
     with propagate_with_solar_surface():
-        sdo_rpr = sdo_map.reproject_to(hmi_origin.wcs)
+        sdo_rpr = sdo_map.reproject_to(hmi_origin_wcs)
     time = sdo_map.date.to_value("ymdhms")
     year, month, day = time[0], time[1], time[2]
     path = config["paths"]["data_folder"]
@@ -1038,15 +1037,25 @@ def vid_match(table, name, path):
         output_file : `str`
             A string containing the path of the completed mosaic animation.
     """
-    hmi_files = table["HMI files"].value
-    table["Wavelength"] = [int(wave) for wave in table["Wavelength"]]
-    wvls = np.unique([table["Wavelength"].value])
+    hmi_files = np.unique(table["HMI files"])
+    table["Wavelength"] = table["Wavelength"].astype(int)
+    wvls = np.unique(table["Wavelength"])
 
-    hmi_files = np.unique(hmi_files)
+    aia_lookup = {(row["HMI files"], row["Wavelength"]): row["AIA files"] for row in table}
+
     nrows, ncols = 4, 3
-    for file in range(len(hmi_files)):
-        hmi = hmi_files[file]
-        mosaic_plot(hmi, name, file, nrows, ncols, wvls, table, path)
+
+    for idx, hmi in enumerate(hmi_files):
+        mosaic_plot(
+            hmi=hmi,
+            name=name,
+            frame_idx=idx,
+            nrows=nrows,
+            ncols=ncols,
+            wvls=wvls,
+            aia_lookup=aia_lookup,
+            path=path,
+        )
 
     return mosaic_animate(path, name)
 
@@ -1074,27 +1083,37 @@ def l4_file_pack(aia_paths, hmi_paths, dir_path, rec, out_table, before_fls, aft
         anim_path: `str`
             The path to the mosaic animation of the current run.
     """
-    folder_hmi = f"{dir_path}/data/{rec}/HMI/"
-    Path(folder_hmi).mkdir(parents=True, exist_ok=True)
-    folder_aia = f"{dir_path}/data/{rec}/AIA/"
-    Path(folder_aia).mkdir(parents=True, exist_ok=True)
-    for file in aia_paths:
-        name = Path(file).name
-        if os.path.exists(f"{folder_aia}/{name}"):
-            os.remove(f"{folder_aia}/{name}")
-        shutil.copy(file, f"{folder_aia}/{name}")
+    base_path = Path(dir_path) / "data" / rec
+    folder_hmi = base_path / "HMI"
+    folder_aia = base_path / "AIA"
 
-    for file in np.unique(hmi_paths):
-        name = Path(file).name
-        name = Path(f"{folder_hmi}/{name}").name
-        if os.path.exists(f"{folder_hmi}/{name}"):
-            os.remove(f"{folder_hmi}/{name}")
-        shutil.copy(file, f"{folder_hmi}/{name}")
+    folder_hmi.mkdir(parents=True, exist_ok=True)
+    folder_aia.mkdir(parents=True, exist_ok=True)
 
-    shutil.copy(anim_path, f"{dir_path}/data/{rec}")
-    out_table.write(f"{dir_path}/data/{rec}/{rec}.csv", overwrite=True)
-    before_fls.write(f"{dir_path}/data/{rec}/before_flares.parquet", overwrite=True)
-    after_fls.write(f"{dir_path}/data/{rec}/after_flares.parquet", overwrite=True)
+    # Symlink files instead of copying
+    _link_files(aia_paths, folder_aia)
+    _link_files(set(hmi_paths), folder_hmi)
+
+    anim_dst = base_path / Path(anim_path).name
+    anim_dst.unlink(missing_ok=True)
+    anim_dst.symlink_to(os.path.relpath(anim_path, start=base_path))
+
+    # Need to be real writes
+    out_table.write(base_path / f"{rec}.csv", overwrite=True)
+    before_fls.write(base_path / "before_flares.parquet", overwrite=True)
+    after_fls.write(base_path / "after_flares.parquet", overwrite=True)
+
+
+def _link_files(paths, destination):
+    for file in paths:
+        src = Path(file)
+        dst = destination / src.name
+
+        # Remove existing file/symlink if present
+        dst.unlink(missing_ok=True)
+
+        # Create relative symlink (portable)
+        dst.symlink_to(os.path.relpath(src, start=destination))
 
 
 def pad_map(map, targ_width):

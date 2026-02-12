@@ -107,12 +107,12 @@ if __name__ == "__main__":
                 # l2_aia_packed = [packed_maps(hmi_origin_patch, aia_map, noaa_ar) for aia_map in aia_proc]
 
                 hmi_patch_paths = tqdm(
-                    executor.map(map_reproject, repeat(hmi_origin_patch), hmi_proc, repeat(noaa_ar)),
+                    executor.map(map_reproject, repeat(hmi_origin_patch.wcs), hmi_proc, repeat(noaa_ar)),
                     total=len(hmi_proc),
                     desc="HMI reprojection",
                 )
                 aia_patch_paths = tqdm(
-                    executor.map(map_reproject, repeat(hmi_origin_patch), aia_proc, repeat(noaa_ar)),
+                    executor.map(map_reproject, repeat(hmi_origin_patch.wcs), aia_proc, repeat(noaa_ar)),
                     total=len(aia_proc),
                     desc="AIA reprojection",
                 )
