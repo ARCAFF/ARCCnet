@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
     ss = perf_counter()
 
-    drms_limit = Semaphore(4)
+    drms_limit = Semaphore(6)
     # Logging settings here.
     drms_log = logging.getLogger("drms")
     drms_log.setLevel("ERROR")
@@ -58,6 +58,7 @@ if __name__ == "__main__":
 
     with ProcessPoolExecutor(20) as executor:
         for rec_num in range(len(starts)):
+            print(f" {rec_num}/{len(starts)} ".center(70, "!"))
             record = starts[rec_num]
             noaa_ar, mag_class, mcintosh, end, start, date, center = record
             before_fls = before_fl_tables[rec_num]
