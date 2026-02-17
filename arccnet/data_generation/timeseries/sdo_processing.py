@@ -54,6 +54,7 @@ __all__ = [
     "crop_map",
     "map_reproject",
     "l4_file_pack",
+    "vid_match",
 ]
 
 
@@ -156,13 +157,14 @@ def read_data(hek_path: str, srs_path: str, size: int, duration: int, long_lim: 
             The duration of the data sample in hours.
         flares : `str`
             Determines if runs provided 'positive' (flares), 'negative' (no flares), or 'both' (50/50 split of both)
-        long_lim : `str`
+        long_lim : `int`
             The longitudinal limit of Active Regions which are accepted for target runs.
         types : `list`
             Types of data to include in final subsection, corresponds to flares vs non flares (F v N) and incidental and clear runs (1 v 2)
         p_window : `int`
             Prediction window for training set for prediction. 6 = six hour window containing flare, etc.
-
+        years : `list[int]`
+            List of years
 
     Returns
     -------
@@ -214,7 +216,10 @@ def read_data(hek_path: str, srs_path: str, size: int, duration: int, long_lim: 
     ]
     subset = final["number", "magnetic_class", "mcintosh_class", "target_time", "run_start_time", "srs_date", "c_coord"]
 
-    return subset, flares_before, flares_after
+    # only keep sample with flares in next 24 hours
+    only_flares = [i for i, fa in enumerate(flares_after) if len(fa[0]) > 0]
+
+    return subset[only_flares], [flares_before[i] for i in only_flares], [flares_after[i] for i in only_flares]
 
 
 # Old data parser - use if you want to generate v2 data.

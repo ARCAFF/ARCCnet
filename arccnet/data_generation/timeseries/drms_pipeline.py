@@ -46,17 +46,17 @@ if __name__ == "__main__":
         hek_path=Path(f"{data_path}/flare_files/hek_swpc_1996-01-01T00:00:00-2023-01-01T00:00:00_dev.parq"),
         srs_path=Path(f"{data_path}/flare_files/srs_processed_catalog.parq"),
         # Set size to -1 for all AR's in a year
-        size=10,
+        size=-1,
         duration=6,
         long_lim=65,
         # Use these instead of years if generating old flare target data.
         # types=["F1", "F2", "N1", "N2"],
-        years=[2014],
+        years=list(range(2011, 2023)),
     )
 
     cores = int(config["drms"]["cores"])
 
-    with ProcessPoolExecutor(None) as executor:
+    with ProcessPoolExecutor(20) as executor:
         for rec_num in range(len(starts)):
             record = starts[rec_num]
             noaa_ar, mag_class, mcintosh, end, start, date, center = record
