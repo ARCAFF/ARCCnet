@@ -64,7 +64,11 @@ if __name__ == "__main__":
             after_fls = after_fl_tables[rec_num]
             b_x, b_m, b_c = before_fls[1]["X"], before_fls[1]["M"], before_fls[1]["C"]
             a_x, a_m, a_c = after_fls[1]["X"], after_fls[1]["M"], after_fls[1]["C"]
-            pointing_table = calibrate.util.get_pointing_table(source="jsoc", time_range=[start - 6 * u.hour, end])
+            try:
+                pointing_table = calibrate.util.get_pointing_table(source="jsoc", time_range=[start - 6 * u.hour, end])
+            except Exception:
+                logging.error("Could not fetch pointing table for this run.")
+                continue
             start_split = end.value.split("T")[0]
             file_name = (
                 f"{start_split}_{noaa_ar}_{mag_class}_{mcintosh}_Xb{b_x}_Mb{b_m}_Cb{b_c}_Xa{a_x}_Ma{a_m}_Ca{a_c}"
