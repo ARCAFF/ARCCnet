@@ -6,7 +6,6 @@ on:
       - 'main'
       - '*.*'
       - '!*backport*'
-      - '*'
     tags:
       - 'v*'
       - '!*dev*'
