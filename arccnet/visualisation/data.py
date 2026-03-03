@@ -486,7 +486,7 @@ def plot_maps_regions(map_one, regions_one, map_two, regions_two, **kwargs):
     return fig, [ax0, ax1]
 
 
-def mosaic_plot(hmi, name, frame_idx, nrows, ncols, wvls, aia_lookup, path):
+def mosaic_plot(hmi, name, file, nrows, ncols, wvls, table, path):
     r"""
     Plots a frame of a mosaic animation as a png, provided the specific fits files for each timestep.
 
@@ -509,38 +509,47 @@ def mosaic_plot(hmi, name, frame_idx, nrows, ncols, wvls, aia_lookup, path):
         path : `str`
             The path of the directory of S4 data.
     """
-    fig, axes = plt.subplots(nrows, ncols)
-    axes = axes.ravel()
 
-    fig.suptitle(name, fontsize=7)
-
+    fig = plt.figure()
+    plt.title(name, size=7)
+    plt.axis("off")
     hmi_map = Map(hmi)
-
-    cmap_lookup = {wv: ("sdoaia4500" if wv == 6173 else f"sdoaia{wv}") for wv in wvls}
-
-    for i, ax in enumerate(axes):
-        if i < len(wvls):
+    for i in range(len(wvls) + 1):
+        row = i // ncols
+        col = i % ncols
+        if i < 10:
             wv = wvls[i]
-            aia_file = aia_lookup.get((hmi, wv))
-
-            if aia_file is not None:
-                aia_map = Map(aia_file)
-                ax.imshow(np.sqrt(aia_map.data), cmap=cmap_lookup[wv])
+            files = table[table["Wavelength"] == wv]
+            files = files[files["HMI files"] == hmi]
+            aia_files = files["AIA files"]
+            try:
+                aia_map = Map(aia_files.value[0])
+                ax = fig.add_subplot(nrows, ncols, i + 1)
+                ax.imshow(np.sqrt(aia_map.data), cmap=f"sdoaia{wv}")
                 ax.text(0.05, 0.05, f"{wv} - {aia_map.date}", color="w", transform=ax.transAxes, fontsize=5)
-            else:
-                ax.text(0.05, 0.05, f"{wv} - MISSING", color="black", transform=ax.transAxes, fontsize=5)
+            except IndexError:
+                aia_map = np.zeros(hmi_map.data.shape)
+                ax = fig.add_subplot(nrows, ncols, i + 1)
+                ax.imshow(np.sqrt(aia_map.data), cmap=f"sdoaia{wv}")
+                ax.text(0.05, 0.05, f"{wv} - MISSING", color="w", transform=ax.transAxes, fontsize=5)
 
         else:
+            ax = fig.add_subplot(nrows, ncols, i + 1)
             ax.imshow(hmi_map.data, cmap="Greys")
             ax.text(0.05, 0.05, f"HMI - {hmi_map.date}", color="w", transform=ax.transAxes, fontsize=5)
 
-        ax.set_xticks([])
-        ax.set_yticks([])
+        # Hide axis tick labels except for bottom row and left column
+        if row < nrows - 1 or i != 8:
+            ax.set_xlabel("")  # Hides bottom (Latitude)
+            ax.set_xticklabels([])
+        if col > 0:
+            ax.set_ylabel("")  # Hides left (Longitude)
+            ax.set_yticklabels([])
 
     fig.subplots_adjust(left=0.017, bottom=0.068, right=1, top=0.962, wspace=0, hspace=0)
 
-    fig.savefig(f"{path}/frames/{frame_idx}-{name}_frame.png", dpi=1000)
-    plt.close(fig)
+    plt.savefig(fname=f"{path}/frames/{file}-{name}_frame.png", dpi=1000)
+    plt.close()
 
 
 def mosaic_animate(base_dir, name):
@@ -572,8 +581,6 @@ def mosaic_animate(base_dir, name):
     for file in sorted_files:
         frame = cv2.imread(file)
         out.write(frame)
-        # Deletes frame after being added to animation to save data on unneeded frames.
-        os.remove(file)
     out.release()
     print(f"Video saved to {output_file}")
     return output_file

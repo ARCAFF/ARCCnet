@@ -14,6 +14,26 @@ from arccnet.models import labels
 magnetic_map = matplotlib.colormaps["hmimag"]
 
 
+def create_solar_grid(ax, num_meridians=12, num_parallels=12, num_points=300):
+    """
+    Add meridian and parallel grid lines to a solar disc plot.
+    """
+    phis = np.linspace(0, 2 * np.pi, num_meridians, endpoint=False)
+    lats = np.linspace(-np.pi / 2, np.pi / 2, num_parallels)
+    theta = np.linspace(-np.pi / 2, np.pi / 2, num_points)
+
+    # Meridians
+    for phi in phis:
+        y, z = np.cos(theta) * np.sin(phi), np.sin(theta)
+        ax.plot(y, z, "k-", linewidth=0.2)
+
+    # Parallels
+    for lat in lats:
+        y = np.cos(lat) * np.sin(theta)
+        z = np.full(num_points, np.sin(lat))
+        ax.plot(y, z, "k-", linewidth=0.2)
+
+
 def pad_resize_normalize(image, target_height=224, target_width=224):
     """
     Adds padding to and resizes an image to specified target height and width.
@@ -79,6 +99,7 @@ def make_classes_histogram(
     ax=None,
     save_path=None,
     transparent=False,
+    categories=None,
 ):
     """
     Creates and displays a bar chart (histogram) that visualizes the distribution of classes in a given pandas Series.
@@ -129,21 +150,30 @@ def make_classes_histogram(
         Default is None.
     - transparent (bool, optional):
         Whether to save the figure with a transparent background. Default is False.
+    - categories (list, optional):
+        Explicit list of categories in desired order. If provided, will use this order instead of sorting.
+        Default is None (will sort alphabetically).
     """
     # Determine the default y_off based on horizontal
     if y_off is None:
         y_off = 0.5 if horizontal else 300
 
     # Process class names and counts
-    # Filter out None and sort based on horizontal flag
-    classes_names = sorted(filter(lambda x: x is not None, series.unique()), reverse=horizontal)
-    if horizontal:
+    if categories is not None:
+        # Use provided categories in the given order
+        classes_names = [c for c in categories if c in series.unique()]
         counts = series.value_counts().reindex(classes_names, fill_value=0)
-        classes_names = counts.index.tolist()
         values = counts.values
     else:
-        classes_counts = series.value_counts().reindex(classes_names)
-        values = classes_counts.values
+        # Filter out None and sort based on horizontal flag (original behavior)
+        classes_names = sorted(filter(lambda x: x is not None, series.unique()), reverse=horizontal)
+        if horizontal:
+            counts = series.value_counts().reindex(classes_names, fill_value=0)
+            classes_names = counts.index.tolist()
+            values = counts.values
+        else:
+            classes_counts = series.value_counts().reindex(classes_names)
+            values = classes_counts.values
 
     total = np.sum(values)
     greek_labels = labels.convert_to_greek_label(classes_names)  # Ensure this is defined or imported
