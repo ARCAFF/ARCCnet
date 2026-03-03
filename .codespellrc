@@ -9,4 +9,6 @@ ignore-words-list =
     te,
     upto,
     fro,
-    hax
+    hax,
+    fpr,
+    FPR

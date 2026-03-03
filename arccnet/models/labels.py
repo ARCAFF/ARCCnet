@@ -92,10 +92,20 @@ A_B_BG_MAPPING = {
     "Gamma-Delta": None,
 }
 
+
 LABEL_MAPPING_DICT = {
     "qs-ia-ar": QS_IA_AR_MAPPING,
     "ia-ar": IA_AR_MAPPING,
     "qs-ia": QS_IA_MAPPING,
     "qs-ia-a-b-bg": QS_IA_A_B_BG_MAPPING,
     "a-b-bg": A_B_BG_MAPPING,
+}
+
+# Human-readable class names for each classes key
+CLASS_NAMES_DICT = {
+    "a-b-bg": ["Alpha", "Beta", "Beta-Gamma"],
+    "qs-ia-ar": ["QS", "IA", "AR"],
+    "ia-ar": ["IA", "AR"],
+    "qs-ia": ["QS", "IA"],
+    "qs-ia-a-b-bg": ["QS", "IA", "Alpha", "Beta", "Beta-Gamma"],
 }

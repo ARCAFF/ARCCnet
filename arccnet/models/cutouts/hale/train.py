@@ -1,133 +1,176 @@
-import os
-import argparse
+"""
+Training script for Hale classification with cross-validation support.
+"""
 
-import torch
-from comet_ml import Experiment
+import logging
+import argparse
+from pathlib import Path
+from datetime import datetime
 
 import arccnet.models.cutouts.hale.config as config
-import arccnet.models.dataset_utils as ut_d
-import arccnet.models.train_utils as ut_t
-import arccnet.visualisation.utils as ut_v
-from arccnet.utils.logging import get_logger
-
-logger = get_logger(__name__)
+from arccnet.models.cutouts.hale.cross_validation import CrossValidationManager
+from arccnet.models.cutouts.hale.trainer import HaleTrainer
 
 
-def run_training(config, args):
+def log_section(title: str, width: int = 50) -> None:
+    """Log a banner-style section header."""
+    logging.info("=" * width)
+    logging.info(title)
+    logging.info("=" * width)
+
+
+def log_metric_summary(label: str, stats: dict) -> None:
+    """Log mean and std stats for a metric dict."""
+    mean = stats.get("mean", 0)
+    std = stats.get("std", 0)
+    logging.info(f"{label}: {mean:.4f} ± {std:.4f}")
+
+
+def _format_metric_value(metrics: dict, key: str) -> str:
+    """Format a metric value safely for logging output."""
+    value = metrics.get(key)
+    return f"{float(value):.4f}" if isinstance(value, int | float) else "N/A"
+
+
+def train_single_fold_mode(df) -> None:
     """
-    This function handles the entire training pipeline including:
-    - Setting up the configuration.
-    - Initializing the Comet.ml experiment.
-    - Data preparation and model training.
-    - Logging results and artifacts.
+    Train on a single fold for quick testing.
 
-    Parameters:
-    - config: The configuration object containing default values.
-    - args: Parsed command-line arguments that override config values.
+    Args:
+        df: Processed dataset
     """
+    logging.info("Starting training on fold 1 (single fold mode)...")
 
-    # Override config settings with arguments if provided
-    arg_to_config = {
-        "model_name": "model_name",
-        "batch_size": "batch_size",
-        "num_epochs": "num_epochs",
-        "patience": "patience",
-        "learning_rate": "learning_rate",
-        "gpu_index": "gpu_index",
-        "data_folder": "data_folder",
-        "dataset_folder": "dataset_folder",
-        "df_file_name": "df_file_name",
-        "num_workers": "num_workers",
-    }
+    trainer = HaleTrainer()
+    trainer_obj, _, test_results = trainer.train_single_fold(df, fold_num=1)
 
-    for arg, attr in arg_to_config.items():
-        value = getattr(args, arg)
-        if value is not None:
-            setattr(config, attr, value)
+    logging.info("Single fold training completed!")
 
-    if args.gpu_index is not None:
-        config.device = f"cuda:{args.gpu_index}"
+    # Log final results
+    if test_results:
+        test_metrics = test_results[0]
+        log_section("SINGLE FOLD TRAINING COMPLETED")
+        logging.info(f"Final Test Accuracy: {_format_metric_value(test_metrics, 'test_acc')}")
+        logging.info(f"Final Test F1: {_format_metric_value(test_metrics, 'test_f1')}")
+        logging.info(f"Final Test Loss: {_format_metric_value(test_metrics, 'test_loss')}")
+        logging.info(f"Best checkpoint: {trainer_obj.checkpoint_callback.best_model_path}")
+        logging.info("=" * 50)
 
-    # Generate run ID and weights directory
-    run_id, weights_dir = ut_t.generate_run_id(config)
-    logger.info(f"Run ID: {run_id}")
-    logger.info(f"Weights directory: {weights_dir}")
 
-    # Initialize Comet experiment
-    run_comet = Experiment(project_name=config.project_name, workspace="arcaff")
-    run_comet.add_tags([config.model_name])
-    run_comet.log_parameters(
-        {
-            "model_name": config.model_name,
-            "batch_size": config.batch_size,
-            "GPU": f"GPU{config.gpu_index}_{torch.cuda.get_device_name()}" if torch.cuda.is_available() else "CPU",
-            "num_epochs": config.num_epochs,
-            "patience": config.patience,
+def train_cross_validation_mode(df) -> None:
+    """
+    Train on all folds for cross-validation.
+
+    Args:
+        df: Processed dataset
+    """
+    logging.info("Starting cross-validation training on all folds...")
+
+    cv_manager = CrossValidationManager()
+    _, summary = cv_manager.run_cross_validation(df)
+
+    logging.info("Cross-validation training completed!")
+
+    # Log final summary
+    if summary and "metrics_summary" in summary:
+        metrics = summary["metrics_summary"]
+        log_section("CROSS-VALIDATION COMPLETED")
+
+        metric_labels = (
+            ("Mean Test Accuracy", "test_accuracy"),
+            ("Mean Test F1", "test_f1"),
+            ("Mean Test Loss", "test_loss"),
+        )
+        for label, key in metric_labels:
+            if key in metrics:
+                log_metric_summary(label, metrics[key])
+
+        exp_info = summary.get("experiment_info", {})
+        total_time = exp_info.get("total_training_time", 0)
+        logging.info(f"Total Training Time: {total_time:.1f}s")
+        logging.info("=" * 50)
+
+
+def run_training(config_module=config, args: argparse.Namespace | None = None) -> None:
+    """
+    Backward-compatible entry point for package CLI.
+
+    Applies CLI argument overrides to config, then runs training.
+    """
+    global config
+    config = config_module
+
+    if args is not None:
+        overrides = {
+            "model_name": "MODEL_NAME",
+            "batch_size": "BATCH_SIZE",
+            "num_workers": "NUM_WORKERS",
+            "num_epochs": "MAX_EPOCHS",
+            "patience": "EARLY_STOPPING_PATIENCE",
+            "learning_rate": "LEARNING_RATE",
+            "data_folder": "DATA_FOLDER",
+            "dataset_folder": "DATASET_FOLDER",
+            "df_file_name": "DF_FILE_NAME",
         }
+        for arg_name, config_name in overrides.items():
+            value = getattr(args, arg_name, None)
+            if value is not None:
+                setattr(config, config_name, value)
+
+        gpu_index = getattr(args, "gpu_index", None)
+        if gpu_index is not None:
+            config.ACCELERATOR = "gpu"
+            config.DEVICES = [int(gpu_index)]
+
+    main()
+
+
+def main() -> None:
+    """
+    Main execution function.
+
+    Prepares dataset and runs training.
+    """
+    log_dir = Path(getattr(config, "LOG_DIR", Path(__file__).parent / "logs"))
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"hale_training_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
+        force=True,
     )
-    run_comet.log_code(config.__file__)
-    run_comet.log_code(ut_t.__file__)
-    logger.info("Comet.ml experiment initialized and parameters logged.")
 
-    # Data preparation
-    logger.info("Making dataframe...")
-    df, AR_df = ut_d.make_dataframe(config.data_folder, config.dataset_folder, config.df_file_name)
-    logger.debug(f"Dataframe shape: {df.shape}, AR_df shape: {AR_df.shape}")
+    # Log configuration info
+    log_section("HALE CLASSIFICATION TRAINING", width=60)
+    logging.info(f"Model: {config.MODEL_NAME}")
+    logging.info(f"Classes: {config.classes}")
+    logging.info(f"Number of folds: {config.N_FOLDS}")
+    logging.info(f"Batch size: {config.BATCH_SIZE}")
+    logging.info(f"Learning rate: {config.LEARNING_RATE}")
+    logging.info(f"Max epochs: {config.MAX_EPOCHS}")
+    logging.info(f"Train all folds: {config.TRAIN_ALL_FOLDS}")
+    logging.info("=" * 60)
 
-    # Undersample and filter the dataframe
-    df, df_du = ut_d.undersample_group_filter(
-        df, config.label_mapping, long_limit_deg=60, undersample=True, buffer_percentage=0.1
-    )
-    logger.debug(f"After undersampling, dataframe shape: {df.shape}, df_du shape: {df_du.shape}")
+    try:
+        # Prepare dataset once at runtime
+        logging.info("Preparing dataset...")
+        df_processed = HaleTrainer().prepare_dataset_once()
+        logging.info(f"Dataset prepared successfully. Shape: {df_processed.shape}")
 
-    # Split data into folds for cross-validation
-    fold_df = ut_d.split_data(df_du, label_col="grouped_labels", group_col="number", random_state=42)
-    df = ut_d.assign_fold_sets(df, fold_df)
-    logger.info("Dataframe preparation done.")
+        # Run training based on configuration
+        if config.TRAIN_ALL_FOLDS:
+            train_cross_validation_mode(df_processed)
+        else:
+            train_single_fold_mode(df_processed)
 
-    # Start training
-    logger.info("Starting Training...")
-    (avg_test_loss, test_accuracy, test_precision, test_recall, test_f1, cm_test, report_df) = ut_t.train_model(
-        config, df, weights_dir, experiment=run_comet
-    )
-    logger.debug(
-        f"Test Metrics - Loss: {avg_test_loss}, Accuracy: {test_accuracy}, Precision: {test_precision}, Recall: {test_recall}, F1: {test_f1}"
-    )
+    except Exception as e:
+        logging.error(f"Training failed with error: {e}")
+        raise
 
-    # Logging and saving assets
-    logger.info("Logging assets...")
-    script_dir = os.path.dirname(ut_t.__file__)
-    save_path = os.path.join(script_dir, "temp", "working_dataset.png")
-
-    # Create and log the dataset histogram
-    ut_v.make_classes_histogram(
-        df_du["grouped_labels"], title="Dataset (Grouped Undersampled)", y_off=100, figsz=(7, 5), save_path=save_path
-    )
-    run_comet.log_image(save_path)
-
-    # Log the dataset as a CSV
-    run_comet.log_asset_data(df.to_csv(index=False), name="dataset.csv")
-
-    logger.info("Training completed.")
-    return avg_test_loss, test_accuracy, test_precision, test_recall, test_f1, cm_test, report_df
+    logging.info("Training script completed successfully!")
 
 
 if __name__ == "__main__":
-    # Initialize argument parser
-    parser = argparse.ArgumentParser(description="Training script with configurable options.")
-    parser.add_argument("--model_name", type=str, help="Timm model name")
-    parser.add_argument("--batch_size", type=int, help="Batch size for training.")
-    parser.add_argument("--num_workers", type=int, help="Number of workers for data loading and preprocessing.")
-    parser.add_argument("--num_epochs", type=int, help="Number of epochs for training.")
-    parser.add_argument("--patience", type=int, help="Patience for early stopping.")
-    parser.add_argument("--learning_rate", type=float, help="Learning rate for optimizer.")
-    parser.add_argument("--gpu_index", type=int, help="Index of the GPU to use.")
-    parser.add_argument("--data_folder", type=str, help="Path to the data folder.")
-    parser.add_argument("--dataset_folder", type=str, help="Path to the dataset folder.")
-    parser.add_argument("--df_file_name", type=str, help="Name of the dataframe file.")
-
-    # Parse arguments
-    args = parser.parse_args()
-
-    # Call the run_training function
-    run_training(config, args)
+    main()

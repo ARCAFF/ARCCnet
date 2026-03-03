@@ -1,3 +1,7 @@
+"""
+Inference utilities for Hale classification models.
+"""
+
 import os
 import argparse
 from pathlib import Path
@@ -36,7 +40,7 @@ def download_model(api, workspace, model_name, model_version, model_path):
         if model_path.exists():
             logger.info(f"Model file already exists at {model_path}. \nSkipping download.")
         else:
-            response = requests.get(model_url)
+            response = requests.get(model_url, timeout=120)
             if response.status_code == 200:
                 with open(model_path, "wb") as f:
                     f.write(response.content)
@@ -47,13 +51,23 @@ def download_model(api, workspace, model_name, model_version, model_path):
         logger.exception("An error occurred while downloading the model.")
 
 
-def preprocess_fits_data(fits_file_path, hardtanh=True, target_height=224, target_width=224):
+def preprocess_fits_data(
+    fits_file_path,
+    hardtanh=True,
+    target_height=config.IMAGE_TARGET_HEIGHT,
+    target_width=config.IMAGE_TARGET_WIDTH,
+):
     try:
         with fits.open(fits_file_path, memmap=True) as img_fits:
             image_data = np.array(img_fits[1].data, dtype=np.float32)
         image_data = np.nan_to_num(image_data, nan=0.0)
         if hardtanh:
-            image_data = ut_v.hardtanh_transform_npy(image_data, divisor=800, min_val=-1.0, max_val=1.0)
+            image_data = ut_v.hardtanh_transform_npy(
+                image_data,
+                divisor=config.IMAGE_DIVISOR,
+                min_val=config.HARDTANH_MIN_VAL,
+                max_val=config.HARDTANH_MAX_VAL,
+            )
         image_data = ut_v.pad_resize_normalize(image_data, target_height=target_height, target_width=target_width)
         return torch.from_numpy(image_data).unsqueeze(0)
     except Exception:
@@ -90,8 +104,14 @@ def predict(args):
             values = substring_after_v2.split("-")
             num_classes = len(values)
         except IndexError:
-            logger.error("Project name format is incorrect. Expected 'arcaff-v2-<classes>'.")
-            return
+            logger.warning(
+                "Project name format did not match 'arcaff-v2-<classes>'. Falling back to configured classes."
+            )
+            num_classes = config.NUM_CLASSES
+
+        label_names = (
+            config.class_names if len(config.class_names) == num_classes else [f"Class_{i}" for i in range(num_classes)]
+        )
 
         # Create the model
         try:
@@ -115,9 +135,9 @@ def predict(args):
         result = run_inference(model, args.fits_file_path, device)
         predicted_class = np.argmax(result)
         probabilities = torch.softmax(torch.tensor(result), dim=1).numpy()
-        df_prob = pd.DataFrame(probabilities, columns=[ut_t.index_to_label[idx] for idx in range(num_classes)])
+        df_prob = pd.DataFrame(probabilities, columns=label_names)
         logger.info("\nPredictions:\n" + df_prob.to_string(index=False))
-        logger.info(f"\nPredicted class: {ut_t.index_to_label[predicted_class]}")
+        logger.info(f"\nPredicted class: {label_names[predicted_class]}")
     except Exception:
         logger.exception("An unexpected error occurred during prediction.")
 
@@ -128,11 +148,14 @@ if __name__ == "__main__":
         "--fits_file_path",
         type=str,
         default=os.path.join(
-            config.data_folder, config.dataset_folder, "fits", "20160203_235809_I-12493_HMI_SIDE1.fits"
+            config.DATA_FOLDER,
+            config.DATASET_FOLDER,
+            "fits",
+            "20160203_235809_I-12493_HMI_SIDE1.fits",
         ),
         help="Path to the FITS file.",
     )
-    parser.add_argument("--project_name", type=str, default="arcaff-v2-qs-ia-a-b-bg", help="Name of the project.")
+    parser.add_argument("--project_name", type=str, default=config.PROJECT_NAME, help="Name of the project.")
     parser.add_argument("--workspace", type=str, default="arcaff", help="Workspace name in Comet.ml.")
     parser.add_argument("--model_name", type=str, default="resnet18", help="Model name.")
     parser.add_argument("--model_version", type=str, default="1.0.0", help="Model version.")

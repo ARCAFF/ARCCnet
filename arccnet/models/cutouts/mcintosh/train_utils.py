@@ -1,3 +1,5 @@
+"""Training and evaluation utilities for McIntosh classification."""
+
 import os
 
 import pandas as pd
@@ -20,22 +22,21 @@ def train(
     scaler: torch.cuda.amp.GradScaler = None,
 ) -> dict:
     """
-    Trains the model for one epoch with optional Teacher Forcing.
+    Train the model for one epoch.
 
     Args:
-        model (nn.Module): The neural network model.
-        device (torch.device): The device to run the training on.
-        train_loader (DataLoader): DataLoader for training data.
-        optimizer (torch.optim.Optimizer): Optimizer for updating model weights.
-        criterion_z (nn.Module): Loss function for Z component.
-        criterion_p (nn.Module): Loss function for P component.
-        criterion_c (nn.Module): Loss function for C component.
-        teacher_forcing_ratio (float or None): Probability of using ground truth labels for Teacher Forcing.
-                                               If None, Teacher Forcing is disabled.
-        scaler (torch.cuda.amp.GradScaler, optional): GradScaler for mixed precision. Defaults to None.
+        model: Neural network model
+        device: Device for training
+        train_loader: Training DataLoader
+        optimizer: Optimizer for weights
+        criterion_z: Loss function for Z component
+        criterion_p: Loss function for P component
+        criterion_c: Loss function for C component
+        teacher_forcing_ratio: Probability for Teacher Forcing (None to disable)
+        scaler: GradScaler for mixed precision
 
     Returns:
-        dict: Dictionary containing average loss, accuracies for Z, P, and C components, and average accuracy.
+        Dict with average loss and accuracies (Z, P, C, avg)
     """
     model.train()
     total_loss = 0.0
@@ -56,7 +57,7 @@ def train(
         use_teacher_forcing = teacher_forcing_ratio is not None
 
         if scaler:
-            with torch.amp.autocast("cuda"):
+            with torch.amp.autocast(device.type):
                 output_z, output_p, output_c = model(
                     inputs,
                     Z_true=labels_z if use_teacher_forcing else None,
@@ -87,7 +88,6 @@ def train(
 
         total_loss += loss.item() * inputs.size(0)
 
-        # Compute accuracies for each sub-task
         _, predicted_z = torch.max(output_z.data, 1)
         _, predicted_p = torch.max(output_p.data, 1)
         _, predicted_c = torch.max(output_c.data, 1)
@@ -100,10 +100,11 @@ def train(
         total_p += labels_p.size(0)
         total_c += labels_c.size(0)
 
-    avg_loss = total_loss / len(train_loader.dataset)
-    accuracy_z = correct_z / total_z
-    accuracy_p = correct_p / total_p
-    accuracy_c = correct_c / total_c
+    dataset_size = len(train_loader.dataset)
+    avg_loss = total_loss / dataset_size if dataset_size > 0 else 0.0
+    accuracy_z = correct_z / total_z if total_z > 0 else 0.0
+    accuracy_p = correct_p / total_p if total_p > 0 else 0.0
+    accuracy_c = correct_c / total_c if total_c > 0 else 0.0
     avg_accuracy = (accuracy_z + accuracy_p + accuracy_c) / 3
 
     return {
@@ -125,20 +126,19 @@ def evaluate(
     teacher_forcing_ratio=None,
 ) -> dict:
     """
-    Evaluates the model on a validation or test set with optional Teacher Forcing.
+    Evaluate the model on validation or test set.
 
     Args:
-        model (nn.Module): The neural network model.
-        device (torch.device): The device to run the evaluation on.
-        loader (DataLoader): DataLoader for validation/test data.
-        criterion_z (nn.Module): Loss function for Z component.
-        criterion_p (nn.Module): Loss function for P component.
-        criterion_c (nn.Module): Loss function for C component.
-        teacher_forcing_ratio (float or None): Probability of using ground truth labels for Teacher Forcing.
-                                               If None, Teacher Forcing is disabled.
+        model: Neural network model
+        device: Device for evaluation
+        loader: Validation/test DataLoader
+        criterion_z: Loss function for Z component
+        criterion_p: Loss function for P component
+        criterion_c: Loss function for C component
+        teacher_forcing_ratio: Probability for Teacher Forcing (None to disable)
 
     Returns:
-        dict: Dictionary containing average loss, accuracies for Z, P, and C components, and average accuracy.
+        Dict with average loss and accuracies (Z, P, C, avg)
     """
     model.eval()
     total_loss = 0.0
@@ -171,7 +171,6 @@ def evaluate(
             loss = loss_z + loss_p + loss_c
             total_loss += loss.item() * inputs.size(0)
 
-            # Compute accuracies
             _, predicted_z = torch.max(output_z.data, 1)
             _, predicted_p = torch.max(output_p.data, 1)
             _, predicted_c = torch.max(output_c.data, 1)
@@ -184,10 +183,11 @@ def evaluate(
             total_p += labels_p.size(0)
             total_c += labels_c.size(0)
 
-    avg_loss = total_loss / len(loader.dataset)
-    accuracy_z = correct_z / total_z
-    accuracy_p = correct_p / total_p
-    accuracy_c = correct_c / total_c
+    dataset_size = len(loader.dataset)
+    avg_loss = total_loss / dataset_size if dataset_size > 0 else 0.0
+    accuracy_z = correct_z / total_z if total_z > 0 else 0.0
+    accuracy_p = correct_p / total_p if total_p > 0 else 0.0
+    accuracy_c = correct_c / total_c if total_c > 0 else 0.0
     avg_accuracy = (accuracy_z + accuracy_p + accuracy_c) / 3
 
     return {
@@ -201,40 +201,37 @@ def evaluate(
 
 def apply_mask_at_evaluation(output_logits, z_pred, p_pred=None, valid_dict=None):
     """
-    Applies a mask to logits at evaluation based on predicted Z or (Z, P).
+    Apply mask to logits based on predicted Z or (Z, P).
 
     Args:
-        output_logits (torch.Tensor): Logits for the P or C component (B, num_classes).
-        z_pred (torch.Tensor): Predicted Z label (B,).
-        p_pred (torch.Tensor or None): Predicted P label (B,) (optional, for C-component only).
-        valid_dict (dict): Dictionary mapping Z or (Z, P) to valid classes.
+        output_logits: Logits for P or C component (B, num_classes)
+        z_pred: Predicted Z labels (B,)
+        p_pred: Predicted P labels (B,), optional for C-component
+        valid_dict: Mapping of Z or (Z, P) to valid classes
 
     Returns:
-        torch.Tensor: Masked logits with invalid classes set to -1e4.
+        Masked logits with invalid classes set to -1e4
     """
     batch_size, num_classes = output_logits.size()
     mask = torch.zeros((batch_size, num_classes), dtype=torch.bool, device=output_logits.device)
 
     for i in range(batch_size):
-        if p_pred is None:  # Mask for P-component
+        if p_pred is None:
             valid_classes = valid_dict.get(z_pred[i].item(), set())
-        else:  # Mask for C-component
+        else:
             valid_classes = valid_dict.get((z_pred[i].item(), p_pred[i].item()), set())
 
         if valid_classes:
             mask[i, list(valid_classes)] = True
 
-    # Check if all classes are masked out
     all_masked = (~mask).all(dim=1)
     if all_masked.any():
-        mask[all_masked] = True  # Allow all classes for these samples to avoid empty logits
+        mask[all_masked] = True
 
-    # Apply the mask to logits
     masked_logits = output_logits.masked_fill(~mask, -1e4)
     return masked_logits
 
 
-# Changed function name from test to validate to avoid PyTest trying to run it as a test. Will need to update func calls.
 def validate(
     model: nn.Module,
     device: torch.device,
@@ -244,20 +241,18 @@ def validate(
     teacher_forcing_ratio=None,  # noqa
 ) -> tuple:
     """
-    Tests the model and computes accuracy and F1 scores for each component with optional Teacher Forcing.
+    Test the model and compute accuracy and F1 scores.
 
     Args:
-        model (nn.Module): The neural network model.
-        device (torch.device): The device to run the testing on.
-        loader (DataLoader): DataLoader for test data.
-        valid_p_for_z (dict): Mapping of Z-labels to valid P-labels.
-        valid_c_for_zp (dict): Mapping of (Z, P)-labels to valid C-labels.
-        teacher_forcing_ratio (float or None): Probability of using ground truth labels for Teacher Forcing.
-                                               If None, Teacher Forcing is disabled.
+        model: Neural network model
+        device: Device for testing
+        loader: Test DataLoader
+        valid_p_for_z: Mapping of Z-labels to valid P-labels
+        valid_c_for_zp: Mapping of (Z, P)-labels to valid C-labels
+        teacher_forcing_ratio: Unused (for compatibility)
 
     Returns:
-        tuple: Accuracy and F1 scores for Z, P, and C components respectively,
-               and lists of true and predicted labels for each component.
+        Accuracies, F1 scores, and true/predicted labels for Z, P, C
     """
     model.eval()
     correct_z = 0
@@ -293,28 +288,22 @@ def validate(
                 teacher_forcing_ratio=teacher_forcing_ratio if use_teacher_forcing else 0.0,
             )
 
-            # Compute predictions for Z
             _, predicted_z = torch.max(output_z, 1)
 
-            # Apply masking for P logits
             masked_logits_p = apply_mask_at_evaluation(output_p, predicted_z, valid_dict=valid_p_for_z)
             _, predicted_p = torch.max(masked_logits_p, 1)
 
-            # Apply masking for C logits
             masked_logits_c = apply_mask_at_evaluation(output_c, predicted_z, predicted_p, valid_dict=valid_c_for_zp)
             _, predicted_c = torch.max(masked_logits_c, 1)
 
-            # Count correct predictions
             correct_z += (predicted_z == labels_z).sum().item()
             correct_p += (predicted_p == labels_p).sum().item()
             correct_c += (predicted_c == labels_c).sum().item()
 
-            # Total samples for accuracy computation
             total_z += labels_z.size(0)
             total_p += labels_p.size(0)
             total_c += labels_c.size(0)
 
-            # Collect true and predicted labels for F1 score computation
             true_labels_z.extend(labels_z.cpu().numpy())
             pred_labels_z.extend(predicted_z.cpu().numpy())
 
@@ -324,15 +313,13 @@ def validate(
             true_labels_c.extend(labels_c.cpu().numpy())
             pred_labels_c.extend(predicted_c.cpu().numpy())
 
-    # Compute accuracy
     accuracy_z = correct_z / total_z if total_z > 0 else 0
     accuracy_p = correct_p / total_p if total_p > 0 else 0
     accuracy_c = correct_c / total_c if total_c > 0 else 0
 
-    # Compute F1 scores
-    f1_score_z = f1_score(true_labels_z, pred_labels_z, average="weighted")
-    f1_score_p = f1_score(true_labels_p, pred_labels_p, average="weighted")
-    f1_score_c = f1_score(true_labels_c, pred_labels_c, average="weighted")
+    f1_score_z = f1_score(true_labels_z, pred_labels_z, average="weighted", zero_division=0)
+    f1_score_p = f1_score(true_labels_p, pred_labels_p, average="weighted", zero_division=0)
+    f1_score_c = f1_score(true_labels_c, pred_labels_c, average="weighted", zero_division=0)
 
     return (
         accuracy_z,
@@ -347,6 +334,25 @@ def validate(
         pred_labels_p,
         true_labels_c,
         pred_labels_c,
+    )
+
+
+def test(
+    model: nn.Module,
+    device: torch.device,
+    loader: DataLoader,
+    valid_p_for_z: dict,
+    valid_c_for_zp: dict,
+    teacher_forcing_ratio=None,  # noqa
+) -> tuple:
+    """Backward-compatible alias for validate()."""
+    return validate(
+        model=model,
+        device=device,
+        loader=loader,
+        valid_p_for_z=valid_p_for_z,
+        valid_c_for_zp=valid_c_for_zp,
+        teacher_forcing_ratio=teacher_forcing_ratio,
     )
 
 
@@ -369,28 +375,31 @@ def check_early_stopping(val_metric, best_val_metric, patience_counter, model, w
 
 def print_test_scores(accuracy_z, accuracy_p, accuracy_c, f1_z, f1_p, f1_c):
     """
-    Prints test scores (accuracy and F1 scores) in a structured format using a DataFrame.
+    Print test scores in structured format.
 
     Args:
-        accuracy_z (float): Accuracy for Z component.
-        accuracy_p (float): Accuracy for P component.
-        accuracy_c (float): Accuracy for C component.
-        f1_z (float): F1 score for Z component.
-        f1_p (float): F1 score for P component.
-        f1_c (float): F1 score for C component.
+        accuracy_z: Z component accuracy
+        accuracy_p: P component accuracy
+        accuracy_c: C component accuracy
+        f1_z: Z component F1 score
+        f1_p: P component F1 score
+        f1_c: C component F1 score
+
+    Returns:
+        DataFrame with scores
     """
-    # Create a DataFrame
     data = {
         "Component": ["Z", "P", "C"],
         "Accuracy": [accuracy_z, accuracy_p, accuracy_c],
         "F1 Score": [f1_z, f1_p, f1_c],
     }
     df = pd.DataFrame(data)
+    print(df.to_string(index=False))
     return df
 
 
 def predict_region_class(model, region_input, encoders, device):
-    model.eval()
+    """Predict McIntosh class for region input."""
     with torch.no_grad():
         outputs_z, outputs_p, outputs_c = model(region_input.to(device))
 
@@ -412,15 +421,15 @@ def predict_region_class(model, region_input, encoders, device):
 
 def calculate_f1_macro(model: nn.Module, loader: DataLoader, device: torch.device) -> tuple:
     """
-    Computes macro-averaged F1 scores for Z, P, and C components on the given DataLoader.
+    Compute macro-averaged F1 scores for Z, P, and C components.
 
     Args:
-        model (nn.Module): The trained neural network model.
-        loader (DataLoader): DataLoader for the dataset.
-        device (torch.device): The device to run inference on.
+        model: Trained neural network model
+        loader: DataLoader for the dataset
+        device: Device for inference
 
     Returns:
-        tuple: Macro-averaged F1 scores for Z, P, and C components (f1_z, f1_p, f1_c).
+        Macro-averaged F1 scores (f1_z, f1_p, f1_c)
     """
     model.eval()
     true_labels_z = []
@@ -452,8 +461,8 @@ def calculate_f1_macro(model: nn.Module, loader: DataLoader, device: torch.devic
             pred_labels_c.extend(predicted_c.cpu().numpy())
 
     # Compute macro-averaged F1 scores
-    f1_z = f1_score(true_labels_z, pred_labels_z, average="macro")
-    f1_p = f1_score(true_labels_p, pred_labels_p, average="macro")
-    f1_c = f1_score(true_labels_c, pred_labels_c, average="macro")
+    f1_z = f1_score(true_labels_z, pred_labels_z, average="macro", zero_division=0)
+    f1_p = f1_score(true_labels_p, pred_labels_p, average="macro", zero_division=0)
+    f1_c = f1_score(true_labels_c, pred_labels_c, average="macro", zero_division=0)
 
     return f1_z, f1_p, f1_c

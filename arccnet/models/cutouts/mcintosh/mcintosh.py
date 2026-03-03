@@ -1,3 +1,5 @@
+"""Training script for hierarchical McIntosh classification."""
+
 import os
 import time
 import socket
@@ -8,15 +10,21 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from comet_ml import Experiment
-from comet_ml.integration.pytorch import log_model
 from IPython.display import display
 from sklearn.metrics import confusion_matrix, f1_score
 from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import DataLoader
 
+try:
+    from comet_ml import Experiment
+    from comet_ml.integration.pytorch import log_model
+except Exception:  # pragma: no cover - optional dependency
+    Experiment = None
+    log_model = None
+
 import arccnet.models.cutouts.mcintosh.dataset_utils as mci_ut_d
 import arccnet.models.cutouts.mcintosh.train_utils as mci_ut_t
+from arccnet.models import preprocessing_common as pp_common
 from arccnet.models import train_utils as ut_t
 from arccnet.models.cutouts.mcintosh import config
 from arccnet.models.cutouts.mcintosh.models import HierarchicalResNet
@@ -25,60 +33,104 @@ from arccnet.visualisation import utils as ut_v
 pd.set_option("display.max_columns", None)
 
 
-def main(args):
+def _safe_experiment_call(experiment, action: str, method_name: str, *args, **kwargs):
+    """Execute Comet calls safely so logging failures never stop training."""
+    if experiment is None:
+        return None
+    method = getattr(experiment, method_name, None)
+    if method is None:
+        return None
+    try:
+        return method(*args, **kwargs)
+    except Exception as exc:
+        print(f"[WARN] Comet {action} failed: {exc}")
+        return None
+
+
+def _str2bool(value):
+    """Backwards-compatible wrapper around shared CLI bool parsing."""
+    return ut_t.parse_bool_cli(value)
+
+
+def main(args=None):
+    if args is None:
+        args = argparse.Namespace(
+            data_folder=config.data_folder,
+            dataset_folder=config.dataset_folder,
+            df_name=config.df_name,
+            plot_histograms=config.plot_histograms,
+            demo_index=None,
+        )
+
     # Overwrite config parameters with user-defined values (if provided)
     config.data_folder = args.data_folder
     config.dataset_folder = args.dataset_folder
     config.df_name = args.df_name
     config.plot_histograms = args.plot_histograms
 
-    # Setup device (GPU if available)
+    ut_t.set_global_seed(int(config.random_state), deterministic=True)
+
     device = f"cuda:{config.gpu_index}" if torch.cuda.is_available() else "cpu"
 
-    # Setup experiment logging if using Comet
     experiment = None
-    if config.use_comet:
-        experiment = Experiment(project_name=config.project_name, workspace=config.workspace)
-        experiment.log_parameters(
-            {
-                "learning_rate": config.learning_rate,
-                "batch_size": config.batch_size,
-                "epochs": config.epochs,
-                "model": config.resnet_version,
-            }
-        )
-        experiment.log_code(config.__file__)
-        experiment.log_code(mci_ut_t.__file__)
-        experiment.log_code(mci_ut_d.__file__)
-        augmentation_tags = [type(transform).__name__ for transform in config.train_transforms.transforms]
-        experiment.add_tags(augmentation_tags)
+    if config.use_comet and Experiment is not None:
+        try:
+            experiment = Experiment(project_name=config.project_name, workspace=config.workspace)
+        except Exception as exc:
+            print(f"[WARN] Could not initialize Comet experiment: {exc}")
+            experiment = None
+    elif config.use_comet and Experiment is None:
+        print("[WARN] Comet logging enabled but `comet_ml` is not installed; continuing without Comet.")
 
-    # Create weights directory based on current time and system info
+    _safe_experiment_call(
+        experiment,
+        "parameter logging",
+        "log_parameters",
+        {
+            "learning_rate": config.learning_rate,
+            "batch_size": config.batch_size,
+            "epochs": config.epochs,
+            "model": config.resnet_version,
+            "random_state": int(config.random_state),
+        },
+    )
+    _safe_experiment_call(experiment, "code logging", "log_code", config.__file__)
+    _safe_experiment_call(experiment, "code logging", "log_code", mci_ut_t.__file__)
+    _safe_experiment_call(experiment, "code logging", "log_code", mci_ut_d.__file__)
+    augmentation_pipeline = getattr(config, "train_transforms", None)
+    augmentation_tags = [type(transform).__name__ for transform in getattr(augmentation_pipeline, "transforms", [])]
+    if augmentation_tags:
+        _safe_experiment_call(experiment, "tag logging", "add_tags", augmentation_tags)
+
     t = time.localtime()
     current_time = time.strftime("%Y%m%d-%H%M%S", t)
-    run_id = f"{current_time}_mcintosh_GPU{torch.cuda.get_device_name()}_{socket.gethostname()}"
+    if torch.cuda.is_available():
+        gpu_name = torch.cuda.get_device_name(config.gpu_index).replace(" ", "_")
+    else:
+        gpu_name = "CPU"
+    run_id = f"{current_time}_mcintosh_{gpu_name}_{socket.gethostname()}"
     ut_t_file_path = os.path.abspath(ut_t.__file__)
     weights_dir = os.path.join(os.path.dirname(ut_t_file_path), "weights", run_id)
     os.makedirs(weights_dir, exist_ok=True)
 
-    # Process the AR dataset
     AR_df, encoders, mappings = mci_ut_d.process_ar_dataset(
         data_folder=config.data_folder,
         dataset_folder=config.dataset_folder,
         df_name=config.df_name,
         plot_histograms=config.plot_histograms,
+        nan_threshold=getattr(config, "nan_threshold", None),
     )
 
-    # Filter the dataset based on longitude limits
-    lonV = np.deg2rad(np.where(AR_df["path_image_cutout_hmi"] != "", AR_df["longitude_hmi"], AR_df["longitude_mdi"]))
-    condition = (lonV < -np.deg2rad(config.long_limit_deg)) | (lonV > np.deg2rad(config.long_limit_deg))
-    df_filtered = AR_df[~condition]
-    df_rear = AR_df[condition]
-    AR_df.loc[df_filtered.index, "location"] = "front"
-    AR_df.loc[df_rear.index, "location"] = "rear"
-    AR_filtered = AR_df[AR_df["location"] != "rear"]
+    AR_filtered = pp_common.apply_longitude_filter(
+        AR_df,
+        max_longitude=float(config.long_limit_deg),
+        drop_missing_longitude=True,
+        hmi_path_col=("path_image_cutout_hmi", "processed_path_image_hmi", "quicklook_path_hmi"),
+        mdi_path_col=("path_image_cutout_mdi", "processed_path_image_mdi", "quicklook_path_mdi"),
+    )
+    if AR_filtered.empty:
+        raise ValueError("No front-hemisphere samples remain after longitude filtering.")
 
-    # Split the dataset into train, validation, and test sets
     train_df, val_df, test_df = mci_ut_d.split_dataset(
         df=AR_filtered,
         group_column="number",
@@ -86,33 +138,46 @@ def main(args):
         train_size=config.train_size,
         val_size=config.val_size,
         test_size=config.test_size,
-        random_state=42,
+        random_state=config.random_state,
         verbose=True,
     )
 
-    if experiment:
-        experiment.log_dataset_hash(train_df)
-        experiment.log_dataset_hash(val_df)
-        experiment.log_dataset_hash(test_df)
+    _safe_experiment_call(experiment, "dataset hash logging", "log_dataset_hash", train_df)
+    _safe_experiment_call(experiment, "dataset hash logging", "log_dataset_hash", val_df)
+    _safe_experiment_call(experiment, "dataset hash logging", "log_dataset_hash", test_df)
 
-    # Create datasets and corresponding loaders
     train_dataset = mci_ut_d.SunspotDataset(
         config.data_folder, config.dataset_folder, train_df, transform=config.train_transforms
     )
     val_dataset = mci_ut_d.SunspotDataset(config.data_folder, config.dataset_folder, val_df)
     test_dataset = mci_ut_d.SunspotDataset(config.data_folder, config.dataset_folder, test_df)
 
+    data_loader_generator = torch.Generator()
+    data_loader_generator.manual_seed(int(config.random_state))
+
     train_loader = DataLoader(
-        train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=config.num_workers, pin_memory=True
+        train_dataset,
+        batch_size=config.batch_size,
+        shuffle=True,
+        num_workers=config.num_workers,
+        pin_memory=torch.cuda.is_available(),
+        generator=data_loader_generator,
     )
     val_loader = DataLoader(
-        val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers, pin_memory=True
+        val_dataset,
+        batch_size=config.batch_size,
+        shuffle=False,
+        num_workers=config.num_workers,
+        pin_memory=torch.cuda.is_available(),
     )
     test_loader = DataLoader(
-        test_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers, pin_memory=True
+        test_dataset,
+        batch_size=config.batch_size,
+        shuffle=False,
+        num_workers=config.num_workers,
+        pin_memory=torch.cuda.is_available(),
     )
 
-    # Function to print class distribution summaries
     def get_class_distribution_summary(train_df, val_df, test_df, component):
         train_counts = train_df[component].value_counts()
         val_counts = val_df[component].value_counts()
@@ -136,7 +201,6 @@ def main(args):
         summary_df = get_class_distribution_summary(train_df, val_df, test_df, component)
         display(summary_df)
 
-    # Plot a histogram of combined classes
     ut_v.make_classes_histogram(
         AR_filtered["Z_component_grouped"] + AR_filtered["p_component_grouped"] + AR_filtered["c_component_grouped"],
         figsz=(21, 8),
@@ -144,7 +208,6 @@ def main(args):
         text_fontsize=8,
     )
 
-    # Build mapping for valid classes
     valid_combined_classes = sorted(
         list(
             set(
@@ -170,12 +233,10 @@ def main(args):
     valid_p_for_z = {k: sorted(v) for k, v in valid_p_for_z.items()}
     valid_c_for_zp = {k: sorted(v) for k, v in valid_c_for_zp.items()}
 
-    # Determine number of classes for each component
     num_classes_Z = len(AR_filtered["Z_component_grouped"].unique())
     num_classes_P = len(AR_filtered["p_component_grouped"].unique())
     num_classes_C = len(AR_filtered["c_component_grouped"].unique())
 
-    # Initialize the model and replace activations
     model = HierarchicalResNet(
         num_classes_Z=num_classes_Z,
         num_classes_P=num_classes_P,
@@ -184,11 +245,9 @@ def main(args):
     ).to(device)
     ut_t.replace_activations(model, nn.ReLU, nn.LeakyReLU, negative_slope=0.01)
     num_params = ut_t.count_trainable_parameters(model, print_num=True)
-    if experiment:
-        experiment.set_model_graph(str(model))
-        experiment.log_metric("trainable_parameters", num_params)
+    _safe_experiment_call(experiment, "model graph logging", "set_model_graph", str(model))
+    _safe_experiment_call(experiment, "metric logging", "log_metric", "trainable_parameters", num_params)
 
-    # Define loss functions with class weights
     z_weights = mci_ut_d.compute_weights(train_df["Z_grouped_encoded"], num_classes_Z)
     p_weights = mci_ut_d.compute_weights(train_df["p_grouped_encoded"], num_classes_P)
     c_weights = mci_ut_d.compute_weights(train_df["c_grouped_encoded"], num_classes_C)
@@ -196,22 +255,20 @@ def main(args):
     criterion_P = nn.CrossEntropyLoss(weight=p_weights.to(device))
     criterion_C = nn.CrossEntropyLoss(weight=c_weights.to(device))
 
-    # Setup optimizer and gradient scaler
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
-    cuda_version = torch.version.cuda
-    if cuda_version and float(cuda_version) < 11.8:
-        scaler = torch.cuda.amp.GradScaler()
-    else:
-        scaler = torch.amp.GradScaler("cuda")
+    scaler = None
+    if device.startswith("cuda"):
+        cuda_version = torch.version.cuda
+        if cuda_version and float(cuda_version) < 11.8:
+            scaler = torch.cuda.amp.GradScaler()
+        else:
+            scaler = torch.amp.GradScaler("cuda")
 
-    # Initialize training tracking variables
     teacher_forcing_ratio = config.initial_teacher_forcing_ratio if config.teacher_forcing else None
     best_val_metric = 0.0
     patience_counter = 0
 
-    # Training and validation loop
     for epoch in range(config.epochs):
-        # Training step
         train_dict = mci_ut_t.train(
             model=model,
             device=device,
@@ -223,7 +280,6 @@ def main(args):
             teacher_forcing_ratio=teacher_forcing_ratio,
             scaler=scaler,
         )
-        # Validation step
         val_dict = mci_ut_t.evaluate(
             model=model,
             device=device,
@@ -233,23 +289,21 @@ def main(args):
             criterion_c=criterion_C,
         )
 
-        if experiment:
-            metrics = {
-                "avg_train_loss": train_dict["train_loss"],
-                "train_accuracy": train_dict["avg_train_accuracy"],
-                "train_accuracy_z": train_dict["train_accuracy_z"],
-                "train_accuracy_p": train_dict["train_accuracy_p"],
-                "train_accuracy_c": train_dict["train_accuracy_c"],
-                "avg_val_loss": val_dict["val_loss"],
-                "val_accuracy": val_dict["avg_val_accuracy"],
-                "val_accuracy_z": val_dict["val_accuracy_z"],
-                "val_accuracy_p": val_dict["val_accuracy_p"],
-                "val_accuracy_c": val_dict["val_accuracy_c"],
-                "teacher_forcing_ratio": teacher_forcing_ratio or 0,
-            }
-            experiment.log_metrics(metrics, epoch=epoch)
+        metrics = {
+            "avg_train_loss": train_dict["train_loss"],
+            "train_accuracy": train_dict["avg_train_accuracy"],
+            "train_accuracy_z": train_dict["train_accuracy_z"],
+            "train_accuracy_p": train_dict["train_accuracy_p"],
+            "train_accuracy_c": train_dict["train_accuracy_c"],
+            "avg_val_loss": val_dict["val_loss"],
+            "val_accuracy": val_dict["avg_val_accuracy"],
+            "val_accuracy_z": val_dict["val_accuracy_z"],
+            "val_accuracy_p": val_dict["val_accuracy_p"],
+            "val_accuracy_c": val_dict["val_accuracy_c"],
+            "teacher_forcing_ratio": teacher_forcing_ratio or 0,
+        }
+        _safe_experiment_call(experiment, "metric logging", "log_metrics", metrics, epoch=epoch)
 
-        # Print epoch information
         if teacher_forcing_ratio is not None:
             print(f"Epoch {epoch + 1}/{config.epochs}: Teacher Forcing Ratio = {teacher_forcing_ratio:.3f}")
         else:
@@ -269,14 +323,12 @@ def main(args):
         if stop_training:
             break
 
-        # Update teacher forcing ratio if applicable
         if config.teacher_forcing and teacher_forcing_ratio is not None:
             teacher_forcing_ratio = max(
                 config.min_teacher_forcing_ratio,
                 teacher_forcing_ratio * config.teacher_forcing_decay,
             )
 
-    # Load the best model for testing
     model = ut_t.load_model_test(weights_dir, model, device)
     (
         accuracy_z,
@@ -291,7 +343,7 @@ def main(args):
         pred_labels_p,
         true_labels_c,
         pred_labels_c,
-    ) = mci_ut_t.test(
+    ) = mci_ut_t.validate(
         model=model,
         device=device,
         loader=test_loader,
@@ -299,31 +351,37 @@ def main(args):
         valid_c_for_zp=valid_c_for_zp,
     )
 
-    if experiment:
-        log_model(experiment, model=model, model_name=config.resnet_version)
-        experiment.log_metrics(
-            {
-                "test_accuracy_z": accuracy_z,
-                "test_accuracy_p": accuracy_p,
-                "test_accuracy_c": accuracy_c,
-                "test_f1_score_z": f1_score_z,
-                "test_f1_score_p": f1_score_p,
-                "test_f1_score_c": f1_score_c,
-            }
-        )
+    if experiment and log_model is not None:
+        try:
+            log_model(experiment, model=model, model_name=config.resnet_version)
+        except Exception as exc:
+            print(f"[WARN] Comet model logging failed: {exc}")
+    _safe_experiment_call(
+        experiment,
+        "metric logging",
+        "log_metrics",
+        {
+            "test_accuracy_z": accuracy_z,
+            "test_accuracy_p": accuracy_p,
+            "test_accuracy_c": accuracy_c,
+            "test_f1_score_z": f1_score_z,
+            "test_f1_score_p": f1_score_p,
+            "test_f1_score_c": f1_score_c,
+        },
+    )
 
-    # Print test results
     mci_ut_t.print_test_scores(accuracy_z, accuracy_p, accuracy_c, f1_score_z, f1_score_p, f1_score_c)
 
-    # Compute and log confusion matrices
     labels_z = [str(label) for label in encoders["Z_encoder"].classes_]
     labels_p = [str(label) for label in encoders["p_encoder"].classes_]
     labels_c = [str(label) for label in encoders["c_encoder"].classes_]
 
     figsize = (6, 6)
-    z_cm_path = os.path.join(os.path.dirname(ut_t_file_path), "temp", "confusion_matrix_z.png")
-    p_cm_path = os.path.join(os.path.dirname(ut_t_file_path), "temp", "confusion_matrix_p.png")
-    c_cm_path = os.path.join(os.path.dirname(ut_t_file_path), "temp", "confusion_matrix_c.png")
+    temp_dir = os.path.join(os.path.dirname(ut_t_file_path), "temp")
+    os.makedirs(temp_dir, exist_ok=True)
+    z_cm_path = os.path.join(temp_dir, "confusion_matrix_z.png")
+    p_cm_path = os.path.join(temp_dir, "confusion_matrix_p.png")
+    c_cm_path = os.path.join(temp_dir, "confusion_matrix_c.png")
 
     cm_z = confusion_matrix(true_labels_z, pred_labels_z)
     cm_p = confusion_matrix(true_labels_p, pred_labels_p)
@@ -332,30 +390,37 @@ def main(args):
     ut_v.plot_confusion_matrix(cm_z, labels_z, "Z Component", figsize=figsize, save_path=z_cm_path)
     ut_v.plot_confusion_matrix(cm_p, labels_p, "p Component", figsize=figsize, save_path=p_cm_path)
     ut_v.plot_confusion_matrix(cm_c, labels_c, "c Component", figsize=figsize, save_path=c_cm_path)
-    if experiment:
-        experiment.log_image(z_cm_path, name="Z Component")
-        experiment.log_image(p_cm_path, name="p Component")
-        experiment.log_image(c_cm_path, name="c Component")
-        experiment.log_confusion_matrix(
-            matrix=np.array(cm_z),
-            title="Confusion Matrix at best val epoch - Z Component",
-            file_name="test_confusion_matrix_Z.json",
-            labels=labels_z,
-        )
-        experiment.log_confusion_matrix(
-            matrix=np.array(cm_p),
-            title="Confusion Matrix at best val epoch - p Component",
-            file_name="test_confusion_matrix_p.json",
-            labels=labels_p,
-        )
-        experiment.log_confusion_matrix(
-            matrix=np.array(cm_c),
-            title="Confusion Matrix at best val epoch - c Component",
-            file_name="test_confusion_matrix_c.json",
-            labels=labels_c,
-        )
+    _safe_experiment_call(experiment, "image logging", "log_image", z_cm_path, name="Z Component")
+    _safe_experiment_call(experiment, "image logging", "log_image", p_cm_path, name="p Component")
+    _safe_experiment_call(experiment, "image logging", "log_image", c_cm_path, name="c Component")
+    _safe_experiment_call(
+        experiment,
+        "confusion matrix logging",
+        "log_confusion_matrix",
+        matrix=np.array(cm_z),
+        title="Confusion Matrix at best val epoch - Z Component",
+        file_name="test_confusion_matrix_Z.json",
+        labels=labels_z,
+    )
+    _safe_experiment_call(
+        experiment,
+        "confusion matrix logging",
+        "log_confusion_matrix",
+        matrix=np.array(cm_p),
+        title="Confusion Matrix at best val epoch - p Component",
+        file_name="test_confusion_matrix_p.json",
+        labels=labels_p,
+    )
+    _safe_experiment_call(
+        experiment,
+        "confusion matrix logging",
+        "log_confusion_matrix",
+        matrix=np.array(cm_c),
+        title="Confusion Matrix at best val epoch - c Component",
+        file_name="test_confusion_matrix_c.json",
+        labels=labels_c,
+    )
 
-    # Compute grouped class confusion matrix and scores
     true_grouped = [(true_labels_z[i], true_labels_p[i], true_labels_c[i]) for i in range(len(true_labels_z))]
     pred_grouped = [(pred_labels_z[i], pred_labels_p[i], pred_labels_c[i]) for i in range(len(pred_labels_z))]
     true_grouped_labels = [
@@ -367,12 +432,12 @@ def main(args):
         for i in range(len(pred_grouped))
     ]
     encoder = LabelEncoder()
-    encoder.fit(true_grouped_labels)
-    class_mapping = {label: idx for idx, label in enumerate(encoder.classes_)}
+    all_grouped_labels = sorted(set(true_grouped_labels) | set(pred_grouped_labels))
+    encoder.fit(all_grouped_labels)
     encoded_true = encoder.transform(true_grouped_labels)
-    encoded_pred = [class_mapping[pred] for pred in pred_grouped_labels]
+    encoded_pred = encoder.transform(pred_grouped_labels)
 
-    grouped_cm_path = os.path.join(os.path.dirname(ut_t_file_path), "temp", "confusion_matrix_grouped.png")
+    grouped_cm_path = os.path.join(temp_dir, "confusion_matrix_grouped.png")
     cm_gr = confusion_matrix(encoded_true, encoded_pred, labels=range(len(encoder.classes_)))
     ut_v.plot_confusion_matrix(
         cmc=cm_gr,
@@ -387,46 +452,50 @@ def main(args):
 
     print(f"Grouped Accuracy: {grouped_accuracy:.4f}")
     print(f"Grouped F1 Score (Macro): {grouped_f1_score:.4f}")
-    if experiment:
-        experiment.log_metrics(
-            {
-                "grouped_accuracy": grouped_accuracy,
-                "grouped_f1_score_macro": grouped_f1_score,
-            }
-        )
-        experiment.log_image(grouped_cm_path, name="Grouped Confusion Matrix")
-        experiment.log_confusion_matrix(
-            matrix=np.array(cm_gr),
-            title="Confusion Matrix at best val epoch - Grouped Classes",
-            file_name="grouped_confusion_matrix.json",
-            labels=list(encoder.classes_),
-        )
-
-    # Example: Predict a single sample
-    idx = 3567
-    row = test_df.iloc[idx]
-    region_input, label = test_dataset[idx]
-    region_input = region_input.unsqueeze(0)
-
-    model.eval()
-    with torch.no_grad():
-        outputs_z, outputs_p, outputs_c = model(region_input.to(device))
-    _, pred_z = torch.max(outputs_z, 1)
-    _, pred_p = torch.max(outputs_p, 1)
-    _, pred_c = torch.max(outputs_c, 1)
-    final_class_z = encoders["Z_encoder"].inverse_transform(pred_z.cpu().numpy())
-    final_class_p = encoders["p_encoder"].inverse_transform(pred_p.cpu().numpy())
-    final_class_c = encoders["c_encoder"].inverse_transform(pred_c.cpu().numpy())
-    final_class = final_class_z[0] + final_class_p[0] + final_class_c[0]
-    print(f"Original class: {row['mcintosh_class']}")
-    print(
-        f"Original Grouped class: {row['Z_component_grouped']}{row['p_component_grouped']}{row['c_component_grouped']}"
+    _safe_experiment_call(
+        experiment,
+        "metric logging",
+        "log_metrics",
+        {
+            "grouped_accuracy": grouped_accuracy,
+            "grouped_f1_score_macro": grouped_f1_score,
+        },
     )
-    print(f"Predicted Final Class: {final_class}")
-    mci_ut_d.display_sample_image(config.data_folder, config.dataset_folder, test_df, idx)
+    _safe_experiment_call(experiment, "image logging", "log_image", grouped_cm_path, name="Grouped Confusion Matrix")
+    _safe_experiment_call(
+        experiment,
+        "confusion matrix logging",
+        "log_confusion_matrix",
+        matrix=np.array(cm_gr),
+        title="Confusion Matrix at best val epoch - Grouped Classes",
+        file_name="grouped_confusion_matrix.json",
+        labels=list(encoder.classes_),
+    )
 
-    if experiment:
-        experiment.end()
+    demo_index = getattr(args, "demo_index", None)
+    if demo_index is not None and 0 <= demo_index < len(test_df):
+        row = test_df.iloc[demo_index]
+        region_input, _ = test_dataset[demo_index]
+        region_input = region_input.unsqueeze(0)
+
+        model.eval()
+        with torch.no_grad():
+            outputs_z, outputs_p, outputs_c = model(region_input.to(device))
+        _, pred_z = torch.max(outputs_z, 1)
+        _, pred_p = torch.max(outputs_p, 1)
+        _, pred_c = torch.max(outputs_c, 1)
+        final_class_z = encoders["Z_encoder"].inverse_transform(pred_z.cpu().numpy())
+        final_class_p = encoders["p_encoder"].inverse_transform(pred_p.cpu().numpy())
+        final_class_c = encoders["c_encoder"].inverse_transform(pred_c.cpu().numpy())
+        final_class = final_class_z[0] + final_class_p[0] + final_class_c[0]
+        print(f"Original class: {row['mcintosh_class']}")
+        print(
+            f"Original Grouped class: {row['Z_component_grouped']}{row['p_component_grouped']}{row['c_component_grouped']}"
+        )
+        print(f"Predicted Final Class: {final_class}")
+        mci_ut_d.display_sample_image(config.data_folder, config.dataset_folder, test_df, demo_index)
+
+    _safe_experiment_call(experiment, "run finalization", "end")
 
 
 if __name__ == "__main__":
@@ -434,7 +503,6 @@ if __name__ == "__main__":
         description="Train and evaluate the HierarchicalResNet model with configurable options."
     )
 
-    # --- General Parameters ---
     parser.add_argument(
         "--resnet_version", type=str, default=config.resnet_version, help="ResNet version (default: %(default)s)"
     )
@@ -459,7 +527,6 @@ if __name__ == "__main__":
         "--random_state", type=int, default=config.random_state, help="Random state (default: %(default)s)"
     )
 
-    # --- Teacher Forcing Parameters ---
     parser.add_argument(
         "--initial_teacher_forcing_ratio",
         type=float,
@@ -480,12 +547,13 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--teacher_forcing",
-        type=bool,
+        type=_str2bool,
+        nargs="?",
+        const=True,
         default=config.teacher_forcing,
         help="Use teacher forcing (default: %(default)s)",
     )
 
-    # --- Dataset Parameters ---
     parser.add_argument(
         "--data_folder", type=str, default=config.data_folder, help="Path to the data folder (default: %(default)s)"
     )
@@ -523,9 +591,13 @@ if __name__ == "__main__":
         help="Plot histograms of class distributions (default: %(default)s)",
     )
 
-    # --- Comet Logging Parameters ---
     parser.add_argument(
-        "--use_comet", type=bool, default=config.use_comet, help="Use Comet ML logging (default: %(default)s)"
+        "--use_comet",
+        type=_str2bool,
+        nargs="?",
+        const=True,
+        default=config.use_comet,
+        help="Use Comet ML logging (default: %(default)s)",
     )
     parser.add_argument(
         "--project_name", type=str, default=config.project_name, help="Comet project name (default: %(default)s)"
@@ -533,10 +605,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "--workspace", type=str, default=config.workspace, help="Comet workspace (default: %(default)s)"
     )
+    parser.add_argument(
+        "--demo_index",
+        type=int,
+        default=None,
+        help="Optional index in test split to run single-sample prediction demo.",
+    )
 
     args = parser.parse_args()
 
-    # Overwrite the configuration in config.py with any provided command-line values:
     config.resnet_version = args.resnet_version
     config.gpu_index = args.gpu_index
     config.epochs = args.epochs
@@ -564,4 +641,4 @@ if __name__ == "__main__":
     config.project_name = args.project_name
     config.workspace = args.workspace
 
-    main()
+    main(args)
