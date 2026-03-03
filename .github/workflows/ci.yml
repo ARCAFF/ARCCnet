@@ -36,6 +36,8 @@ jobs:
       submodules: false
       coverage: codecov
       posargs: -n auto
+      env: |
+        USERNAME: ci-user # pytoch issue on windows
       envs: |
         - macos: py311-test
         - windows: py311-test
