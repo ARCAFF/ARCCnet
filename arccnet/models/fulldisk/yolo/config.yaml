@@ -1,0 +1,7 @@
+names:
+  0: Alpha
+  1: Beta
+  2: Beta-Gamma
+nc: 3
+train: /ARCAFF/data/YOLO/mag/images/train
+val: /ARCAFF/data/YOLO/mag/images/val

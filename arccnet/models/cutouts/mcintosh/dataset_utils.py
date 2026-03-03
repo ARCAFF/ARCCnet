@@ -1,4 +1,7 @@
+"""Dataset utilities for McIntosh classification."""
+
 import os
+import logging
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,29 +12,34 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.class_weight import compute_class_weight
 from torch.utils.data import Dataset
 
-from astropy.io import fits
-
 from arccnet.models import dataset_utils as ut_d
+from arccnet.models import preprocessing_common as pp_common
 from arccnet.visualisation import utils as ut_v
+
+logger = logging.getLogger(__name__)
 
 
 def display_sample_image(data_folder: str, dataset_folder: str, df: pd.DataFrame, index: int = 15):
     """
-    Displays a sample image from the dataset at the specified index.
+    Display a sample image from the dataset.
 
     Args:
-        data_folder (str): Path to the data directory.
-        dataset_folder (str): Name of the dataset subdirectory.
-        df (pd.DataFrame): DataFrame containing dataset information.
-        index (int, optional): Index of the sample to display. Defaults to 15.
+        data_folder: Path to data directory
+        dataset_folder: Dataset subdirectory name
+        df: DataFrame with dataset info
+        index: Sample index to display
     """
 
     row = df.iloc[index]
-    path_key = "path_image_cutout_hmi" if row["path_image_cutout_hmi"] != "" else "path_image_cutout_mdi"
-    fits_file_path = os.path.join(data_folder, dataset_folder, row[path_key])
+    fits_file_path = pp_common.resolve_preferred_cutout_fits_path(
+        row,
+        data_folder=data_folder,
+        dataset_folder=dataset_folder,
+    )
+    if fits_file_path is None:
+        raise FileNotFoundError(f"No valid cutout FITS path found for row index {index}")
 
-    with fits.open(fits_file_path, memmap=True) as img_fits:
-        image_data = np.array(img_fits[1].data, dtype=np.float32)
+    image_data = pp_common.load_fits_hdu_data(fits_file_path, hdu_index=1, dtype=np.float32)
 
     plt.figure(figsize=(10, 6))
     vlim = np.max(np.abs(image_data))
@@ -43,46 +51,62 @@ def display_sample_image(data_folder: str, dataset_folder: str, df: pd.DataFrame
 
 def process_ar_dataset(
     data_folder,
-    dataset_folder="arccnet-cutout-dataset-v20240715",
-    df_name="cutout-magnetic-catalog-v20240715.parq",
+    dataset_folder="arccnet-v20251017/04_final",
+    df_name="data/cutout_classification/region_classification.parq",
     plot_histograms=True,
     histogram_params=None,
+    nan_threshold: float | None = None,
     verbose=False,
 ):
     """
-    Processes the AR dataset by loading, filtering, grouping, encoding, and optionally visualizing class distributions.
+    Process AR dataset: load, filter, group, encode, and optionally visualize.
 
     Args:
-        data_folder (str, optional): Path to the data directory. If None, it uses the environment variable
-                                     "ARCAFF_DATA_FOLDER" or defaults to "../../../../data/".
-        dataset_folder (str): Name of the dataset subdirectory.
-        df_name (str): Filename of the Parquet file containing the catalog.
-        plot_histograms (bool): Whether to plot histograms of class distributions. Defaults to True.
-        histogram_params (dict, optional): Parameters for histogram plotting such as figure sizes,
-                                           y-axis offsets, and limits.
+        data_folder: Path to data directory
+        dataset_folder: Dataset subdirectory name
+        df_name: Parquet catalog filename
+        plot_histograms: Whether to plot distributions
+        histogram_params: Histogram plotting parameters
+        nan_threshold: Maximum NaN fraction (None to skip filtering)
+        verbose: Enable verbose logging
 
     Returns:
-        Tuple containing:
-            - AR_df (pd.DataFrame): Processed DataFrame with grouped and encoded labels.
-            - encoders (dict): Dictionary with LabelEncoders for Z, P, and C components.
-            - mappings (dict): Dictionary with mapping rules applied to Z, P, and C components.
+        Tuple of (processed DataFrame, encoders dict, mappings dict)
     """
 
-    # Set default data_folder if not provided
     if data_folder is None:
         data_folder = os.getenv("ARCAFF_DATA_FOLDER", "../../../../../data/")
 
-    df, _ = ut_d.make_dataframe(data_folder, dataset_folder, df_name)
+    _, AR_df, _ = ut_d.make_dataframe(data_folder, dataset_folder, df_name)
 
-    # Filter out rows where 'magnetic_class' is empty
-    AR_df = df[df["magnetic_class"] != ""].copy()
+    AR_df = ut_d.cleanup_df(AR_df, log_level=logging.INFO if verbose else None)
 
-    # Extract McIntosh classification components
+    AR_df = AR_df[AR_df["magnetic_class"] != ""].copy()
+    AR_df = AR_df[AR_df["mcintosh_class"].notna()].copy()
+    AR_df["mcintosh_class"] = AR_df["mcintosh_class"].astype(str).str.strip()
+    AR_df = AR_df[AR_df["mcintosh_class"].str.len() >= 3].copy()
+
+    if nan_threshold is not None:
+        before_nan_filter = len(AR_df)
+        AR_df, _ = pp_common.filter_cutouts_by_nan_threshold(
+            AR_df,
+            nan_threshold=nan_threshold,
+            data_folder=data_folder,
+            dataset_folder=dataset_folder,
+            hdu_index=1,
+        )
+        if verbose:
+            logger.info(
+                "NaN filtering retained %s/%s samples (threshold=%.3f)",
+                len(AR_df),
+                before_nan_filter,
+                nan_threshold,
+            )
+
     AR_df["Z_component"] = AR_df["mcintosh_class"].str[0]
     AR_df["p_component"] = AR_df["mcintosh_class"].str[1]
     AR_df["c_component"] = AR_df["mcintosh_class"].str[2]
 
-    # Histogram parameters
     default_hist_params = {
         "Z_component": {"y_off": 50, "ylim": 6600, "figsz": (10, 6), "title": "Z McIntosh Component"},
         "p_component": {"y_off": 50, "ylim": None, "figsz": (9, 6), "title": "p McIntosh Component"},
@@ -92,7 +116,6 @@ def process_ar_dataset(
     if histogram_params is not None:
         default_hist_params.update(histogram_params)
 
-    # Plot histograms for original components
     if plot_histograms:
         ut_v.make_classes_histogram(
             AR_df["Z_component"],
@@ -116,12 +139,11 @@ def process_ar_dataset(
             title=default_hist_params["c_component"].get("title", "c McIntosh Component"),
         )
 
-    # Define grouping mappings
     z_component_mapping = {
         "A": "A",
         "B": "B",
         "C": "C",
-        "D": "LG",  # Merge D, E, F into LG (LargeGroup)
+        "D": "LG",
         "E": "LG",
         "F": "LG",
         "H": "H",
@@ -130,13 +152,13 @@ def process_ar_dataset(
     p_component_mapping = {
         "x": "x",
         "r": "r",
-        "s": "sym",  # Merge s and h into sym
+        "s": "sym",
         "h": "sym",
-        "a": "asym",  # Merge a and k into asym
+        "a": "asym",
         "k": "asym",
     }
 
-    c_component_mapping = {"x": "x", "o": "o", "i": "frag", "c": "frag"}  # Merge i and c into frag
+    c_component_mapping = {"x": "x", "o": "o", "i": "frag", "c": "frag"}
 
     mappings = {
         "Z_component": z_component_mapping,
@@ -144,12 +166,18 @@ def process_ar_dataset(
         "c_component": c_component_mapping,
     }
 
-    # Apply the mappings to the respective columns
     AR_df["Z_component_grouped"] = AR_df["Z_component"].map(z_component_mapping)
     AR_df["p_component_grouped"] = AR_df["p_component"].map(p_component_mapping)
     AR_df["c_component_grouped"] = AR_df["c_component"].map(c_component_mapping)
+    grouped_cols = ["Z_component_grouped", "p_component_grouped", "c_component_grouped"]
+    before_group_filter = len(AR_df)
+    AR_df = AR_df.dropna(subset=grouped_cols).copy()
+    if verbose and len(AR_df) != before_group_filter:
+        logger.info(
+            "Dropped %s samples with unsupported McIntosh grouped components.",
+            before_group_filter - len(AR_df),
+        )
 
-    # Plot histograms for grouped components
     if plot_histograms:
         ut_v.make_classes_histogram(
             AR_df["Z_component_grouped"], y_off=50, figsz=(7, 6), title="Z McIntosh Component (Grouped)"
@@ -161,23 +189,19 @@ def process_ar_dataset(
             AR_df["c_component_grouped"], y_off=50, figsz=(5, 6), title="c McIntosh Component (Grouped)"
         )
 
-    # Initialize LabelEncoders
     z_encoder = LabelEncoder()
     p_encoder = LabelEncoder()
     c_encoder = LabelEncoder()
 
-    # Fit and transform the grouped labels for each component
     AR_df["Z_grouped_encoded"] = z_encoder.fit_transform(AR_df["Z_component_grouped"])
     AR_df["p_grouped_encoded"] = p_encoder.fit_transform(AR_df["p_component_grouped"])
     AR_df["c_grouped_encoded"] = c_encoder.fit_transform(AR_df["c_component_grouped"])
 
-    # Optionally, inspect the mappings
     if verbose:
         print("Z Component Label Encoding:", dict(zip(z_encoder.classes_, z_encoder.transform(z_encoder.classes_))))
         print("p Component Label Encoding:", dict(zip(p_encoder.classes_, p_encoder.transform(p_encoder.classes_))))
         print("c Component Label Encoding:", dict(zip(c_encoder.classes_, c_encoder.transform(c_encoder.classes_))))
 
-    # Compile encoders into a dictionary for easy access
     encoders = {"Z_encoder": z_encoder, "p_encoder": p_encoder, "c_encoder": c_encoder}
 
     return AR_df, encoders, mappings
@@ -187,6 +211,7 @@ def split_dataset(
     df: pd.DataFrame,
     group_column: str,
     plot_histograms: bool = False,
+    histogram_params: dict | None = None,
     train_size: float = 0.7,
     val_size: float = 0.15,
     test_size: float = 0.15,
@@ -194,73 +219,55 @@ def split_dataset(
     verbose: bool = True,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Splits the dataset into training, validation, and testing subsets based on group constraints.
-    Optionally plots histograms of class distributions for each split.
+    Split dataset into train/val/test with group constraints.
 
     Args:
-        df (pd.DataFrame): The input DataFrame to split.
-        group_column (str): The column name to group by (e.g., 'number').
-        plot_histograms (bool, optional): Whether to plot histograms for each split. Defaults to False.
-        histogram_params (dict, optional): Parameters for histogram plotting such as figure sizes,
-                                           y-axis offsets, and limits for each split. Expected keys:
-                                           'train', 'val', 'test', each mapping to a dict of parameters.
-        train_size (float, optional): Proportion of the dataset to include in the training set. Defaults to 0.7.
-        val_size (float, optional): Proportion of the dataset to include in the validation set. Defaults to 0.15.
-        test_size (float, optional): Proportion of the dataset to include in the testing set. Defaults to 0.15.
-        random_state (int, optional): Random seed for reproducibility. Defaults to 42.
-        verbose (bool, optional): If True, prints the sizes and checks after splitting. Defaults to True.
+        df: Input DataFrame
+        group_column: Column to group by (e.g., 'number')
+        plot_histograms: Whether to plot distributions
+        histogram_params: Histogram plotting parameters
+        train_size: Training set proportion
+        val_size: Validation set proportion
+        test_size: Test set proportion
+        random_state: Random seed
+        verbose: Print split sizes and verification
 
     Returns:
-        Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: A tuple containing the training, validation, and testing DataFrames.
+        Train, validation, and test DataFrames
 
     Raises:
-        ValueError: If the sum of train_size, val_size, and test_size does not equal 1.0.
-        AssertionError: If there is an overlap in groups across the splits.
+        ValueError: If split proportions don't sum to 1.0
+        AssertionError: If groups overlap across splits
     """
-    histogram_params = {
-        "train": {"figsz": (12, 8), "title_prefix": "Train Set"},
-        "val": {"figsz": (10, 6), "title_prefix": "Validation Set"},
-        "test": {"figsz": (8, 5), "title_prefix": "Test Set"},
-    }
-
-    # Validate split ratios
     total = train_size + val_size + test_size
     if not abs(total - 1.0) < 1e-6:
         raise ValueError(f"The sum of train_size, val_size, and test_size must be 1.0. Got {total}")
 
-    # Calculate proportions for the first split (train vs. remaining)
     train_prop = train_size
     remaining_prop = 1.0 - train_prop
 
-    # Initialize GroupShuffleSplit for the first split (train vs. remaining)
     gss_train = GroupShuffleSplit(n_splits=1, test_size=remaining_prop, random_state=random_state)
 
-    # Perform the first split based on the group_column
     train_idx, remaining_idx = next(gss_train.split(df, groups=df[group_column]))
 
     train_df = df.iloc[train_idx].reset_index(drop=True)
     remaining_df = df.iloc[remaining_idx].reset_index(drop=True)
 
-    # Calculate proportions for the second split (validation vs. test)
-    val_prop = val_size / (val_size + test_size)  # Proportion within the remaining data
+    val_prop = val_size / (val_size + test_size)
 
-    # Initialize GroupShuffleSplit for the second split (val vs. test)
     gss_val_test = GroupShuffleSplit(n_splits=1, test_size=1 - val_prop, random_state=random_state)
 
-    # Perform the second split based on the group_column
     val_idx, test_idx = next(gss_val_test.split(remaining_df, groups=remaining_df[group_column]))
 
     val_df = remaining_df.iloc[val_idx].reset_index(drop=True)
     test_df = remaining_df.iloc[test_idx].reset_index(drop=True)
 
     if verbose:
-        # Display split sizes and proportions
         total_samples = len(df)
         print(f"Train set: {len(train_df)} ({len(train_df) / total_samples * 100:.2f}%)")
         print(f"Validation set: {len(val_df)} ({len(val_df) / total_samples * 100:.2f}%)")
         print(f"Test set: {len(test_df)} ({len(test_df) / total_samples * 100:.2f}%)\n")
 
-        # Verify that no groups are shared between splits
         train_groups = set(train_df[group_column])
         val_groups = set(val_df[group_column])
         test_groups = set(test_df[group_column])
@@ -272,14 +279,12 @@ def split_dataset(
         print("No overlap in groups across Train, Validation, and Test sets.")
 
     if plot_histograms:
-        # Default histogram parameters for splits
         default_split_hist_params = {
             "train": {"y_off": 50, "ylim": None, "figsz": (10, 6), "title_prefix": "Train"},
             "val": {"y_off": 10, "ylim": None, "figsz": (9, 6), "title_prefix": "Validation"},
             "test": {"y_off": 10, "ylim": None, "figsz": (6, 6), "title_prefix": "Test"},
         }
 
-        # Update histogram parameters if provided
         if histogram_params is not None:
             for split, params in histogram_params.items():
                 if split in default_split_hist_params:
@@ -287,15 +292,12 @@ def split_dataset(
                 else:
                     default_split_hist_params[split] = params
 
-        # Define the splits and corresponding DataFrames
         splits = {"train": train_df, "val": val_df, "test": test_df}
 
-        # Iterate over each split and plot histograms
         for split_name, split_df in splits.items():
             params = default_split_hist_params.get(split_name, {})
             prefix = params.pop("title_prefix", split_name.capitalize())
 
-            # Plot histograms for original components in the split
             ut_v.make_classes_histogram(
                 split_df["Z_component"],
                 y_off=params.get("y_off", 50),
@@ -318,7 +320,6 @@ def split_dataset(
                 title=f"{prefix} - c McIntosh Component",
             )
 
-            # Plot histograms for grouped components in the split
             ut_v.make_classes_histogram(
                 split_df["Z_component_grouped"],
                 y_off=params.get("y_off", 50),
@@ -342,9 +343,7 @@ def split_dataset(
 
 
 class SunspotDataset(Dataset):
-    """
-    PyTorch Dataset for Sunspot AR images and hierarchical labels.
-    """
+    """PyTorch Dataset for sunspot AR images and hierarchical labels."""
 
     def __init__(
         self,
@@ -357,16 +356,16 @@ class SunspotDataset(Dataset):
         divisor=800.0,
     ):
         """
-        Initializes the SunspotDataset.
+        Initialize the SunspotDataset.
 
         Args:
-            data_folder (str): Path to the data directory.
-            dataset_folder (str): Name of the dataset subdirectory.
-            df (pd.DataFrame): DataFrame containing dataset information.
-            transform (callable, optional): Transformations to apply to the images. Defaults to None.
-            target_height (int, optional): Target height for image resizing. Defaults to 100.
-            target_width (int, optional): Target width for image resizing. Defaults to 200.
-            divisor (float, optional): Divisor for normalization. Defaults to 800.0.
+            data_folder: Path to data directory
+            dataset_folder: Dataset subdirectory name
+            df: DataFrame with dataset info
+            transform: Transformations to apply
+            target_height: Target height for resizing
+            target_width: Target width for resizing
+            divisor: Normalization divisor
         """
         self.df = df
         self.data_folder = data_folder
@@ -380,34 +379,32 @@ class SunspotDataset(Dataset):
         return len(self.df)
 
     def _load_image(self, row: pd.Series) -> tuple[torch.Tensor, tuple[int, int, int]]:
-        """
-        Loads and preprocesses an image from a FITS file.
-        """
-        path_key = "path_image_cutout_hmi" if row["path_image_cutout_hmi"] != "" else "path_image_cutout_mdi"
-        fits_file_path = os.path.join(self.data_folder, self.dataset_folder, row[path_key])
+        """Load and preprocess image from FITS file."""
+        fits_file_path = pp_common.resolve_preferred_cutout_fits_path(
+            row,
+            data_folder=self.data_folder,
+            dataset_folder=self.dataset_folder,
+        )
+        if fits_file_path is None:
+            raise FileNotFoundError(f"No valid cutout FITS path found for row index {row.name}")
 
-        with fits.open(fits_file_path, memmap=True) as img_fits:
-            image_data = np.array(img_fits[1].data, dtype=np.float32)
+        image_data = pp_common.load_fits_hdu_data(fits_file_path, hdu_index=1, dtype=np.float32)
 
         image_data = np.nan_to_num(image_data, nan=0.0)
 
-        # Apply transformations
         image_data = ut_v.hardtanh_transform_npy(image_data, divisor=self.divisor, min_val=-1.0, max_val=1.0)
         image_data = ut_v.pad_resize_normalize(
             image_data, target_height=self.target_height, target_width=self.target_width
         )
 
-        # Convert to tensor and add channel dimension
-        image = torch.from_numpy(image_data).unsqueeze(0)  # Shape: (1, H, W)
+        image = torch.from_numpy(image_data).unsqueeze(0)
 
         label = (int(row["Z_grouped_encoded"]), int(row["p_grouped_encoded"]), int(row["c_grouped_encoded"]))
 
         return image, label
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, tuple[int, int, int]]:
-        """
-        Retrieves the image and label at the specified index, returning processed image tensor and label tuple (Z, P, C).
-        """
+        """Get image and label tuple (Z, P, C) at specified index."""
         row = self.df.iloc[idx]
         image, label = self._load_image(row)
 
@@ -419,18 +416,33 @@ class SunspotDataset(Dataset):
 
 def compute_weights(labels, num_classes):
     """
-    Compute class weights using sklearn's compute_class_weight function.
+    Compute class weights for balanced training.
 
     Args:
-        labels (list or array-like): Array of labels for the dataset.
-        num_classes (int): Total number of unique classes.
+        labels: Array of labels
+        num_classes: Total number of classes
 
     Returns:
-        torch.Tensor: Tensor of class weights.
+        Tensor of class weights
     """
-    class_weights = compute_class_weight(
-        class_weight="balanced",
-        classes=np.arange(num_classes),
-        y=labels,
-    )
-    return torch.tensor(class_weights, dtype=torch.float)
+    labels = np.asarray(labels, dtype=np.int64)
+    class_weights = np.ones(int(num_classes), dtype=np.float32)
+    unique_labels = np.unique(labels)
+
+    if unique_labels.size > 0:
+        present_weights = compute_class_weight(
+            class_weight="balanced",
+            classes=unique_labels,
+            y=labels,
+        )
+        class_weights[unique_labels] = present_weights.astype(np.float32)
+
+    missing_labels = sorted(set(range(int(num_classes))) - set(unique_labels.tolist()))
+    if missing_labels:
+        logger.warning(
+            "Training split is missing classes %s; assigning zero class weight for those classes.",
+            missing_labels,
+        )
+        class_weights[missing_labels] = 0.0
+
+    return torch.tensor(class_weights, dtype=torch.float32)

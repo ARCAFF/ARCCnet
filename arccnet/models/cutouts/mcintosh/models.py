@@ -1,4 +1,7 @@
+"""Hierarchical ResNet model for McIntosh classification."""
+
 import random
+import logging
 
 import torch
 import torch.nn as nn
@@ -16,21 +19,22 @@ from torchvision.models import (
     Wide_ResNet101_2_Weights,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class HierarchicalResNet(nn.Module):
     def __init__(self, num_classes_Z: int, num_classes_P: int, num_classes_C: int, resnet_version: str = "resnet18"):
         """
-        ResNet model for multi-level classification with optional Teacher Forcing.
+        ResNet for multi-level classification with optional Teacher Forcing.
 
         Args:
-            num_classes_Z (int): Number of classes for the Z component.
-            num_classes_P (int): Number of classes for the P component.
-            num_classes_C (int): Number of classes for the C component.
-            resnet_version (str): Which ResNet variant to use (e.g., 'resnet18', 'resnet34', 'resnet50', etc.).
+            num_classes_Z: Number of Z component classes
+            num_classes_P: Number of P component classes
+            num_classes_C: Number of C component classes
+            resnet_version: ResNet variant (e.g., 'resnet18', 'resnet50')
         """
         super().__init__()
 
-        # Mapping of ResNet version strings to corresponding model functions and weights
         resnet_versions = {
             "resnet18": (models.resnet18, ResNet18_Weights.DEFAULT, 512),
             "resnet34": (models.resnet34, ResNet34_Weights.DEFAULT, 512),
@@ -49,19 +53,20 @@ class HierarchicalResNet(nn.Module):
             )
 
         resnet_fn, resnet_weights, backbone_output_size = resnet_versions[resnet_version]
-        self.resnet = resnet_fn(weights=resnet_weights)
+        try:
+            self.resnet = resnet_fn(weights=resnet_weights)
+        except Exception as exc:
+            logger.warning(
+                "Could not load pretrained weights for %s (%s). Falling back to random init.", resnet_version, exc
+            )
+            self.resnet = resnet_fn(weights=None)
 
-        # Modify the first convolutional layer to accept single-channel (monochrome) images
         self.resnet.conv1 = nn.Conv2d(in_channels=1, out_channels=64, kernel_size=7, stride=2, padding=3, bias=False)
 
-        # Remove the original fully connected layer
         self.resnet.fc = nn.Identity()
 
-        # Additional fully connected layer to project ResNet features into a lower dimension
         self.fc_features = nn.Linear(backbone_output_size, 224)
 
-        # Hierarchical classification heads
-        #    Z -> P -> C
         self.fc_Z = nn.Linear(224, num_classes_Z)
         self.fc_P = nn.Linear(224 + num_classes_Z, num_classes_P)
         self.fc_C = nn.Linear(224 + num_classes_Z + num_classes_P, num_classes_C)
@@ -74,57 +79,41 @@ class HierarchicalResNet(nn.Module):
         teacher_forcing_ratio=None,
     ) -> tuple:
         """
-        Forward pass of the UnifiedResNet model with optional Teacher Forcing.
+        Forward pass with optional Teacher Forcing.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (B, 1, H, W).
-            Z_true (torch.Tensor, optional): Ground truth labels for Z component. Shape: (B,).
-            P_true (torch.Tensor, optional): Ground truth labels for P component. Shape: (B,).
-            teacher_forcing_ratio (float, optional): Probability of using ground truth labels. If None, Teacher
-                                                     Forcing is disabled.
+            x: Input tensor (B, 1, H, W)
+            Z_true: Ground truth Z labels (B,)
+            P_true: Ground truth P labels (B,)
+            teacher_forcing_ratio: Probability of using ground truth labels
 
         Returns:
-            tuple: Contains probabilities for Z, P, and C classification heads.
-                   (Z_probs, P_probs, C_probs)
+            Logits for Z, P, and C components
         """
-        # Pass through ResNet backbone
-        features = self.resnet(x)  # shape: (B, 512)
+        features = self.resnet(x)
 
-        # Project features to 224 dimensions with ReLU activation
-        features_224 = F.relu(self.fc_features(features))  # shape: (B, 224)
+        features_224 = F.relu(self.fc_features(features))
 
-        # Z-component prediction
-        Z_logits = self.fc_Z(features_224)  # shape: (B, num_classes_Z)
-        Z_probs = F.softmax(Z_logits, dim=1)  # shape: (B, num_classes_Z)
+        Z_logits = self.fc_Z(features_224)
+        Z_probs = F.softmax(Z_logits, dim=1)
 
-        # Determine if teacher forcing is enabled for Z
         if self.training and teacher_forcing_ratio is not None and Z_true is not None:
             use_teacher_forcing_Z = random.random() < teacher_forcing_ratio
-            Z_input = (
-                F.one_hot(Z_true, num_classes=Z_probs.size(1)).float() if use_teacher_forcing_Z else Z_probs
-            )  # shape: (B, num_classes_Z)
+            Z_input = F.one_hot(Z_true, num_classes=Z_probs.size(1)).float() if use_teacher_forcing_Z else Z_probs
         else:
             Z_input = Z_probs
 
-        # P-component prediction (depends on Z)
-        P_input = torch.cat([features_224, Z_input], dim=1)  # shape: (B, 224 + num_classes_Z)
-        P_logits = self.fc_P(P_input)  # shape: (B, num_classes_P)
-        P_probs = F.softmax(P_logits, dim=1)  # shape: (B, num_classes_P)
+        P_input = torch.cat([features_224, Z_input], dim=1)
+        P_logits = self.fc_P(P_input)
+        P_probs = F.softmax(P_logits, dim=1)
 
-        # Determine if teacher forcing is enabled for P
         if self.training and teacher_forcing_ratio is not None and P_true is not None:
             use_teacher_forcing_P = random.random() < teacher_forcing_ratio
-            P_input_final = (
-                F.one_hot(P_true, num_classes=P_probs.size(1)).float() if use_teacher_forcing_P else P_probs
-            )  # shape: (B, num_classes_P)
+            P_input_final = F.one_hot(P_true, num_classes=P_probs.size(1)).float() if use_teacher_forcing_P else P_probs
         else:
             P_input_final = P_probs
 
-        # C-component prediction (depends on Z and P)
-        C_input = torch.cat(
-            [features_224, Z_input, P_input_final], dim=1
-        )  # shape: (B, 224 + num_classes_Z + num_classes_P)
-        C_logits = self.fc_C(C_input)  # shape: (B, num_classes_C)
-        C_probs = F.softmax(C_logits, dim=1)  # shape: (B, num_classes_C)
+        C_input = torch.cat([features_224, Z_input, P_input_final], dim=1)
+        C_logits = self.fc_C(C_input)
 
-        return Z_probs, P_probs, C_probs
+        return Z_logits, P_logits, C_logits

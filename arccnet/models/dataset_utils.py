@@ -10,6 +10,7 @@ from astropy.time import Time
 
 from arccnet import load_config
 from arccnet.models import labels
+from arccnet.models import preprocessing_common as pp_common
 
 config = load_config()
 
@@ -66,9 +67,11 @@ def _remove_problematic_quicklooks(df):
             return False
         return os.path.basename(path) in problematic_quicklooks
 
-    # Check both MDI and HMI quicklook paths
-    mask_mdi = df["quicklook_path_mdi"].apply(is_problematic)
-    mask_hmi = df["quicklook_path_hmi"].apply(is_problematic)
+    # Check both MDI and HMI quicklook paths when available.
+    mdi_paths = df["quicklook_path_mdi"] if "quicklook_path_mdi" in df.columns else pd.Series(None, index=df.index)
+    hmi_paths = df["quicklook_path_hmi"] if "quicklook_path_hmi" in df.columns else pd.Series(None, index=df.index)
+    mask_mdi = mdi_paths.apply(is_problematic)
+    mask_hmi = hmi_paths.apply(is_problematic)
     mask = mask_mdi | mask_hmi
     filtered_df = df[mask]
     df = df[~mask].reset_index(drop=True)
@@ -102,45 +105,56 @@ def cleanup_df(df, log_level=logging.INFO):
     """
     logger = logging.getLogger(__name__)
 
-    # Define quality flags
-    hmi_good_flags = {"", "0x00000000", "0x00000400"}
-    mdi_good_flags = {"", "00000000", "00000200"}
-
     # Filter by quality flags
-    df_clean = df[df["QUALITY_hmi"].isin(hmi_good_flags) & df["QUALITY_mdi"].isin(mdi_good_flags)].copy()
+    df_clean = pp_common.apply_quality_filter(df)
 
     if log_level is not None:
         _log_filtering_stats(df, df_clean, logger, log_level)
 
     # Remove rows where both paths are missing
-    def is_missing(series):
-        return series.isna() | (series == "") | (series == "None")
-
-    both_missing = is_missing(df_clean["path_image_cutout_hmi"]) & is_missing(df_clean["path_image_cutout_mdi"])
+    df_path_filtered = pp_common.apply_path_filter(df_clean)
 
     if log_level is not None:
-        _log_path_analysis(df_clean, both_missing, logger, log_level)
+        _log_path_analysis(df_clean, df_path_filtered, logger, log_level)
 
-    return df_clean[~both_missing].reset_index(drop=True)
+    return df_path_filtered.reset_index(drop=True)
 
 
 def _log_filtering_stats(df_orig, df_clean, logger, log_level):
     """Log data filtering statistics."""
-    df_HMI = df_orig[df_orig["path_image_cutout_mdi"] == ""]
-    df_MDI = df_orig[df_orig["path_image_cutout_hmi"] == ""]
+    hmi_available = (
+        pp_common.nonempty_path_mask(df_orig["path_image_cutout_hmi"])
+        if "path_image_cutout_hmi" in df_orig.columns
+        else pd.Series(False, index=df_orig.index)
+    )
+    mdi_available = (
+        pp_common.nonempty_path_mask(df_orig["path_image_cutout_mdi"])
+        if "path_image_cutout_mdi" in df_orig.columns
+        else pd.Series(False, index=df_orig.index)
+    )
 
-    hmi_good_flags = {"", "0x00000000", "0x00000400"}
-    mdi_good_flags = {"", "00000000", "00000200"}
+    hmi_good = (
+        df_orig["QUALITY_hmi"].map(lambda value: pp_common.is_good_quality_flag(value, "hmi"))
+        if "QUALITY_hmi" in df_orig.columns
+        else pd.Series(False, index=df_orig.index)
+    )
+    mdi_good = (
+        df_orig["QUALITY_mdi"].map(lambda value: pp_common.is_good_quality_flag(value, "mdi"))
+        if "QUALITY_mdi" in df_orig.columns
+        else pd.Series(False, index=df_orig.index)
+    )
 
-    df_HMI_clean = df_HMI[df_HMI["QUALITY_hmi"].isin(hmi_good_flags)]
-    df_MDI_clean = df_MDI[df_MDI["QUALITY_mdi"].isin(mdi_good_flags)]
+    hmi_count = int(hmi_available.sum())
+    mdi_count = int(mdi_available.sum())
+    hmi_clean_count = int((hmi_available & hmi_good).sum())
+    mdi_clean_count = int((mdi_available & mdi_good).sum())
 
     logger.log(log_level, "DATA FILTERING Stats")
     logger.log(log_level, "-" * 40)
 
     for name, orig, clean in [
-        ("HMI", len(df_HMI), len(df_HMI_clean)),
-        ("MDI", len(df_MDI), len(df_MDI_clean)),
+        ("HMI", hmi_count, hmi_clean_count),
+        ("MDI", mdi_count, mdi_clean_count),
         ("Total", len(df_orig), len(df_clean)),
     ]:
         pct = clean / orig * 100 if orig > 0 else 0
@@ -149,26 +163,40 @@ def _log_filtering_stats(df_orig, df_clean, logger, log_level):
     logger.log(log_level, "-" * 40)
 
 
-def _log_path_analysis(df_clean, both_missing, logger, log_level):
+def _log_path_analysis(df_clean, df_path_filtered, logger, log_level):
     """Log path analysis statistics."""
+    hmi_available = (
+        pp_common.nonempty_path_mask(df_clean["path_image_cutout_hmi"])
+        if "path_image_cutout_hmi" in df_clean.columns
+        else pd.Series(False, index=df_clean.index)
+    )
+    mdi_available = (
+        pp_common.nonempty_path_mask(df_clean["path_image_cutout_mdi"])
+        if "path_image_cutout_mdi" in df_clean.columns
+        else pd.Series(False, index=df_clean.index)
+    )
+
+    both_missing = int((~(hmi_available | mdi_available)).sum())
     stats = {
         "total": len(df_clean),
-        "hmi_none": (df_clean["path_image_cutout_hmi"] == "None").sum(),
-        "hmi_empty": (df_clean["path_image_cutout_hmi"] == "").sum(),
-        "mdi_none": (df_clean["path_image_cutout_mdi"] == "None").sum(),
-        "mdi_empty": (df_clean["path_image_cutout_mdi"] == "").sum(),
-        "both_missing": both_missing.sum(),
+        "hmi_available": int(hmi_available.sum()),
+        "hmi_missing": int((~hmi_available).sum()),
+        "mdi_available": int(mdi_available.sum()),
+        "mdi_missing": int((~mdi_available).sum()),
+        "both_missing": both_missing,
+        "retained": len(df_path_filtered),
     }
 
     logger.log(log_level, "PATH ANALYSIS:")
     logger.log(log_level, "-" * 40)
     logger.log(log_level, f"Total rows in df_clean: {stats['total']:,}")
-    logger.log(log_level, f"HMI paths - None: {stats['hmi_none']:,}, Empty: {stats['hmi_empty']:,}")
-    logger.log(log_level, f"MDI paths - None: {stats['mdi_none']:,}, Empty: {stats['mdi_empty']:,}")
+    logger.log(log_level, f"HMI paths - available: {stats['hmi_available']:,}, missing: {stats['hmi_missing']:,}")
+    logger.log(log_level, f"MDI paths - available: {stats['mdi_available']:,}, missing: {stats['mdi_missing']:,}")
     logger.log(
         log_level,
-        f"Both paths missing: {stats['both_missing']:,} ({stats['both_missing'] / stats['total'] * 100:.1f}%)",
+        f"Both paths missing: {stats['both_missing']:,} ({stats['both_missing'] / max(1, stats['total']) * 100:.1f}%)",
     )
+    logger.log(log_level, f"Rows retained after path filtering: {stats['retained']:,}")
 
 
 def undersample_group_filter(df, label_mapping, long_limit_deg=60, undersample=True, buffer_percentage=0.1):
@@ -414,19 +442,41 @@ def filter_by_location(df, lon_limit_deg=65, lat_limit_deg=None, limb_r_max=None
     Return masks and filtered DataFrames using |lon|, optional |lat| and optional inner-disc radius.
     Chooses HMI coords when an HMI path exists, else MDI.
     """
+    hmi_path_cols = ("path_image_cutout_hmi", "processed_path_image_hmi", "quicklook_path_hmi")
+    mdi_path_cols = ("path_image_cutout_mdi", "processed_path_image_mdi", "quicklook_path_mdi")
 
-    # Build an HMI-available mask from known path columns
-    def nonempty_mask(s):
-        return (~s.isna()) & (s != "") & (s != "None")
+    longitude = pp_common.select_longitude_series(
+        df,
+        hmi_longitude_col="longitude_hmi",
+        mdi_longitude_col="longitude_mdi",
+        hmi_path_col=hmi_path_cols,
+        mdi_path_col=mdi_path_cols,
+    )
+    latitude = pp_common.select_latitude_series(
+        df,
+        hmi_latitude_col="latitude_hmi",
+        mdi_latitude_col="latitude_mdi",
+        hmi_path_col=hmi_path_cols,
+        mdi_path_col=mdi_path_cols,
+    )
+    # Backward-compatible fallback for datasets that don't carry explicit MDI path columns.
+    if not any(col in df.columns for col in mdi_path_cols):
+        hmi_available = pp_common.availability_mask(df, hmi_path_cols)
+        mdi_longitude = (
+            pd.to_numeric(df["longitude_mdi"], errors="coerce")
+            if "longitude_mdi" in df.columns
+            else pd.Series(np.nan, index=df.index)
+        )
+        mdi_latitude = (
+            pd.to_numeric(df["latitude_mdi"], errors="coerce")
+            if "latitude_mdi" in df.columns
+            else pd.Series(np.nan, index=df.index)
+        )
+        longitude.loc[~hmi_available] = mdi_longitude.loc[~hmi_available]
+        latitude.loc[~hmi_available] = mdi_latitude.loc[~hmi_available]
 
-    hmi_candidates = ["path_image_cutout_hmi", "processed_path_image_hmi", "quicklook_path_hmi"]
-    hmi_mask = np.zeros(len(df), dtype=bool)
-    for col in hmi_candidates:
-        if col in df.columns:
-            hmi_mask |= nonempty_mask(df[col]).to_numpy()
-
-    lon_deg = np.where(hmi_mask, df["longitude_hmi"].to_numpy(), df["longitude_mdi"].to_numpy())
-    lat_deg = np.where(hmi_mask, df["latitude_hmi"].to_numpy(), df["latitude_mdi"].to_numpy())
+    lon_deg = longitude.to_numpy(dtype=np.float64)
+    lat_deg = latitude.to_numpy(dtype=np.float64)
 
     # Vector masks (avoid Python bools)
     lon_ok = (np.abs(lon_deg) <= lon_limit_deg) if lon_limit_deg is not None else np.ones(len(df), dtype=bool)
