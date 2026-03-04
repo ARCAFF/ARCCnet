@@ -181,13 +181,17 @@ def _format_class_distribution(
 ) -> pd.DataFrame:
     """Create class count and percentage table for each split."""
     class_ids = list(range(len(class_names)))
+
+    def _counts_by_class(df: pd.DataFrame) -> pd.Series:
+        counts = df[config.TARGET_COLUMN].value_counts().reindex(class_ids, fill_value=0).to_numpy(dtype=np.int64)
+        return pd.Series(counts, index=class_names)
+
     distribution = pd.DataFrame(
         {
-            "Train": train_df[config.TARGET_COLUMN].value_counts().reindex(class_ids, fill_value=0),
-            "Validation": val_df[config.TARGET_COLUMN].value_counts().reindex(class_ids, fill_value=0),
-            "Test": test_df[config.TARGET_COLUMN].value_counts().reindex(class_ids, fill_value=0),
+            "Train": _counts_by_class(train_df),
+            "Validation": _counts_by_class(val_df),
+            "Test": _counts_by_class(test_df),
         },
-        index=class_names,
     )
 
     formatted = distribution.copy()

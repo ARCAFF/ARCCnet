@@ -2,18 +2,18 @@
 
 import os
 
-MODEL_NAME = "vit_base_patch32_224"
+MODEL_NAME = "vit_base_patch16_224"
 PRETRAINED = False
 USE_WEIGHTED_LOSS = True
 LOSS_TYPE = "focal"
 FOCAL_ALPHA = 1.0
 FOCAL_GAMMA = 2.0
 ACCELERATOR = "auto"
-DEVICES = "auto"
+DEVICES = [0]
 PRECISION = "16-mixed"
 
 BATCH_SIZE = 64
-NUM_WORKERS = os.cpu_count() // 2 if os.cpu_count() else 1
+NUM_WORKERS = 16
 LEARNING_RATE = 1e-4
 MAX_EPOCHS = 500
 RANDOM_SEED = 42

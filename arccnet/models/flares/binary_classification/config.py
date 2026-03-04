@@ -2,20 +2,20 @@
 
 import os
 
-MODEL_NAME = "resnet50"
+MODEL_NAME = "resnet34"
 
-BATCH_SIZE = 128
-NUM_WORKERS = 32
-MAX_EPOCHS = 5
+BATCH_SIZE = 64
+NUM_WORKERS = 16
+MAX_EPOCHS = 500
 RANDOM_SEED = 42
 PATIENCE = 15
 CHECKPOINT_METRIC = "val_f1"
 
 ACCELERATOR = "auto"
-DEVICES = [2, 3]
+DEVICES = [0]
 PRECISION = "16-mixed"
 
-LOSS_FUNCTION = "focal"
+LOSS_FUNCTION = "weighted_bce"  # Options: "bce", "weighted_bce", "focal"
 FOCAL_ALPHA = 0.9
 FOCAL_GAMMA = 2.0
 
