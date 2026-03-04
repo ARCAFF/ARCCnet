@@ -107,7 +107,10 @@ def parser(args=None):
         "--fits_file_path",
         type=str,
         default=os.path.join(
-            config_module.data_folder, config_module.dataset_folder, "fits", "20160203_235809_I-12493_HMI_SIDE1.fits"
+            config_module.DATA_FOLDER,
+            config_module.DATASET_FOLDER,
+            "fits",
+            "20160203_235809_I-12493_HMI_SIDE1.fits",
         ),
         help="Path to the FITS file.",
     )

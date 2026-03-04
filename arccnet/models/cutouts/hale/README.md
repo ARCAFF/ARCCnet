@@ -15,7 +15,6 @@ This directory contains the Hale cutout classification pipeline (data prep, trai
 - `evaluation.py`: confusion matrix, ROC, and misclassification logging
 - `logging_utils.py`: logger setup and experiment logging helpers
 - `inference.py`: model download + single FITS inference
-- `test_setup.py`: consolidated environment/data setup verification
 
 ## Quick Start
 
@@ -23,11 +22,7 @@ This directory contains the Hale cutout classification pipeline (data prep, trai
    ```bash
    pip install -e .[models]
    ```
-2. Verify setup:
-   ```bash
-   python arccnet/models/cutouts/hale/test_setup.py
-   ```
-3. Run training:
+2. Run training:
    ```bash
    python arccnet/models/cutouts/hale/train.py
    ```
@@ -41,5 +36,4 @@ Processed parquet includes:
 
 ## Notes
 
-- Redundant helper scripts were consolidated into `test_setup.py`.
 - Exploratory EDA script files were removed from this runtime directory to keep the training path focused and maintainable.

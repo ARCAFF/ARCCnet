@@ -46,6 +46,11 @@ dependencies = [
 [project.optional-dependencies]
 models = [
     "torch~=2.6",
+    "pytorch-lightning",
+    "torchmetrics",
+    "seaborn",
+    "plotly",
+    "ultralytics",
     "timm",
     "comet_ml"
 ]
