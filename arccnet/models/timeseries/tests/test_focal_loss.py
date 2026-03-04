@@ -1,12 +1,6 @@
 """Tests for timeseries focal loss behavior."""
 
-import sys
-from pathlib import Path
-
 import torch
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from arccnet.models.timeseries.focal_loss import FocalLoss
 

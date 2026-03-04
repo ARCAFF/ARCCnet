@@ -1,12 +1,6 @@
 """Test data loading and shape validation."""
 
-import sys
-from pathlib import Path
-
 import pandas as pd
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from arccnet.models.timeseries.dataset import SDOTimeseriesDataset
 

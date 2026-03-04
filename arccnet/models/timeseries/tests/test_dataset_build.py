@@ -1,11 +1,7 @@
 """Test dataset building and basic functionality."""
 
-import sys
 import tempfile
 from pathlib import Path
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from arccnet.models.timeseries.manifest import build_dataset, parse_sample_dirname
 

@@ -1,12 +1,6 @@
 """Test model forward pass and output shapes."""
 
-import sys
-from pathlib import Path
-
 import torch
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from arccnet.models.timeseries import config as ts_config
 from arccnet.models.timeseries.flare_forecaster import FlareForecaster
