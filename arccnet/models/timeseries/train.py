@@ -49,6 +49,7 @@ SEED = ts_config.SEED
 RESIZE = ts_config.RESIZE
 NUM_CHANNELS = ts_config.NUM_CHANNELS
 NUM_TIMESTEPS = ts_config.NUM_TIMESTEPS
+TIMESTEP_SELECTION = ts_config.TIMESTEP_SELECTION
 GPU_ID = ts_config.GPU_ID
 TASK_TYPE = ts_config.TASK_TYPE
 SPLIT_STRATEGY = ts_config.SPLIT_STRATEGY
@@ -74,6 +75,7 @@ TEMPORAL_NUM_HEADS = ts_config.TEMPORAL_NUM_HEADS
 TEMPORAL_DIM_FEEDFORWARD = ts_config.TEMPORAL_DIM_FEEDFORWARD
 TEMPORAL_DROPOUT = ts_config.TEMPORAL_DROPOUT
 TEMPORAL_POOLING = ts_config.TEMPORAL_POOLING
+USE_TEMPORAL_TRANSFORMER = ts_config.USE_TEMPORAL_TRANSFORMER
 PRETRAINED_SPATIAL = ts_config.PRETRAINED_SPATIAL
 FREEZE_SPATIAL = ts_config.FREEZE_SPATIAL
 HIDDEN_DIMS = ts_config.HIDDEN_DIMS
@@ -147,7 +149,7 @@ def _resolve_data_root(data_root):
     )
 
 
-def _preflight_data_availability(manifest_df, task_type, sample_count=32):
+def _preflight_data_availability(manifest_df, task_type, num_timesteps, timestep_selection, sample_count=32):
     """
     Check whether referenced FITS files are physically available before training.
 
@@ -164,6 +166,8 @@ def _preflight_data_availability(manifest_df, task_type, sample_count=32):
         task_type=task_type,
         resize=RESIZE,
         augment=False,
+        num_timesteps=num_timesteps,
+        timestep_selection=timestep_selection,
         norm_stats={"mean": [0.0] * NUM_CHANNELS, "std": [1.0] * NUM_CHANNELS},
     )
 
@@ -171,7 +175,8 @@ def _preflight_data_availability(manifest_df, task_type, sample_count=32):
     missing = 0
     for _, row in probe.iterrows():
         paths = dataset_probe._parse_paths(row["paths"])
-        for t_paths in paths[:NUM_TIMESTEPS]:
+        selected_timesteps = dataset_probe._select_timesteps(paths)
+        for t_paths in selected_timesteps:
             for c_path in t_paths[:NUM_CHANNELS]:
                 if c_path is None or c_path == "None":
                     continue
@@ -198,7 +203,13 @@ def _preflight_data_availability(manifest_df, task_type, sample_count=32):
         )
 
 
-def _filter_manifest_by_data_availability(manifest_df, task_type, min_available_path_fraction=1.0):
+def _filter_manifest_by_data_availability(
+    manifest_df,
+    task_type,
+    num_timesteps,
+    timestep_selection,
+    min_available_path_fraction=1.0,
+):
     """
     Keep only samples whose referenced FITS paths are available on disk.
 
@@ -228,6 +239,8 @@ def _filter_manifest_by_data_availability(manifest_df, task_type, min_available_
         task_type=task_type,
         resize=RESIZE,
         augment=False,
+        num_timesteps=num_timesteps,
+        timestep_selection=timestep_selection,
         norm_stats={"mean": [0.0] * NUM_CHANNELS, "std": [1.0] * NUM_CHANNELS},
     )
 
@@ -239,7 +252,8 @@ def _filter_manifest_by_data_availability(manifest_df, task_type, min_available_
         checked = 0
         available = 0
         paths = dataset_probe._parse_paths(row["paths"])
-        for t_paths in paths[:NUM_TIMESTEPS]:
+        selected_timesteps = dataset_probe._select_timesteps(paths)
+        for t_paths in selected_timesteps:
             for c_path in t_paths[:NUM_CHANNELS]:
                 if c_path is None or c_path == "None":
                     continue
@@ -409,6 +423,39 @@ def _setup_experiment_loggers(
     return loggers, comet_logger
 
 
+def _serialize_hparam_value(value):
+    """Convert values into logger-friendly scalar/list/dict representations."""
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, (list, tuple, set)):
+        return [_serialize_hparam_value(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _serialize_hparam_value(item) for key, item in value.items()}
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _collect_config_hyperparams(config_module) -> dict:
+    """
+    Capture all upper-case configuration attributes as a flat snapshot.
+    """
+    snapshot = {}
+    for attr_name in dir(config_module):
+        if not attr_name.isupper():
+            continue
+        try:
+            value = getattr(config_module, attr_name)
+        except Exception:  # pragma: no cover - defensive
+            continue
+        snapshot[f"config_{attr_name.lower()}"] = _serialize_hparam_value(value)
+    return snapshot
+
+
 def _log_hyperparameters(loggers: list, hyperparams: dict) -> None:
     """Log run hyperparameters to all active loggers with graceful fallbacks."""
     if not hyperparams:
@@ -461,7 +508,24 @@ def main(args):
 
     # Task type
     task_type = args.task_type if args.task_type else TASK_TYPE
+    run_num_timesteps = args.num_timesteps if args.num_timesteps is not None else NUM_TIMESTEPS
+    run_timestep_selection = args.timestep_selection if args.timestep_selection else TIMESTEP_SELECTION
+    run_use_temporal_transformer = (
+        args.use_temporal_transformer if args.use_temporal_transformer is not None else USE_TEMPORAL_TRANSFORMER
+    )
+    run_num_timesteps = max(1, int(run_num_timesteps))
+    run_timestep_selection = str(run_timestep_selection).strip().lower()
+    if run_timestep_selection not in {"first", "last"}:
+        raise ValueError(
+            f"Unsupported timestep_selection={run_timestep_selection!r}. Expected one of: 'first', 'last'."
+        )
     logger.info(f"Task type: {task_type}")
+    logger.info(
+        "Input setup: num_timesteps=%s, timestep_selection=%s, use_temporal_transformer=%s",
+        run_num_timesteps,
+        run_timestep_selection,
+        run_use_temporal_transformer,
+    )
 
     # Setup checkpoint manager early so run artifacts can default to checkpoint directory.
     loss_fn = LOSS_FUNCTION if task_type == "multiclass" else "mse"
@@ -491,6 +555,8 @@ def main(args):
     manifest_df, dropped_unavailable_samples = _filter_manifest_by_data_availability(
         manifest_df,
         task_type=task_type,
+        num_timesteps=run_num_timesteps,
+        timestep_selection=run_timestep_selection,
         min_available_path_fraction=args.min_available_path_fraction,
     )
     available_manifest_samples = len(manifest_df)
@@ -510,7 +576,12 @@ def main(args):
     manifest_df.to_parquet(manifest_path, index=False)
     logger.info(f"Filtered manifest saved to {manifest_path} ({available_manifest_samples} samples)")
 
-    _preflight_data_availability(manifest_df, task_type=task_type)
+    _preflight_data_availability(
+        manifest_df,
+        task_type=task_type,
+        num_timesteps=run_num_timesteps,
+        timestep_selection=run_timestep_selection,
+    )
 
     # Split dataset
     split_strategy = SPLIT_STRATEGY
@@ -582,6 +653,8 @@ def main(args):
         task_type=task_type,
         resize=RESIZE,
         augment=False,
+        num_timesteps=run_num_timesteps,
+        timestep_selection=run_timestep_selection,
     )
     norm_stats = train_dataset_temp.get_norm_stats()
 
@@ -606,6 +679,8 @@ def main(args):
             num_workers=num_workers,
             resize=RESIZE,
             use_augmentation=USE_AUGMENTATION,
+            num_timesteps=run_num_timesteps,
+            timestep_selection=run_timestep_selection,
             hflip_prob=HFLIP_PROB,
             vflip_prob=VFLIP_PROB,
             rotation_degrees=ROTATION_DEGREES,
@@ -632,6 +707,7 @@ def main(args):
         temporal_dim_feedforward=TEMPORAL_DIM_FEEDFORWARD,
         temporal_dropout=TEMPORAL_DROPOUT,
         temporal_pooling=TEMPORAL_POOLING,
+        use_temporal_transformer=run_use_temporal_transformer,
         pretrained_spatial=PRETRAINED_SPATIAL,
         freeze_spatial=FREEZE_SPATIAL,
         hidden_dims=HIDDEN_DIMS,
@@ -702,37 +778,82 @@ def main(args):
         SAFE_GPU_MODE,
     )
 
-    run_hyperparams = {
-        "task_type": task_type,
-        "project_name": PROJECT_NAME,
-        "data_root": str(data_root),
-        "manifest_path": str(manifest_path),
-        "manifest_samples_total": total_manifest_samples,
-        "manifest_samples_available": available_manifest_samples,
-        "manifest_samples_dropped_unavailable": dropped_manifest_samples,
-        "min_available_path_fraction": float(args.min_available_path_fraction),
-        "output_dir": str(output_dir),
-        "split_strategy": split_strategy,
-        "train_samples": int(train_mask.sum()),
-        "val_samples": int(val_mask.sum()),
-        "test_samples": int(test_mask.sum()),
-        "num_classes": NUM_CLASSES if task_type == "multiclass" else REGRESSION_TARGETS,
-        "flare_class_names": FLARE_CLASS_NAMES if task_type == "multiclass" else [],
-        "batch_size": BATCH_SIZE,
-        "learning_rate": LEARNING_RATE,
-        "weight_decay": WEIGHT_DECAY,
-        "loss_function": LOSS_FUNCTION if task_type == "multiclass" else "mse",
-        "focal_alpha": FOCAL_LOSS_ALPHA,
-        "focal_gamma": FOCAL_LOSS_GAMMA,
-        "max_epochs": MAX_EPOCHS,
-        "precision": trainer_precision,
-        "accelerator": trainer_accelerator,
-        "devices": DEVICES,
-        "num_workers": effective_num_workers,
-        "safe_gpu_mode": SAFE_GPU_MODE,
-        "split_assignments_path": str(split_assignments_path),
-        "norm_stats_path": str(norm_stats_path),
-    }
+    run_hyperparams = _collect_config_hyperparams(ts_config)
+    run_hyperparams.update(
+        {
+            "task_type": task_type,
+            "project_name": PROJECT_NAME,
+            "data_root": str(data_root),
+            "manifest_path": str(manifest_path),
+            "manifest_samples_total": total_manifest_samples,
+            "manifest_samples_available": available_manifest_samples,
+            "manifest_samples_dropped_unavailable": dropped_manifest_samples,
+            "min_available_path_fraction": float(args.min_available_path_fraction),
+            "output_dir": str(output_dir),
+            "split_strategy": split_strategy,
+            "train_frac": float(TRAIN_FRAC),
+            "val_frac": float(VAL_FRAC),
+            "train_years": _serialize_hparam_value(TRAIN_YEARS),
+            "val_years": _serialize_hparam_value(VAL_YEARS),
+            "test_years": _serialize_hparam_value(TEST_YEARS),
+            "train_samples": int(train_mask.sum()),
+            "val_samples": int(val_mask.sum()),
+            "test_samples": int(test_mask.sum()),
+            "num_classes": NUM_CLASSES if task_type == "multiclass" else REGRESSION_TARGETS,
+            "flare_class_names": FLARE_CLASS_NAMES if task_type == "multiclass" else [],
+            "num_timesteps": int(run_num_timesteps),
+            "timestep_selection": str(run_timestep_selection),
+            "use_temporal_transformer": bool(run_use_temporal_transformer),
+            "num_channels": int(NUM_CHANNELS),
+            "resize": _serialize_hparam_value(RESIZE),
+            "batch_size": int(BATCH_SIZE),
+            "num_workers_config": int(NUM_WORKERS),
+            "num_workers": int(effective_num_workers),
+            "use_augmentation": bool(USE_AUGMENTATION),
+            "hflip_prob": float(HFLIP_PROB),
+            "vflip_prob": float(VFLIP_PROB),
+            "rotation_degrees": float(ROTATION_DEGREES),
+            "learning_rate": float(LEARNING_RATE),
+            "weight_decay": float(WEIGHT_DECAY),
+            "loss_function": LOSS_FUNCTION if task_type == "multiclass" else "mse",
+            "focal_alpha": _serialize_hparam_value(FOCAL_LOSS_ALPHA),
+            "focal_gamma": float(FOCAL_LOSS_GAMMA),
+            "spatial_feature_dim": int(SPATIAL_FEATURE_DIM),
+            "temporal_num_layers": int(TEMPORAL_NUM_LAYERS),
+            "temporal_num_heads": int(TEMPORAL_NUM_HEADS),
+            "temporal_dim_feedforward": int(TEMPORAL_DIM_FEEDFORWARD),
+            "temporal_dropout": float(TEMPORAL_DROPOUT),
+            "temporal_pooling": str(TEMPORAL_POOLING),
+            "pretrained_spatial": bool(PRETRAINED_SPATIAL),
+            "freeze_spatial": bool(FREEZE_SPATIAL),
+            "hidden_dims": _serialize_hparam_value(HIDDEN_DIMS),
+            "dropout": float(DROPOUT),
+            "gpu_id": _serialize_hparam_value(GPU_ID),
+            "seed": int(SEED),
+            "max_epochs": int(MAX_EPOCHS),
+            "early_stopping_patience": int(EARLY_STOPPING_PATIENCE),
+            "grad_clip_max_norm": float(GRAD_CLIP_MAX_NORM),
+            "log_every_n_steps": int(LOG_EVERY_N_STEPS),
+            "find_lr": bool(FIND_LR),
+            "lr_find_min": float(LR_FIND_MIN),
+            "lr_find_max": float(LR_FIND_MAX),
+            "lr_find_num_steps": int(LR_FIND_NUM_STEPS),
+            "precision_requested": str(requested_precision),
+            "precision": str(trainer_precision),
+            "accelerator_config": str(ACCELERATOR),
+            "accelerator": str(trainer_accelerator),
+            "devices": _serialize_hparam_value(DEVICES),
+            "safe_gpu_mode": bool(SAFE_GPU_MODE),
+            "checkpoint_root_name": f"timeseries/{task_type}",
+            "checkpoint_model_name": "resnet34_transformer",
+            "checkpoint_loss_function": str(loss_fn),
+            "enable_comet": bool(args.enable_comet),
+            "comet_project_name": str(args.comet_project_name),
+            "comet_workspace": _serialize_hparam_value(args.comet_workspace),
+            "split_assignments_path": str(split_assignments_path),
+            "norm_stats_path": str(norm_stats_path),
+        }
+    )
     if class_weights_computed is not None:
         run_hyperparams["class_weights"] = [float(weight) for weight in class_weights_computed]
     _log_hyperparameters(loggers, run_hyperparams)
@@ -846,6 +967,31 @@ if __name__ == "__main__":
         default=None,
         choices=["multiclass", "regression"],
         help="Task type (default: from config.TASK_TYPE)",
+    )
+    parser.add_argument(
+        "--num_timesteps",
+        type=int,
+        default=None,
+        help="Number of timesteps per sample to load (default: from config.NUM_TIMESTEPS).",
+    )
+    parser.add_argument(
+        "--timestep_selection",
+        type=str,
+        default=None,
+        choices=["first", "last"],
+        help="Select timesteps from the beginning or end of each sample (default: from config.TIMESTEP_SELECTION).",
+    )
+    parser.add_argument(
+        "--use_temporal_transformer",
+        type=train_utils.parse_bool_cli,
+        nargs="?",
+        const=True,
+        default=None,
+        help=(
+            "Enable/disable temporal transformer. "
+            "Examples: --use_temporal_transformer true|false. "
+            "Default: from config.USE_TEMPORAL_TRANSFORMER."
+        ),
     )
     parser.add_argument(
         "--data_root",

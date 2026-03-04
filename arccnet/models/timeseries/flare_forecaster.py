@@ -3,7 +3,7 @@
 import torch
 import torch.nn as nn
 
-from .config import NUM_CLASSES, TASK_TYPE
+from .config import NUM_CLASSES, TASK_TYPE, USE_TEMPORAL_TRANSFORMER
 from .spatial_encoder import SpatialEncoder
 from .temporal_transformer import TemporalTransformer
 
@@ -59,6 +59,7 @@ class FlareForecaster(nn.Module):
         temporal_dim_feedforward=2048,
         temporal_dropout=0.1,
         temporal_pooling="mean",
+        use_temporal_transformer=USE_TEMPORAL_TRANSFORMER,
         output_dim=None,
         pretrained_spatial=True,
         freeze_spatial=False,
@@ -70,6 +71,7 @@ class FlareForecaster(nn.Module):
         self.task_type = task_type or TASK_TYPE
         self.num_channels = num_channels
         self.spatial_feature_dim = spatial_feature_dim
+        self.use_temporal_transformer = bool(use_temporal_transformer)
         if output_dim is None:
             output_dim = NUM_CLASSES if self.task_type == "multiclass" else 3
         self.output_dim = output_dim
@@ -82,15 +84,17 @@ class FlareForecaster(nn.Module):
             freeze_backbone=freeze_spatial,
         )
 
-        # Temporal transformer
-        self.temporal_transformer = TemporalTransformer(
-            feature_dim=spatial_feature_dim,
-            num_layers=temporal_num_layers,
-            num_heads=temporal_num_heads,
-            dim_feedforward=temporal_dim_feedforward,
-            dropout=temporal_dropout,
-            pooling=temporal_pooling,
-        )
+        # Temporal transformer (optional for PIT mode).
+        self.temporal_transformer = None
+        if self.use_temporal_transformer:
+            self.temporal_transformer = TemporalTransformer(
+                feature_dim=spatial_feature_dim,
+                num_layers=temporal_num_layers,
+                num_heads=temporal_num_heads,
+                dim_feedforward=temporal_dim_feedforward,
+                dropout=temporal_dropout,
+                pooling=temporal_pooling,
+            )
 
         # Task-specific prediction head
         layers = []
@@ -109,6 +113,18 @@ class FlareForecaster(nn.Module):
         layers.append(nn.Linear(in_dim, output_dim))
 
         self.prediction_head = nn.Sequential(*layers)
+
+    @staticmethod
+    def _select_last_valid_features(spatial_features, mask=None):
+        """
+        Select the last valid timestep feature for each sample.
+        """
+        if mask is None:
+            return spatial_features[:, -1, :]
+
+        lengths = mask.sum(dim=1).long().clamp(min=1)
+        batch_idx = torch.arange(spatial_features.shape[0], device=spatial_features.device)
+        return spatial_features[batch_idx, lengths - 1, :]
 
     def forward(self, x, mask=None):
         """
@@ -139,8 +155,11 @@ class FlareForecaster(nn.Module):
         # Reshape back to (B, T, feature_dim)
         spatial_features = spatial_features.reshape(B, T, self.spatial_feature_dim)
 
-        # Process temporal sequence
-        temporal_features = self.temporal_transformer(spatial_features, mask=mask)  # (B, feature_dim)
+        # Process sequence.
+        if self.use_temporal_transformer:
+            temporal_features = self.temporal_transformer(spatial_features, mask=mask)  # (B, feature_dim)
+        else:
+            temporal_features = self._select_last_valid_features(spatial_features, mask=mask)
 
         # Task-specific prediction
         output = self.prediction_head(temporal_features)  # (B, output_dim)

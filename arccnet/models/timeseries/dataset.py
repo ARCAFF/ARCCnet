@@ -16,6 +16,7 @@ from .config import (
     NUM_TIMESTEPS,
     SEED,
     TASK_TYPE,
+    TIMESTEP_SELECTION,
 )
 from .path_utils import parse_paths_grid
 
@@ -48,6 +49,8 @@ class SDOTimeseriesDataset(Dataset):
         resize=(256, 512),
         augment=False,
         norm_stats=None,
+        num_timesteps=NUM_TIMESTEPS,
+        timestep_selection=TIMESTEP_SELECTION,
         hflip_prob=0.5,
         vflip_prob=0.5,
         rotation_degrees=10,
@@ -57,7 +60,12 @@ class SDOTimeseriesDataset(Dataset):
         self.task_type = task_type or TASK_TYPE
         self.resize = resize
         self.augment = augment and (split == "train")
-        self.expected_timesteps = NUM_TIMESTEPS
+        self.expected_timesteps = max(1, int(num_timesteps))
+        self.timestep_selection = str(timestep_selection).strip().lower()
+        if self.timestep_selection not in {"first", "last"}:
+            raise ValueError(
+                f"Unsupported timestep_selection={self.timestep_selection!r}. Expected one of: 'first', 'last'."
+            )
         self.hflip_prob = hflip_prob
         self.vflip_prob = vflip_prob
         self.rotation_degrees = rotation_degrees
@@ -78,6 +86,7 @@ class SDOTimeseriesDataset(Dataset):
         row = self.manifest.iloc[idx]
 
         paths = self._parse_paths(row["paths"])
+        selected_timesteps = self._select_timesteps(paths, max_timesteps=self.expected_timesteps)
         if self.resize:
             image_shape = (self.resize[0], self.resize[1])
         else:
@@ -85,7 +94,7 @@ class SDOTimeseriesDataset(Dataset):
 
         timesteps = []
         timestep_mask = []
-        for t_paths in paths[: self.expected_timesteps]:
+        for t_paths in selected_timesteps:
             if isinstance(t_paths, np.ndarray):
                 t_paths = t_paths.tolist()
             channels = []
@@ -141,6 +150,25 @@ class SDOTimeseriesDataset(Dataset):
     def _parse_paths(self, raw_paths):
         """Safely parse serialized path grids from manifest."""
         return parse_paths_grid(raw_paths)
+
+    def _select_timesteps(self, paths, max_timesteps=None):
+        """
+        Select timesteps from the parsed path grid according to runtime strategy.
+
+        By default this preserves the current behavior (first N timesteps). PIT mode
+        can switch to the latest window via ``timestep_selection="last"``.
+        """
+        if isinstance(paths, np.ndarray):
+            paths = paths.tolist()
+        paths = list(paths)
+
+        if max_timesteps is None:
+            max_timesteps = self.expected_timesteps
+        max_timesteps = max(1, int(max_timesteps))
+
+        if self.timestep_selection == "last":
+            return paths[-max_timesteps:]
+        return paths[:max_timesteps]
 
     def _discover_processed_roots(self):
         """
@@ -294,8 +322,9 @@ class SDOTimeseriesDataset(Dataset):
             for idx in sample_indices:
                 row = self.manifest.iloc[idx]
                 paths = self._parse_paths(row["paths"])
+                selected_paths = self._select_timesteps(paths, max_timesteps=max_timesteps)
 
-                for t_paths in paths[:max_timesteps]:
+                for t_paths in selected_paths:
                     if c < len(t_paths) and t_paths[c] and t_paths[c] != "None":
                         img = self._load_fits(t_paths[c])
                         pixels = img.reshape(-1)

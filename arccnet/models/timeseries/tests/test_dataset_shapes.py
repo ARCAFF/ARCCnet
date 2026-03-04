@@ -5,6 +5,57 @@ import pandas as pd
 from arccnet.models.timeseries.dataset import SDOTimeseriesDataset
 
 
+def test_dataset_timestep_selection_helper():
+    """Dataset helper should support selecting latest timestep windows."""
+    mock_manifest = pd.DataFrame(
+        {
+            "sample_id": ["test_sample"],
+            "sample_path": ["/fake/path"],
+            "noaa_ar": [12345],
+            "date": ["2011-01-01"],
+            "hale_class": ["Beta"],
+            "mcintosh": ["Dso"],
+            "num_timesteps": [6],
+            "timestamps": [["t0", "t1", "t2", "t3", "t4", "t5"]],
+            "paths": [[[None] * 10] * 6],
+            "xb": [0],
+            "mb": [0],
+            "cb": [0],
+            "xa": [0],
+            "ma": [0],
+            "ca": [0],
+            "c_plus": [0],
+            "m_plus": [0],
+            "x_plus": [0],
+            "flare_class": [0],
+            "log_ca": [0.0],
+            "log_ma": [0.0],
+            "log_xa": [0.0],
+        }
+    )
+    dataset = SDOTimeseriesDataset(
+        mock_manifest,
+        split="test",
+        task_type="multiclass",
+        resize=(16, 16),
+        augment=False,
+        norm_stats={
+            "mean": [0.0] * 10,
+            "std": [1.0] * 10,
+            "clip_low": [None] * 10,
+            "clip_high": [None] * 10,
+        },
+    )
+
+    candidate_paths = [[f"t{t}_c{c}" for c in range(10)] for t in range(6)]
+    dataset.timestep_selection = "last"
+    selected = dataset._select_timesteps(candidate_paths, max_timesteps=2)
+
+    assert len(selected) == 2
+    assert selected[0][0] == "t4_c0"
+    assert selected[1][0] == "t5_c0"
+
+
 def test_dataset_shapes():
     """Test that dataset returns correct shapes."""
     print("Testing SDOTimeseriesDataset shapes...")
@@ -82,5 +133,6 @@ def test_dataset_shapes():
 
 
 if __name__ == "__main__":
+    test_dataset_timestep_selection_helper()
     test_dataset_shapes()
     print("\n✅ All shape tests passed!")

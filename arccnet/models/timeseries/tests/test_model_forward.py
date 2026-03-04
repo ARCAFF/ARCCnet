@@ -101,6 +101,54 @@ def test_flare_forecaster_forward():
     print("✓ FlareForecaster forward test passed!")
 
 
+def test_flare_forecaster_forward_no_temporal_last_timestep():
+    """No-temporal mode should only depend on the last valid timestep."""
+    print("\nTesting FlareForecaster PIT/no-temporal forward path...")
+
+    model = FlareForecaster(
+        task_type="multiclass",
+        num_channels=10,
+        spatial_feature_dim=512,
+        output_dim=ts_config.NUM_CLASSES,
+        pretrained_spatial=False,
+        hidden_dims=[128],
+        use_temporal_transformer=False,
+    )
+    model.eval()
+
+    x = torch.randn(2, 4, 10, 64, 64)
+    x_variant = x.clone()
+    x_variant[:, :-1] = torch.randn_like(x_variant[:, :-1])  # alter non-last timesteps only
+
+    with torch.no_grad():
+        logits_a = model(x)
+        logits_b = model(x_variant)
+
+    assert torch.allclose(logits_a, logits_b, atol=1e-5, rtol=1e-5), (
+        "No-temporal mode should ignore non-last timesteps when mask is absent."
+    )
+
+    mask = torch.tensor(
+        [
+            [True, True, False, False],  # last valid idx = 1
+            [True, False, False, False],  # last valid idx = 0
+        ],
+        dtype=torch.bool,
+    )
+    x_mask_variant = x.clone()
+    x_mask_variant[:, 2:] = torch.randn_like(x_mask_variant[:, 2:])  # alter masked-out tail
+
+    with torch.no_grad():
+        logits_mask_a = model(x, mask=mask)
+        logits_mask_b = model(x_mask_variant, mask=mask)
+
+    assert torch.allclose(logits_mask_a, logits_mask_b, atol=1e-5, rtol=1e-5), (
+        "No-temporal mode should ignore masked-out timesteps."
+    )
+    assert logits_a.shape == (2, ts_config.NUM_CLASSES)
+    print("✓ No-temporal forward test passed!")
+
+
 def test_model_cuda():
     """Test model on CUDA if available."""
     if not torch.cuda.is_available():
@@ -136,5 +184,6 @@ if __name__ == "__main__":
     test_spatial_encoder_forward()
     test_temporal_transformer_forward()
     test_flare_forecaster_forward()
+    test_flare_forecaster_forward_no_temporal_last_timestep()
     test_model_cuda()
     print("\n✅ All model tests passed!")

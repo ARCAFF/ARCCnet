@@ -31,6 +31,7 @@ arccnet/models/timeseries/
 ├── temporal_transformer.py  # Transformer temporal encoder
 ├── flare_forecaster.py      # Complete forecasting model
 ├── train.py                 # Training script
+├── pit_train.py             # PIT wrapper (single-timestep training)
 ├── evaluate.py              # Evaluation script
 ├── README.md                # This file
 └── tests/                   # Test suite
@@ -54,6 +55,24 @@ python -m arccnet.models.timeseries.train \
 ```
 
 `train.py` rebuilds the manifest from `--data_root` on every run and writes it to `--manifest_path`.
+
+### 1b. Train Point-in-Time (PIT) Model
+
+Run PIT training (single timestep from the end of each sample, temporal transformer disabled):
+
+```bash
+python -m arccnet.models.timeseries.pit_train \
+    --data_root /ARCAFF/data/timeseries/04_final/data \
+    --manifest_path /ARCAFF/ARCCnet/outputs/timeseries/manifest_pit.parq \
+    --output_dir /ARCAFF/ARCCnet/outputs/timeseries/pit_run_001
+```
+
+`pit_train.py` is a thin wrapper around `train.py` that forwards:
+- `--num_timesteps 1`
+- `--timestep_selection last`
+- `--use_temporal_transformer false`
+
+You can still pass any regular `train.py` arguments to the PIT wrapper.
 
 Training outputs:
 - `.../best-epoch-metric.ckpt` - Best Lightning checkpoint (highest validation primary metric)

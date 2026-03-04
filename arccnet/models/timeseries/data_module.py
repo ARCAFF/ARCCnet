@@ -5,11 +5,13 @@ from torch.utils.data import DataLoader
 
 from .config import (
     HFLIP_PROB,
+    NUM_TIMESTEPS,
     NUM_WORKERS,
     PERSISTENT_WORKERS,
     PIN_MEMORY,
     RESIZE,
     ROTATION_DEGREES,
+    TIMESTEP_SELECTION,
     USE_AUGMENTATION,
     VFLIP_PROB,
 )
@@ -32,6 +34,8 @@ class FlareDataModule(pl.LightningDataModule):
         num_workers=NUM_WORKERS,
         resize=RESIZE,
         use_augmentation=USE_AUGMENTATION,
+        num_timesteps=NUM_TIMESTEPS,
+        timestep_selection=TIMESTEP_SELECTION,
         hflip_prob=HFLIP_PROB,
         vflip_prob=VFLIP_PROB,
         rotation_degrees=ROTATION_DEGREES,
@@ -72,6 +76,8 @@ class FlareDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.resize = resize
         self.use_augmentation = use_augmentation
+        self.num_timesteps = max(1, int(num_timesteps))
+        self.timestep_selection = str(timestep_selection).strip().lower()
         self.hflip_prob = hflip_prob
         self.vflip_prob = vflip_prob
         self.rotation_degrees = rotation_degrees
@@ -105,6 +111,8 @@ class FlareDataModule(pl.LightningDataModule):
                 resize=self.resize,
                 augment=False,
                 norm_stats=None,
+                num_timesteps=self.num_timesteps,
+                timestep_selection=self.timestep_selection,
             )
             self.norm_stats = temp_train.get_norm_stats()
 
@@ -115,6 +123,8 @@ class FlareDataModule(pl.LightningDataModule):
             resize=self.resize,
             augment=self.use_augmentation,
             norm_stats=self.norm_stats,
+            num_timesteps=self.num_timesteps,
+            timestep_selection=self.timestep_selection,
             hflip_prob=self.hflip_prob,
             vflip_prob=self.vflip_prob,
             rotation_degrees=self.rotation_degrees,
@@ -127,6 +137,8 @@ class FlareDataModule(pl.LightningDataModule):
             resize=self.resize,
             augment=False,
             norm_stats=self.norm_stats,
+            num_timesteps=self.num_timesteps,
+            timestep_selection=self.timestep_selection,
         )
 
         self.test_dataset = SDOTimeseriesDataset(
@@ -136,6 +148,8 @@ class FlareDataModule(pl.LightningDataModule):
             resize=self.resize,
             augment=False,
             norm_stats=self.norm_stats,
+            num_timesteps=self.num_timesteps,
+            timestep_selection=self.timestep_selection,
         )
 
     def train_dataloader(self):

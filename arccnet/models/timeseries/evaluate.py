@@ -151,8 +151,14 @@ def _load_model(checkpoint_path, task_type, device):
 
     checkpoint = torch.load(str(checkpoint_path), map_location=device)
 
+    def _infer_temporal_usage_from_keys(state_dict_keys):
+        """Infer whether checkpoint contains temporal-transformer weights."""
+        return any("temporal_transformer" in key for key in state_dict_keys)
+
     # Legacy pure model checkpoint.
     if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+        model_state = checkpoint["model_state_dict"]
+        use_temporal_transformer = _infer_temporal_usage_from_keys(model_state.keys())
         model = FlareForecaster(
             task_type=task_type,
             num_channels=NUM_CHANNELS,
@@ -162,25 +168,29 @@ def _load_model(checkpoint_path, task_type, device):
             temporal_dim_feedforward=TEMPORAL_DIM_FEEDFORWARD,
             temporal_dropout=TEMPORAL_DROPOUT,
             temporal_pooling=TEMPORAL_POOLING,
+            use_temporal_transformer=use_temporal_transformer,
             output_dim=NUM_CLASSES if task_type == "multiclass" else REGRESSION_TARGETS,
             pretrained_spatial=False,
             freeze_spatial=FREEZE_SPATIAL,
             hidden_dims=HIDDEN_DIMS,
             dropout=DROPOUT,
         )
-        model.load_state_dict(checkpoint["model_state_dict"])
+        model.load_state_dict(model_state, strict=False)
         model = model.to(device).eval()
         return model, None
 
     # Lightning checkpoint loaded manually.
     if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        lightning_state = checkpoint["state_dict"]
+        use_temporal_transformer = _infer_temporal_usage_from_keys(lightning_state.keys())
         lightning_model = FlareForecasterLightning(
             task_type=task_type,
             num_channels=NUM_CHANNELS,
             output_dim=NUM_CLASSES if task_type == "multiclass" else REGRESSION_TARGETS,
             flare_class_names=list(getattr(ts_config, "FLARE_CLASS_NAMES", [])) if task_type == "multiclass" else None,
+            use_temporal_transformer=use_temporal_transformer,
         )
-        lightning_model.load_state_dict(checkpoint["state_dict"], strict=False)
+        lightning_model.load_state_dict(lightning_state, strict=False)
         lightning_model = lightning_model.to(device).eval()
         threshold = None
         if hasattr(lightning_model, "m_plus_threshold"):
@@ -263,9 +273,19 @@ def evaluate(model, dataloader, device, task_type):
 def main(args):
     """Main evaluation function."""
     task_type = args.task_type or TASK_TYPE
+    run_num_timesteps = args.num_timesteps if args.num_timesteps is not None else ts_config.NUM_TIMESTEPS
+    run_timestep_selection = args.timestep_selection if args.timestep_selection else ts_config.TIMESTEP_SELECTION
+    run_num_timesteps = max(1, int(run_num_timesteps))
+    run_timestep_selection = str(run_timestep_selection).strip().lower()
+    if run_timestep_selection not in {"first", "last"}:
+        raise ValueError(
+            f"Unsupported timestep_selection={run_timestep_selection!r}. Expected one of: 'first', 'last'."
+        )
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     print(f"Task type: {task_type}")
+    print(f"Input setup: num_timesteps={run_num_timesteps}, timestep_selection={run_timestep_selection}")
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -296,6 +316,8 @@ def main(args):
         resize=RESIZE,
         augment=False,
         norm_stats=norm_stats,
+        num_timesteps=run_num_timesteps,
+        timestep_selection=run_timestep_selection,
     )
     dataloader = DataLoader(
         dataset,
@@ -400,6 +422,19 @@ if __name__ == "__main__":
         help="Path to split assignment parquet/csv saved during training (recommended)",
     )
     parser.add_argument("--task_type", type=str, default=None, choices=["multiclass", "regression"])
+    parser.add_argument(
+        "--num_timesteps",
+        type=int,
+        default=None,
+        help="Number of timesteps per sample to load (default: from config.NUM_TIMESTEPS).",
+    )
+    parser.add_argument(
+        "--timestep_selection",
+        type=str,
+        default=None,
+        choices=["first", "last"],
+        help="Select timesteps from the beginning or end of each sample (default: from config.TIMESTEP_SELECTION).",
+    )
     parser.add_argument(
         "--split",
         type=str,
