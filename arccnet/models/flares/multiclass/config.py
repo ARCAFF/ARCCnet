@@ -2,14 +2,14 @@
 
 import os
 
-MODEL_NAME = "vit_base_patch16_224"
-PRETRAINED = False
+MODEL_NAME = "vit_base_patch8_224"
+PRETRAINED = True
 USE_WEIGHTED_LOSS = True
-LOSS_TYPE = "focal"
+LOSS_TYPE = "weighted_ce"  # cross_entropy, weighted_ce, focal, weighted_focal
 FOCAL_ALPHA = 1.0
 FOCAL_GAMMA = 2.0
 ACCELERATOR = "auto"
-DEVICES = [0]
+DEVICES = [0, 1]
 PRECISION = "16-mixed"
 
 BATCH_SIZE = 64

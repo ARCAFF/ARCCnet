@@ -2,7 +2,7 @@
 
 import os
 
-MODEL_NAME = "resnet34"
+MODEL_NAME = "vit_base_patch8_224"
 
 BATCH_SIZE = 64
 NUM_WORKERS = 16
@@ -12,7 +12,7 @@ PATIENCE = 15
 CHECKPOINT_METRIC = "val_f1"
 
 ACCELERATOR = "auto"
-DEVICES = [0]
+DEVICES = [2]
 PRECISION = "16-mixed"
 
 LOSS_FUNCTION = "weighted_bce"  # Options: "bce", "weighted_bce", "focal"
@@ -50,7 +50,7 @@ PERSISTENT_WORKERS = False
 PREFETCH_FACTOR = 1
 DATALOADER_MULTIPROCESSING_CONTEXT = None
 
-ENABLE_COMET_LOGGING = False
+ENABLE_COMET_LOGGING = True
 COMET_PROJECT_NAME = "ars-flare-classification"
 COMET_WORKSPACE = "arcaff"
 

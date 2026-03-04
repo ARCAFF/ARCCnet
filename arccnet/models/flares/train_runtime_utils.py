@@ -216,7 +216,7 @@ def init_comet_logger(config_module, logger, comet_ml_module) -> CometLogger | N
 
 
 class CometModelCheckpointCallback(Callback):
-    """Log a new best checkpoint artifact to Comet."""
+    """Log only the final best checkpoint artifact to Comet."""
 
     def __init__(self, comet_logger: CometLogger, logger, verbose: bool = False) -> None:
         super().__init__()
@@ -225,7 +225,10 @@ class CometModelCheckpointCallback(Callback):
         self.verbose = bool(verbose)
         self._last_logged_best_path: str | None = None
 
-    def on_validation_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+    def on_train_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        if not getattr(trainer, "is_global_zero", True):
+            return
+
         checkpoint_callback = getattr(trainer, "checkpoint_callback", None)
         best_path = getattr(checkpoint_callback, "best_model_path", None)
         if not best_path or not os.path.exists(best_path):
@@ -234,7 +237,7 @@ class CometModelCheckpointCallback(Callback):
             return
 
         if self.verbose:
-            self.logger.info("Logging best model to Comet...")
+            self.logger.info("Logging final best model to Comet...")
         logged = safe_comet_call(
             self.comet_logger,
             self.logger,
@@ -247,4 +250,4 @@ class CometModelCheckpointCallback(Callback):
         if logged:
             self._last_logged_best_path = best_path
             if self.verbose:
-                self.logger.info("Best model logged to Comet successfully.")
+                self.logger.info("Final best model logged to Comet successfully.")
