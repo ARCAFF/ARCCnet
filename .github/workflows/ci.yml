@@ -6,7 +6,6 @@ on:
       - 'main'
       - '*.*'
       - '!*backport*'
-      - '*'
     tags:
       - 'v*'
       - '!*dev*'
@@ -36,6 +35,8 @@ jobs:
       submodules: false
       coverage: codecov
       posargs: -n auto
+      setenv: |
+        USERNAME: ci-user # pytorch issue on windows
       envs: |
         - macos: py311-test
         - windows: py311-test
