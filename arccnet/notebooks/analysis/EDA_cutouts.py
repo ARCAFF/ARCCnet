@@ -33,7 +33,6 @@ from arccnet.models import dataset_utils as ut_d
 from arccnet.models import preprocessing_common as pp_common
 from arccnet.notebooks.analysis.EDA_utils import (
     analyze_quality_flags,
-    create_solar_grid,
     load_and_analyze_fits_pair,
     process_row,
 )
@@ -48,6 +47,7 @@ data_folder = "/ARCAFF/data"
 dataset_folder = "arcnet-v20251017/04_final"
 df_file_name = "data/cutout_classification/region_classification.parq"
 dataset_title = "arccnet v20251017"
+save_figures = True
 
 # %%
 df, _, filtered_ql_df = ut_d.make_dataframe(data_folder, dataset_folder, df_file_name)
@@ -136,7 +136,8 @@ AR_IA_lbs = ["Alpha", "Beta", "IA", "Beta-Gamma-Delta", "Beta-Gamma", "Beta-Delt
 AR_IA_df = df_clean[df_clean["label"].isin(AR_IA_lbs)].reset_index(drop=True)
 
 # %%
-ut_v.make_classes_histogram(AR_IA_df["label"], figsz=(12, 7), text_fontsize=11, title=f"{dataset_title} ARs", y_off=100)
+ut_v.make_classes_histogram(
+    AR_IA_df["label"], figsz=(12, 7), text_fontsize=12, title=f"Mount Wilson Classes Distribution", y_off=100, fontsize=13)
 plt.show()
 
 
@@ -175,7 +176,7 @@ zV = np.sin(latV)
 # Create solar disc visualization
 fig, ax = plt.subplots(figsize=(10, 10))
 ax.add_artist(plt.Circle((0, 0), 1, edgecolor="gray", facecolor="none"))
-create_solar_grid(ax)
+ut_v.create_solar_grid(ax)
 
 # Plot data points using masks
 front_mask, rear_mask = results["mask_front"], results["mask_rear"]
@@ -219,7 +220,8 @@ with plt.style.context("seaborn-v0_8-darkgrid"):
     # Top panel: Bar chart
     ax1.bar(mdi_counts.index, mdi_counts.values, width=0.8, color=mdi_color, alpha=0.9, label="MDI")
     ax1.bar(hmi_counts.index, hmi_counts.values, width=0.8, color=hmi_color, alpha=0.9, label="HMI")
-    ax1.set(ylabel="n° of ARs per day", ylim=[0, 20], yticks=np.arange(0, 20 + 2, 2))
+    ax1.set(ylim=[0, 20], yticks=np.arange(0, 22, 2))
+    ax1.set_ylabel("n° of ARs per day", fontsize=14)
     ax1.tick_params(axis="y", labelsize=14)
     ax1.legend(loc="upper left", fontsize=14)
     ax1.grid(True, linestyle="--", alpha=0.5)
@@ -240,6 +242,8 @@ with plt.style.context("seaborn-v0_8-darkgrid"):
     ax2.set_xlabel("Time", fontsize=16)
 
     plt.tight_layout()
+    if save_figures:
+        fig.savefig("ar_timeline.pdf", format="pdf", bbox_inches="tight")
     plt.show()
 
 # %% [markdown]
@@ -257,6 +261,8 @@ ut_v.make_classes_histogram(
     ylabel="Number of Active Regions",
     title="McIntosh Class Distribution",
     ylim=5900,
+    text_fontsize=13,
+    fontsize=13
 )
 plt.show()
 
