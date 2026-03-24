@@ -2,7 +2,6 @@
 Utility functions for Exploratory Data Analysis (EDA) of ARCCnet cutout data.
 """
 
-import os
 from pathlib import Path
 
 import numpy as np
@@ -186,6 +185,48 @@ def compute_stats(data, longitude):
     return stats
 
 
+def _resolve_fits_pair_paths(path_value, data_folder, dataset_folder):
+    """
+    Resolve magnetogram/continuum FITS paths across supported dataset layouts.
+
+    Supports:
+    1) New flat layout under <data_folder>/<dataset_folder>/<filename>.fits
+    2) Legacy nested layout under .../data/cutout_classification/fits/<filename>.fits
+    3) Relative paths stored in dataframe columns.
+    """
+    dataset_root = Path(data_folder) / dataset_folder
+    raw_path = Path(str(path_value).strip())
+
+    candidate_mag_paths = []
+    if raw_path.is_absolute():
+        candidate_mag_paths.append(raw_path)
+    if str(path_value).strip():
+        candidate_mag_paths.append(dataset_root / str(path_value).strip())
+    candidate_mag_paths.append(dataset_root / raw_path.name)
+    candidate_mag_paths.append(dataset_root / "data/cutout_classification/fits" / raw_path.name)
+
+    # Preserve order while removing duplicates.
+    seen = set()
+    unique_candidates = []
+    for candidate in candidate_mag_paths:
+        if candidate not in seen:
+            unique_candidates.append(candidate)
+            seen.add(candidate)
+
+    checked = []
+    for mag_path in unique_candidates:
+        checked.append(str(mag_path))
+        cont_path = mag_path.with_name(mag_path.name.replace("_mag_", "_cont_"))
+        if mag_path.exists() and cont_path.exists():
+            return mag_path, cont_path
+
+    checked_locations = "\n - ".join(checked)
+    raise FileNotFoundError(
+        "Could not locate matching magnetogram/continuum FITS files. Checked:\n"
+        f" - {checked_locations}"
+    )
+
+
 def load_and_analyze_fits_pair(idx, df_clean, data_folder, dataset_folder):
     """
     Load magnetogram and continuum FITS files and compute statistics.
@@ -201,15 +242,8 @@ def load_and_analyze_fits_pair(idx, df_clean, data_folder, dataset_folder):
 
     row = df_clean.iloc[idx]
     path = row["path_image_cutout_hmi"] if row["path_image_cutout_mdi"] == "" else row["path_image_cutout_mdi"]
-    fits_magn_filename = os.path.basename(path)
-    fits_magn_path = Path(data_folder) / dataset_folder / "data/cutout_classification/fits" / fits_magn_filename
-    fits_cont_path = Path(str(fits_magn_path).replace("_mag_", "_cont_"))
-
-    # Check if files exist
-    if not fits_magn_path.exists():
-        raise FileNotFoundError(f"Magnetogram file not found: {fits_magn_path}")
-    if not fits_cont_path.exists():
-        raise FileNotFoundError(f"Continuum file not found: {fits_cont_path}")
+    fits_magn_path, fits_cont_path = _resolve_fits_pair_paths(path, data_folder, dataset_folder)
+    fits_magn_filename = fits_magn_path.name
 
     # Load data
     with fits.open(fits_magn_path) as hdul:

@@ -20,13 +20,15 @@
 
 from datetime import datetime
 from functools import partial
+import multiprocessing as mp
+import os
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from p_tqdm import p_map
+from tqdm.auto import tqdm
 
 from arccnet import load_config
 from arccnet.models import dataset_utils as ut_d
@@ -44,8 +46,8 @@ config = load_config()
 
 # %%
 data_folder = "/ARCAFF/data"
-dataset_folder = "arcnet-v20251017/04_final"
-df_file_name = "data/cutout_classification/region_classification.parq"
+dataset_folder = "arccnet-ar-classification-v20251016"
+df_file_name = "region_classification.parq"
 dataset_title = "arccnet v20251017"
 save_figures = True
 
@@ -367,7 +369,20 @@ print(f"{'Max':<12} {data['mag_stats']['max']:<12.2f} {data['cont_stats']['max']
 
 # %%
 process_row_fn = partial(process_row, df_clean=AR_IA_df, data_folder=data_folder, dataset_folder=dataset_folder)
-results = p_map(process_row_fn, range(len(AR_IA_df)))
+
+# Fork keeps the dataframe in shared copy-on-write memory on Linux and avoids
+# heavy serialization costs from sending it with each task.
+n_workers = min(14, os.cpu_count() or 1)
+chunk_size = 2048
+
+with mp.get_context("fork").Pool(processes=n_workers) as pool:
+    results = list(
+        tqdm(
+            pool.imap(process_row_fn, range(len(AR_IA_df)), chunksize=chunk_size),
+            total=len(AR_IA_df),
+            desc=f"FITS stats ({n_workers} workers)",
+        )
+    )
 
 # %%
 flat_stats = []
@@ -394,27 +409,27 @@ top10_rows
 
 # %%
 stats_config = [
-    ("mag_mean", "Magnetogram Mean", "royalblue"),
-    ("mag_std", "Magnetogram Std Dev", "royalblue"),
-    ("mag_min", "Magnetogram Min", "royalblue"),
-    ("mag_max", "Magnetogram Max", "royalblue"),
-    ("cont_mean", "Continuum Mean", "tomato"),
-    ("cont_std", "Continuum Std Dev", "tomato"),
-    ("cont_min", "Continuum Min", "tomato"),
-    ("cont_max", "Continuum Max", "tomato"),
+    ("mag_mean", "Magnetogram Mean", "royalblue", "Magnetic field [G]"),
+    ("mag_std", "Magnetogram Std Dev", "royalblue", "Magnetic field [G]"),
+    ("mag_min", "Magnetogram Min", "royalblue", "Magnetic field [G]"),
+    ("mag_max", "Magnetogram Max", "royalblue", "Magnetic field [G]"),
+    ("cont_mean", "Continuum Mean", "tomato", "Continuum intensity [DN]"),
+    ("cont_std", "Continuum Std Dev", "tomato", "Continuum intensity [DN]"),
+    ("cont_min", "Continuum Min", "tomato", "Continuum intensity [DN]"),
+    ("cont_max", "Continuum Max", "tomato", "Continuum intensity [DN]"),
 ]
 
 # Create histograms
-fig, axes = plt.subplots(2, 4, figsize=(20, 8))
-for i, (col, title, color) in enumerate(stats_config):
+fig, axes = plt.subplots(2, 4, figsize=(20, 8), sharey=True)
+for i, (col, title, color, xlabel) in enumerate(stats_config):
     ax = axes.flat[i]
     ax.hist(stats_df[col], bins=50, color=color, alpha=0.7, edgecolor="black", linewidth=0.5, log=True)
     ax.set_title(title, fontsize=16, pad=12)
-    ax.set_xlabel("Value", fontsize=14)
+    ax.set_xlabel(xlabel, fontsize=16)
     if i % 4 == 0:  # First column gets y-label
-        ax.set_ylabel("Frequency", fontsize=14)
+        ax.set_ylabel("Frequency (log scale)", fontsize=16)
     ax.grid(True, alpha=0.3)
-    ax.tick_params(labelsize=12)
+    ax.tick_params(labelsize=14)
 
 plt.tight_layout()
 plt.show()
@@ -427,7 +442,7 @@ all_labels = stats_df["label"].unique()
 # Create a custom color palette
 palette = {label: colors[i % len(colors)] for i, label in enumerate(all_labels)}
 
-for col, title, _ in stats_config:
+for col, title, _, _ in stats_config:
     fig, ax = plt.subplots(figsize=(14, 8))
     sns.boxplot(data=stats_df, x="label", y=col, hue="label", palette=palette, ax=ax, legend=False)
     ax.set_title(f"{title} by Active Region Class", fontsize=18)
