@@ -6,10 +6,17 @@ import numpy as np
 import pandas as pd
 import pytest
 from numpy.testing import assert_allclose, assert_array_equal
+from sunpy.data import sample
+from sunpy.map import Map
+
+import astropy.units as u
+from astropy.time import Time
 
 from arccnet.data_generation.utils.utils import (
     check_column_values,
     grouped_stratified_split,
+    reproject,
+    round_to_daystart,
     save_df_to_html,
     time_split,
 )
@@ -141,3 +148,37 @@ def test_time_split():
     assert len(train) == 6
     assert len(test) == 2
     assert len(valid) == 2
+
+
+def test_rereproject():
+    aia = Map(sample.AIA_171_IMAGE)
+    hmi = Map(sample.HMI_LOS_IMAGE)
+
+    aia_to_hmi = reproject(aia, hmi)
+    assert aia_to_hmi.dimensions == hmi.dimensions
+    assert aia_to_hmi.wcs.wcs == hmi.wcs.wcs  # this compares the important info not sure why
+    assert aia_to_hmi.date == hmi.date
+    assert aia_to_hmi.detector == aia.detector
+    assert aia_to_hmi.instrument == aia.instrument
+    assert aia_to_hmi.observatory == aia.observatory
+    assert aia_to_hmi.wavelength == aia.wavelength
+
+
+def test_round_to_daystart():
+    expected = Time(
+        [
+            "2021-01-01",
+            "2021-01-01",
+            "2021-01-02",
+            "2021-01-02",
+            "2021-01-02",
+            "2021-01-02",
+            "2021-01-03",
+            "2021-01-03",
+            "2021-01-03",
+        ]
+    )
+    t = Time("2021-01-01")
+    times = t + [0, 6, 12, 18, 24, 30, 36, 42, 48] * u.hour
+    out = round_to_daystart(times)
+    assert_array_equal(expected, out)
